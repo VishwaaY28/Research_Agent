@@ -4,12 +4,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.middlewares.auth import AuthMiddleware
 from api.routes.auth import router as auth_router
+from api.routes.workspaces import router as workspaces_router
 from config.env import env
 from database.db import init_db, close_db
 
 app = FastAPI(
     title="Proposal Craft API",
     description="API for Proposal Craft application",
+    root_path_in_servers=False
 )
 
 @app.on_event("startup")
@@ -37,6 +39,7 @@ async def health_check():
 
 app.add_middleware(AuthMiddleware)
 app.include_router(auth_router)
+app.include_router(workspaces_router)
 
 @app.get("/{full_path:path}")
 async def catch_all(full_path: str):

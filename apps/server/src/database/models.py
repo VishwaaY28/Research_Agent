@@ -10,20 +10,8 @@ class User(TimestampMixin):
   name = fields.CharField(max_length=50)
   email = fields.CharField(max_length=100, unique=True)
   password_hash = fields.CharField(max_length=128)
-
-class Team(TimestampMixin):
-  id = fields.IntField(pk=True)
-  name = fields.CharField(max_length=255)
-
-class TeamMember(TimestampMixin):
-  id = fields.IntField(pk=True)
-  team = fields.ForeignKeyField('models.Team', related_name='members')
-  user = fields.ForeignKeyField('models.User', related_name='team_members')
-  role = fields.CharField(max_length=50)
-
 class Workspace(TimestampMixin):
   id = fields.IntField(pk=True)
-  team = fields.ForeignKeyField('models.Team', related_name='workspaces')
   name = fields.CharField(max_length=255)
   client = fields.CharField(max_length=255)
 

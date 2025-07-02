@@ -24,3 +24,4 @@ dist-ssr
 # python
 .venv
 __pycache__
+db.sqlite3*

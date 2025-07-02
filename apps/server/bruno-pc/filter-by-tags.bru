@@ -1,0 +1,16 @@
+meta {
+  name: filter-by-tags
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseurl}}/workspaces/filter?tags=tag1&tags=tag2
+  body: none
+  auth: inherit
+}
+
+params:query {
+  tags: tag1
+  tags: tag2
+}

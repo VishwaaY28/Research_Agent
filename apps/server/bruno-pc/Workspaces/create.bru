@@ -1,0 +1,26 @@
+meta {
+  name: create
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseurl}}/workspaces
+  body: json
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NTE1NjE2NTd9.htJWzQsL-B8msxVfrYx_a7YNG2IroqN2rgQeO52ws98
+}
+
+body:json {
+  {
+    "name": "Sample Workspace",
+    "client": "Sample Client",
+    "tags": [
+      "tag1",
+      "tag2"
+    ]
+  }
+}
