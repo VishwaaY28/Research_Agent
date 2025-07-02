@@ -1,0 +1,4 @@
+ruff
+fastapi
+uvicorn
+python-dotenv
