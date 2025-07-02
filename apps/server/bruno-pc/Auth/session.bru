@@ -1,0 +1,15 @@
+meta {
+  name: session
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseurl}}/auth/session
+  body: json
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NTE1NjE2NTd9.htJWzQsL-B8msxVfrYx_a7YNG2IroqN2rgQeO52ws98
+}

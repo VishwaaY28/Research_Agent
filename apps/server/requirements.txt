@@ -2,3 +2,10 @@ ruff
 fastapi
 uvicorn
 python-dotenv
+tortoise-orm
+tomlkit
+aerich
+PyJWT
+passlib
+bcrypt
+pydantic[email]

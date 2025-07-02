@@ -1,13 +1,24 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import router
+from api.middlewares.auth import AuthMiddleware
+from api.routes.auth import router as auth_router
 from config.env import env
+from database.db import init_db, close_db
 
 app = FastAPI(
     title="Proposal Craft API",
     description="API for Proposal Craft application",
 )
+
+@app.on_event("startup")
+async def startup_event():
+    await init_db()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await close_db()
 
 app.add_middleware(
     CORSMiddleware,
@@ -17,7 +28,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(router, prefix="/api")
+@app.get("/api/health")
+async def health_check():
+    return JSONResponse(
+        content={"status": "ok"},
+        status_code=200
+    )
+
+app.add_middleware(AuthMiddleware)
+app.include_router(auth_router)
+
+@app.get("/{full_path:path}")
+async def catch_all(full_path: str):
+    raise HTTPException(
+        status_code=404,
+        detail=f"Route '{full_path}' not found."
+    )
+
 
 if __name__ == "__main__":
     import uvicorn
