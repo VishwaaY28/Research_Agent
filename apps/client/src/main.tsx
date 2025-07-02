@@ -1,18 +1,19 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import './index.css';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
-import Home from './pages/Home';
-import Error from './pages/Error';
-import Auth from './pages/Auth';
+import './index.css';
 import DashLayout from './layouts/DashLayout';
-import DashHome from './pages/dashboard/Home';
-import Workspaces from './pages/dashboard/Workspaces';
+import Auth from './pages/Auth';
 import ContentIngestion from './pages/dashboard/ContentIngestion';
-import ProposalAuthoring from './pages/dashboard/ProposalAuthoring';
-import ProposalGrid from './pages/dashboard/ProposalGrid';
 import CreateProposal from './pages/dashboard/CreateProposal';
+import CreateWorkspace from './pages/dashboard/CreateWorkspace';
+import DashHome from './pages/dashboard/Home';
+import ProposalAuthoring from './pages/dashboard/ProposalAuthoring';
 import ProposalView from './pages/dashboard/ProposalView';
+import Workspaces from './pages/dashboard/Workspaces';
+import WorkspaceView from './pages/dashboard/WorkspaceView';
+import Error from './pages/Error';
+import Home from './pages/Home';
 
 const router = createBrowserRouter([
   {
@@ -41,13 +42,23 @@ const router = createBrowserRouter([
         errorElement: <Error />,
       },
       {
+        path: 'workspaces/create',
+        element: <CreateWorkspace />,
+        errorElement: <Error />,
+      },
+      {
+        path: 'workspaces/:id',
+        element: <WorkspaceView />,
+        errorElement: <Error />,
+      },
+      {
         path: 'content-ingestion',
         element: <ContentIngestion />,
         errorElement: <Error />,
       },
       {
         path: 'proposal-authoring',
-        element: <ProposalGrid />,
+        element: <ProposalAuthoring />,
         errorElement: <Error />,
       },
       {

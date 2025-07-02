@@ -1,8 +1,16 @@
+import React from 'react';
+import Footer from '../components/common/Footer';
+import Bento from '../components/home/Bento';
+import Hero from '../components/home/Hero';
+
 const Home: React.FC = () => {
-    return (
-        <main className="w-screen h-screen flex items-center justify-center">
-            <h1 className="text-4xl font-bold">Home</h1>
-        </main>
-    )
-}
+  return (
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <Hero />
+      <Bento />
+      <Footer />
+    </div>
+  );
+};
+
 export default Home;
