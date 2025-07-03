@@ -33,6 +33,17 @@ CREATE TABLE IF NOT EXISTS "workspace" (
     "name" VARCHAR(255) NOT NULL,
     "client" VARCHAR(255) NOT NULL
 );
+CREATE TABLE IF NOT EXISTS "contentsources" (
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at" TIMESTAMP,
+    "name" VARCHAR(255) NOT NULL,
+    "source_url" VARCHAR(1024) NOT NULL UNIQUE,
+    "extracted_url" VARCHAR(1024) NOT NULL UNIQUE,
+    "type" VARCHAR(50) NOT NULL /* WEB: web\nPDF: pdf\nDOCX: docx */,
+    "workspace_id" INT NOT NULL REFERENCES "workspace" ("id") ON DELETE CASCADE
+);
 CREATE TABLE IF NOT EXISTS "proposal" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -53,7 +64,7 @@ CREATE TABLE IF NOT EXISTS "section" (
     "name" VARCHAR(255) NOT NULL,
     "content" TEXT NOT NULL,
     "source" VARCHAR(1024) NOT NULL,
-    "workspace_id" INT NOT NULL REFERENCES "workspace" ("id") ON DELETE CASCADE
+    "content_source_id" INT NOT NULL REFERENCES "contentsources" ("id") ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS "sectiontag" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,

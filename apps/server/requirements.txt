@@ -10,3 +10,4 @@ passlib
 bcrypt
 pydantic[email]
 unstructured[all-docs]
+requests

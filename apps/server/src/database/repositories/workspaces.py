@@ -15,6 +15,13 @@ class WorkspaceRepository:
             return workspace
 
     @staticmethod
+    async def fetch_by_id(workspace_id: int):
+        try:
+            return await Workspace.get(id=workspace_id).prefetch_related("tags__tag")
+        except DoesNotExist:
+            return None
+
+    @staticmethod
     async def fetch_by_name(name: str):
         try:
             return await Workspace.get(name=name).prefetch_related("tags__tag")

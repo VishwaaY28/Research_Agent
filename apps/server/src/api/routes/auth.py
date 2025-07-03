@@ -7,11 +7,11 @@ router = APIRouter(prefix="/api/auth")
 
 @router.post("/register")
 async def register(request: Request, data: RegisterRequest):
-    return await auth_handlers.register(request, data)
+    return await auth_handlers.register(data)
 
 @router.post("/login")
 async def login(request: Request, data: LoginRequest):
-    return await auth_handlers.login(request, data)
+    return await auth_handlers.login(data)
 
 @router.get("/session")
 async def get_session(request: Request):

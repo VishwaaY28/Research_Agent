@@ -1,3 +1,4 @@
+import enum
 from tortoise import fields, models
 
 class TimestampMixin(models.Model):
@@ -10,6 +11,7 @@ class User(TimestampMixin):
   name = fields.CharField(max_length=50)
   email = fields.CharField(max_length=100, unique=True)
   password_hash = fields.CharField(max_length=128)
+
 class Workspace(TimestampMixin):
   id = fields.IntField(pk=True)
   name = fields.CharField(max_length=255)
@@ -24,9 +26,22 @@ class WorkspaceTag(TimestampMixin):
     workspace = fields.ForeignKeyField('models.Workspace', related_name='tags')
     tag = fields.ForeignKeyField('models.Tag', related_name='workspaces')
 
+class SourceType(enum.Enum):
+    WEB = "web"
+    PDF = "pdf"
+    DOCX = "docx"
+
+class ContentSources(TimestampMixin):
+    id = fields.IntField(pk=True)
+    workspace = fields.ForeignKeyField('models.Workspace', related_name='content_sources')
+    name = fields.CharField(max_length=255)
+    source_url = fields.CharField(max_length=1024, unique=True)
+    extracted_url = fields.CharField(max_length=1024, unique=True)
+    type = fields.CharEnumField(SourceType, max_length=50)
+
 class Section(TimestampMixin):
     id = fields.IntField(pk=True)
-    workspace = fields.ForeignKeyField('models.Workspace', related_name='sections')
+    content_source = fields.ForeignKeyField('models.ContentSources', related_name='sections')
     name = fields.CharField(max_length=255)
     content = fields.TextField()
     source = fields.CharField(max_length=1024)
