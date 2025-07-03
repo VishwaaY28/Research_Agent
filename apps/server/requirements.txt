@@ -11,3 +11,6 @@ bcrypt
 pydantic[email]
 unstructured[all-docs]
 requests
+PyMuPDF
+pillow
+pytesseract

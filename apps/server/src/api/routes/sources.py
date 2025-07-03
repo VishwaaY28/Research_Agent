@@ -1,12 +1,17 @@
 from fastapi import APIRouter, UploadFile, File, Form, Query
+from typing import List, Optional
 
 from api.handlers import sources as sources_handlers
 
 router = APIRouter(prefix="/api/sources")
 
 @router.post("/{workspace_id}")
-async def upload_and_extract(workspace_id: int, file: UploadFile = File(None), url: str = Form(None)):
-    return await sources_handlers.upload_and_extract(workspace_id, file, url)
+async def upload_and_extract(
+    workspace_id: int,
+    files: Optional[List[UploadFile]] = File(None),
+    urls: Optional[List[str]] = Form(None)
+):
+    return await sources_handlers.upload_and_extract(workspace_id, files, urls)
 
 @router.get("/list/{workspace_id}")
 async def get_content_sources(workspace_id: int):

@@ -25,3 +25,6 @@ dist-ssr
 .venv
 __pycache__
 db.sqlite3*
+source_files
+extracts
+figures
