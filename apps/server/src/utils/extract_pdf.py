@@ -6,6 +6,7 @@ import pytesseract
 from typing import List, Dict
 from unstructured.partition.pdf import partition_pdf
 
+from utils.cache import check_extracted_cache, save_extracted_cache
 from utils.clean import clean_content
 
 def extract_pdf_text(filepath: str) -> str:
@@ -13,6 +14,10 @@ def extract_pdf_text(filepath: str) -> str:
     return "\n".join([el.text for el in elements if el.text])
 
 def extract_pdf_sections(filepath: str, figures_dir: str) -> (List[Dict], List[str]):
+    cached_data = check_extracted_cache(filepath)
+    if cached_data and 'chunks' in cached_data and 'figures' in cached_data:
+        return cached_data['chunks'], cached_data['figures']
+
     doc = fitz.open(filepath)
     toc_text = doc[1].get_text()
     toc_lines = toc_text.splitlines()
@@ -129,4 +134,5 @@ def extract_pdf_sections(filepath: str, figures_dir: str) -> (List[Dict], List[s
             "content": clean_content(content)
         })
 
+    save_extracted_cache(filepath, {'chunks': chunks, 'figures': figures})
     return chunks, figures

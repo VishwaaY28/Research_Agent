@@ -27,6 +27,23 @@ async def get_sections(workspace_id: int):
         })
     return result
 
+async def filter_section_by_tags(workspace_id: int, tags: list):
+    if not tags or not isinstance(tags, list):
+        raise HTTPException(status_code=400, detail="Tags must be a non-empty list.")
+    sections = await section_repository.filter_sections_by_tags(workspace_id, tags)
+    result = []
+    for s in sections:
+        tags = [st.tag.name for st in s.tags]
+        result.append({
+            "id": s.id,
+            "content": s.content,
+            "tags": tags,
+            "name": s.name,
+            "source": s.source,
+            "content_source": s.content_source.name if s.content_source else None
+        })
+    return result
+
 async def soft_delete_section(section_id: int):
     await section_repository.soft_delete_section(section_id)
     return {"success": True}

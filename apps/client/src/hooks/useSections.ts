@@ -22,8 +22,30 @@ export function useSections() {
     const data = await res.json();
     console.log('Fetched sections:', data);
     if (!Array.isArray(data)) {
-      throw new Error('Invalid response format for sections');
+      throw new Error('Expected array of sections');
     }
+    setSections(data);
+    return data;
+  };
+
+  const filterSectionsByTags = async (workspaceId: string, tags: string[]) => {
+    const response = await fetch(
+      `${API.BASE_URL()}${API.ENDPOINTS.SECTIONS.BASE_URL()}/filter/${workspaceId}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(tags),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to filter sections');
+    }
+
+    const data = await response.json();
     setSections(data);
     return data;
   };
@@ -51,7 +73,8 @@ export function useSections() {
       );
 
       if (!response.ok) {
-        throw new Error(`Failed to create sections: ${response.statusText}`);
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to create sections');
       }
 
       return await response.json();
@@ -70,10 +93,8 @@ export function useSections() {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to delete section: ${response.statusText}`);
+        throw new Error('Failed to delete section');
       }
-
-      return await response.json();
     },
     [baseUrl],
   );
@@ -81,6 +102,7 @@ export function useSections() {
   return {
     sections,
     fetchSections,
+    filterSectionsByTags,
     createSections,
     deleteSection,
   };

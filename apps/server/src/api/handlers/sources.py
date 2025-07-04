@@ -17,14 +17,9 @@ os.makedirs(EXTRACTS_DIR, exist_ok=True)
 os.makedirs(FIGURES_DIR, exist_ok=True)
 
 async def upload_and_extract(
-    workspace_id: int,
     files: Optional[List[UploadFile]] = None,
     urls: Optional[List[str]] = None
 ):
-    workspace = await workspace_repository.fetch_by_id(workspace_id)
-    if not workspace:
-        raise HTTPException(status_code=404, detail="Workspace not found.")
-
     if files and urls:
         raise HTTPException(status_code=400, detail="Provide either files or urls, not both.")
     if not files and not urls:
@@ -64,7 +59,6 @@ async def upload_and_extract(
                 import json
                 json.dump(response_json, f)
             content_source = await content_source_repository.upsert(
-                workspace_id=workspace_id,
                 name=filename,
                 source_url=source_url,
                 extracted_url=extract_path,
@@ -99,7 +93,6 @@ async def upload_and_extract(
                 import json
                 json.dump(response_json, f)
             content_source = await content_source_repository.upsert(
-                workspace_id=workspace_id,
                 name=filename,
                 source_url=url,
                 extracted_url=extract_path,
@@ -109,26 +102,6 @@ async def upload_and_extract(
             responses.append(response_json)
 
     return JSONResponse(responses)
-
-async def get_content_sources(workspace_id: int):
-    sources = await content_source_repository.fetch_by_workspace(workspace_id)
-    return JSONResponse([{
-        "id": s.id,
-        "name": s.name,
-        "type": s.type.value if s.type else None,
-        "source_url": s.source_url,
-        "extracted_url": s.extracted_url
-    } for s in sources])
-
-async def filter_content_sources(workspace_id: int, filename: str):
-    sources = await content_source_repository.filter_by_filename(workspace_id, filename)
-    return JSONResponse([{
-        "id": s.id,
-        "name": s.name,
-        "type": s.type.value if s.type else None,
-        "source_url": s.source_url,
-        "extracted_url": s.extracted_url
-    } for s in sources])
 
 async def soft_delete_content_source(content_source_id: int):
     await content_source_repository.soft_delete(content_source_id)

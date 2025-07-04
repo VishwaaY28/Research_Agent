@@ -33,7 +33,6 @@ class SourceType(enum.Enum):
 
 class ContentSources(TimestampMixin):
     id = fields.IntField(pk=True)
-    workspace = fields.ForeignKeyField('models.Workspace', related_name='content_sources')
     name = fields.CharField(max_length=255)
     source_url = fields.CharField(max_length=1024, unique=True)
     extracted_url = fields.CharField(max_length=1024, unique=True)
@@ -42,6 +41,7 @@ class ContentSources(TimestampMixin):
 class Section(TimestampMixin):
     id = fields.IntField(pk=True)
     content_source = fields.ForeignKeyField('models.ContentSources', related_name='sections')
+    workspace = fields.ForeignKeyField("models.Workspace", related_name='sections')
     name = fields.CharField(max_length=255)
     content = fields.TextField()
     source = fields.CharField(max_length=1024)

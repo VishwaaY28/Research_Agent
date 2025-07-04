@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FiArrowLeft, FiEdit3, FiFileText, FiSearch, FiTag } from 'react-icons/fi';
+import { FiArrowLeft, FiEdit3, FiEye, FiFileText, FiSearch, FiTag, FiX } from 'react-icons/fi';
 import { useNavigate, useParams } from 'react-router-dom';
 import { type Section, useSections } from '../../hooks/useSections';
 import { useWorkspace } from '../../hooks/useWorkspace';
@@ -15,13 +15,15 @@ const WorkspaceView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [sections, setSections] = useState<Section[]>([]);
+  const [allSections, setAllSections] = useState<Section[]>([]);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [viewingSection, setViewingSection] = useState<Section | null>(null);
 
   const { fetchWorkspace } = useWorkspace();
-  const { fetchSections } = useSections();
+  const { fetchSections, filterSectionsByTags } = useSections();
 
   useEffect(() => {
     if (!id) return;
@@ -41,6 +43,7 @@ const WorkspaceView: React.FC = () => {
           tags: workspaceData.tags || [],
         });
         const sectionsData = await fetchSections(id);
+        setAllSections(sectionsData);
         setSections(sectionsData);
         setLoading(false);
       } catch (error) {
@@ -52,15 +55,34 @@ const WorkspaceView: React.FC = () => {
     loadWorkspaceData();
   }, []);
 
-  const allTags = Array.from(new Set(sections.flatMap((s) => s.tags || [])));
+  useEffect(() => {
+    if (!id) return;
+
+    const handleTagFilter = async () => {
+      try {
+        if (selectedTags.length > 0) {
+          const filteredData = await filterSectionsByTags(id, selectedTags);
+          setSections(filteredData);
+        } else {
+          setSections(allSections);
+        }
+      } catch (error) {
+        console.error('Failed to filter sections:', error);
+      }
+    };
+
+    handleTagFilter();
+  }, [selectedTags, id, allSections]);
+
+  const allTags = Array.from(new Set(allSections.flatMap((s) => s.tags || [])));
 
   const filteredSections = sections.filter((section) => {
-    const matchesSearch =
+    if (!search) return true;
+    return (
       section.content.toLowerCase().includes(search.toLowerCase()) ||
-      (section.tags || []).some((tag) => tag.toLowerCase().includes(search.toLowerCase()));
-    const matchesTags =
-      selectedTags.length === 0 || (section.tags || []).some((tag) => selectedTags.includes(tag));
-    return matchesSearch && matchesTags;
+      (section.tags || []).some((tag) => tag.toLowerCase().includes(search.toLowerCase())) ||
+      (section.name && section.name.toLowerCase().includes(search.toLowerCase()))
+    );
   });
 
   function toggleTag(tag: string) {
@@ -68,6 +90,15 @@ const WorkspaceView: React.FC = () => {
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
     );
   }
+
+  const handleViewSection = (section: Section, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setViewingSection(section);
+  };
+
+  const closeModal = () => {
+    setViewingSection(null);
+  };
 
   if (loading) {
     return (
@@ -117,7 +148,7 @@ const WorkspaceView: React.FC = () => {
               <div className="flex-1">
                 <h1 className="text-2xl font-bold text-gray-900">{workspace.name}</h1>
                 <p className="text-gray-600 mt-1">
-                  {sections.length} content pieces • {allTags.length} categories
+                  {allSections.length} content pieces • {allTags.length} categories
                 </p>
               </div>
               <button className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-2">
@@ -203,13 +234,22 @@ const WorkspaceView: React.FC = () => {
                         {section.content}
                       </p>
                     </div>
-                    <FiEdit3 className="w-4 h-4 text-gray-400 ml-4 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                      <button
+                        onClick={(e) => handleViewSection(section, e)}
+                        className="p-1 text-gray-400 hover:text-primary opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-primary/10 rounded"
+                        title="View full content"
+                      >
+                        <FiEye className="w-4 h-4" />
+                      </button>
+                      <FiEdit3 className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-gray-500 pt-4 border-t border-gray-100">
                     <div className="flex items-center">
                       <FiFileText className="w-4 h-4 mr-1" />
-                      {section.source.split('/')[1] || 'Manual'}
+                      {section.content_source}
                     </div>
                     <div className="flex items-center">
                       <FiFileText className="w-4 h-4 mr-1" />
@@ -243,6 +283,76 @@ const WorkspaceView: React.FC = () => {
           )}
         </div>
       </div>
+
+      {viewingSection && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex-1">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {viewingSection.name || 'Content Details'}
+                </h2>
+                <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                  <div className="flex items-center">
+                    <FiFileText className="w-4 h-4 mr-1" />
+                    {viewingSection.content_source}
+                  </div>
+                  <div className="flex items-center">
+                    <FiFileText className="w-4 h-4 mr-1" />
+                    {viewingSection.content.split(' ').length} words
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={closeModal}
+                className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {viewingSection.tags && viewingSection.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {viewingSection.tags.map((tag, index) => (
+                    <span
+                      key={index}
+                      className="px-3 py-1 bg-primary/10 text-primary text-sm rounded-full font-medium flex items-center"
+                    >
+                      <FiTag className="w-3 h-3 mr-1" />
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="prose max-w-none">
+                <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                  {viewingSection.content}
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-500">Source: {viewingSection.source}</div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={closeModal}
+                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Close
+                  </button>
+                  <button className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2">
+                    <FiEdit3 className="w-4 h-4" />
+                    Edit
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

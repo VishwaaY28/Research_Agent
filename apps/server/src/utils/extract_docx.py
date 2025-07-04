@@ -5,6 +5,7 @@ from PIL import Image
 from typing import List, Dict
 from unstructured.partition.docx import partition_docx
 
+from utils.cache import check_extracted_cache, save_extracted_cache
 from utils.clean import clean_content
 
 def extract_docx_text(filepath: str) -> str:
@@ -12,6 +13,11 @@ def extract_docx_text(filepath: str) -> str:
     return "\n".join([el.text for el in elements if el.text])
 
 def extract_docx_sections(filepath: str, figures_dir: str) -> (List[Dict], List[str]):
+    cached_data = check_extracted_cache(filepath)
+    if cached_data and 'chunks' in cached_data and 'figures' in cached_data:
+        return cached_data['chunks'], cached_data['figures']
+
+
     elements = partition_docx(filename=filepath, extract_images_in_docx=True)
     chunks = []
     figures = []
@@ -77,4 +83,5 @@ def extract_docx_sections(filepath: str, figures_dir: str) -> (List[Dict], List[
             "content": clean_content(buffer)
         })
 
+    save_extracted_cache(filepath, {'chunks': chunks, 'figures': figures})
     return chunks, figures

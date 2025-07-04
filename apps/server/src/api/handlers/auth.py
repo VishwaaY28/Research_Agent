@@ -32,6 +32,7 @@ async def login(data: LoginRequest):
 
 async def get_session(request: Request):
     user = request.state.user
+    print("Fetched session user:", user)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return JSONResponse({"id": user.id, "email": user.email, "name": user.name})

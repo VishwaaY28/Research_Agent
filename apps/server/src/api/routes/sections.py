@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Body, Query
+from typing import List
 
 from api.handlers import sections as section_handlers
 
@@ -15,6 +16,13 @@ async def bulk_create_sections(
 @router.get("/list/{workspace_id}")
 async def get_sections(workspace_id: int):
     return await section_handlers.get_sections(workspace_id)
+
+@router.post("/filter/{workspace_id}")
+async def filter_sections_by_tags(
+    workspace_id: int,
+    tags: List[str] = Body(..., description="List of tags to filter by")
+):
+    return await section_handlers.filter_section_by_tags(workspace_id, tags)
 
 @router.delete("/soft/{section_id}")
 async def soft_delete_section(section_id: int):

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FiArrowRight, FiLock, FiMail, FiUser } from 'react-icons/fi';
+import { useNavigate } from 'react-router';
 import { z } from 'zod';
 import { useAuth } from '../hooks/useAuth';
 
@@ -13,8 +14,43 @@ const Auth: React.FC = () => {
     confirmPassword: '',
   });
   const [loading, setLoading] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const navigate = useNavigate();
 
-  const { login, register, error } = useAuth();
+  const { login, register, error, fetchSession, isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    const checkExistingAuth = async () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          await fetchSession();
+        } catch (err) {
+          console.error('Auth check failed:', err);
+        }
+      }
+      setCheckingAuth(false);
+    };
+
+    checkExistingAuth();
+  }, [fetchSession]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    }
+  }, [isAuthenticated, navigate]);
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({

@@ -1,9 +1,11 @@
 import os
+import json
 import requests
 import pytesseract
 from unstructured.partition.html import partition_html
 from PIL import Image
 from typing import List, Dict
+import hashlib
 
 from utils.clean import clean_content
 
@@ -17,20 +19,61 @@ USER_AGENTS = [
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36",
 ]
 
+def get_cache_filename(url: str) -> str:
+    """Generate a safe filename for caching based on URL"""
+    url_hash = hashlib.md5(url.encode()).hexdigest()
+    safe_url = url.replace("://", "_").replace("/", "_").replace("?", "_").replace("&", "_")[:50]
+    return f"{safe_url}_{url_hash}.json"
+
+def check_extracted_cache(url: str, extracts_dir: str = "extracts") -> Dict:
+    """Check if content has been previously extracted and cached"""
+    if not os.path.exists(extracts_dir):
+        return None
+
+    cache_file = os.path.join(extracts_dir, get_cache_filename(url))
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return None
+    return None
+
+def save_extracted_cache(url: str, data: Dict, extracts_dir: str = "extracts"):
+    """Save extracted content to cache"""
+    os.makedirs(extracts_dir, exist_ok=True)
+    cache_file = os.path.join(extracts_dir, get_cache_filename(url))
+    try:
+        with open(cache_file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except IOError:
+        pass
+
 def extract_web_text(url: str) -> str:
+    cached_data = check_extracted_cache(url)
+    if cached_data and 'text' in cached_data:
+        return cached_data['text']
+
     last_exc = None
     for agent in USER_AGENTS:
         try:
             resp = requests.get(url, headers={"User-Agent": agent}, timeout=10)
             resp.raise_for_status()
             elements = partition_html(text=resp.text)
-            return "\n".join([el.text for el in elements if el.text])
+            text = "\n".join([el.text for el in elements if el.text])
+
+            save_extracted_cache(url, {'text': text})
+            return text
         except Exception as exc:
             last_exc = exc
             continue
     raise last_exc
 
 def extract_web_sections(url: str, figures_dir: str) -> (List[Dict], List[str]):
+    cached_data = check_extracted_cache(url)
+    if cached_data and 'chunks' in cached_data and 'figures' in cached_data:
+        return cached_data['chunks'], cached_data['figures']
+
     last_exc = None
     for agent in USER_AGENTS:
         try:
@@ -82,6 +125,7 @@ def extract_web_sections(url: str, figures_dir: str) -> (List[Dict], List[str]):
                     "content": clean_content(buffer)
                 })
 
+            save_extracted_cache(url, {'chunks': chunks, 'figures': figures})
             return chunks, figures
         except Exception as exc:
             last_exc = exc

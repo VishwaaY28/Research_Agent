@@ -1,31 +1,44 @@
 import os
 
-from database.models import Section, ContentSources, Tag, SectionTag
+from database.models import Section, ContentSources, Tag, SectionTag, Workspace
 from tortoise.queryset import Prefetch
 from tortoise.exceptions import DoesNotExist
 
 class SectionRepository:
     async def bulk_create_sections(self, workspace_id, filename, chunks):
         try:
-            content_source = await ContentSources.get(workspace_id=workspace_id, name=filename, deleted_at=None)
+            workspace = await Workspace.get(id=workspace_id, deleted_at=None)
         except DoesNotExist:
-            basename = os.path.basename(filename)
+            raise ValueError(f"Workspace with id {workspace_id} not found")
+
+        content_source = None
+        if filename.startswith(('http://', 'https://')):
             try:
-                content_source = await ContentSources.get(
-                    workspace_id=workspace_id,
-                    name=basename,
-                    deleted_at=None
-                )
+                content_source = await ContentSources.get(source_url=filename, deleted_at=None)
             except DoesNotExist:
                 try:
-                    content_source = await ContentSources.get(
-                        workspace_id=workspace_id,
-                        source_url__contains=basename,
-                        deleted_at=None
-                    )
+                    content_source = await ContentSources.get(name=filename, deleted_at=None)
                 except DoesNotExist:
-                    available_sources = await self._list_available_sources(workspace_id)
-                    raise ValueError(f"Content source not found for workspace {workspace_id} and filename '{filename}'. Available sources: {available_sources}")
+                    pass
+        else:
+            try:
+                content_source = await ContentSources.get(name=filename, deleted_at=None)
+            except DoesNotExist:
+                basename = os.path.basename(filename)
+                try:
+                    content_source = await ContentSources.get(name=basename, deleted_at=None)
+                except DoesNotExist:
+                    try:
+                        content_source = await ContentSources.filter(
+                            source_url__contains=basename,
+                            deleted_at=None
+                        ).first()
+                    except DoesNotExist:
+                        pass
+
+        if not content_source:
+            available_sources = await self._list_available_sources()
+            raise ValueError(f"Content source not found for filename '{filename}'. Available sources: {available_sources}")
 
         created_sections = []
         for chunk in chunks:
@@ -36,6 +49,7 @@ class SectionRepository:
                 name = " ".join(content.split()[:4]) + ("..." if len(content.split()) > 4 else "")
             section = await Section.create(
                 content_source=content_source,
+                workspace=workspace,
                 name=name,
                 content=content,
                 source=filename
@@ -46,14 +60,28 @@ class SectionRepository:
             created_sections.append(section)
         return created_sections
 
-    async def _list_available_sources(self, workspace_id):
-        sources = await ContentSources.filter(workspace_id=workspace_id, deleted_at=None).all()
+    async def _list_available_sources(self):
+        sources = await ContentSources.filter(deleted_at=None).all()
         return [{"id": s.id, "name": s.name, "source_url": s.source_url} for s in sources]
 
     async def get_sections_by_workspace(self, workspace_id):
         return await Section.filter(
-            content_source__workspace_id=workspace_id, deleted_at=None
+            workspace_id=workspace_id, deleted_at=None
         ).prefetch_related(
+            "content_source",
+            Prefetch(
+                "tags",
+                queryset=SectionTag.all().prefetch_related("tag")
+            )
+        )
+
+    async def filter_sections_by_tags(self, workspace_id, tags):
+        """Filter sections by workspace and tags"""
+        return await Section.filter(
+            workspace_id=workspace_id,
+            deleted_at=None,
+            tags__tag__name__in=tags
+        ).distinct().prefetch_related(
             "content_source",
             Prefetch(
                 "tags",
