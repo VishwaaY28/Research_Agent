@@ -1,25 +1,65 @@
-import React, { useState } from 'react';
-import { FiArrowLeft, FiCalendar, FiEdit3, FiFileText, FiSearch, FiTag } from 'react-icons/fi';
+import React, { useEffect, useState } from 'react';
+import { FiArrowLeft, FiEdit3, FiFileText, FiSearch, FiTag } from 'react-icons/fi';
 import { useNavigate, useParams } from 'react-router-dom';
+import { type Section, useSections } from '../../hooks/useSections';
 import { useWorkspace } from '../../hooks/useWorkspace';
+
+interface Workspace {
+  id: string;
+  name: string;
+  clientName?: string;
+  tags: string[];
+}
 
 const WorkspaceView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getWorkspaceById, getChunksByWorkspaceId } = useWorkspace();
-  const workspace = getWorkspaceById(id!);
-  const chunks = getChunksByWorkspaceId(id!);
-
+  const [sections, setSections] = useState<Section[]>([]);
+  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
-  const allTags = Array.from(new Set(chunks.map((c) => c.tag)));
+  const { fetchWorkspace } = useWorkspace();
+  const { fetchSections } = useSections();
 
-  const filteredChunks = chunks.filter((chunk) => {
+  useEffect(() => {
+    if (!id) return;
+
+    const loadWorkspaceData = async () => {
+      try {
+        const workspaceData = await fetchWorkspace(id);
+        if (!workspaceData) {
+          setWorkspace(null);
+          setLoading(false);
+          return;
+        }
+        setWorkspace({
+          id: workspaceData.id,
+          name: workspaceData.name,
+          clientName: workspaceData.client,
+          tags: workspaceData.tags || [],
+        });
+        const sectionsData = await fetchSections(id);
+        setSections(sectionsData);
+        setLoading(false);
+      } catch (error) {
+        console.error('Failed to fetch workspace data:', error);
+        setLoading(false);
+      }
+    };
+
+    loadWorkspaceData();
+  }, []);
+
+  const allTags = Array.from(new Set(sections.flatMap((s) => s.tags || [])));
+
+  const filteredSections = sections.filter((section) => {
     const matchesSearch =
-      chunk.text.toLowerCase().includes(search.toLowerCase()) ||
-      chunk.tag.toLowerCase().includes(search.toLowerCase());
-    const matchesTags = selectedTags.length === 0 || selectedTags.includes(chunk.tag);
+      section.content.toLowerCase().includes(search.toLowerCase()) ||
+      (section.tags || []).some((tag) => tag.toLowerCase().includes(search.toLowerCase()));
+    const matchesTags =
+      selectedTags.length === 0 || (section.tags || []).some((tag) => selectedTags.includes(tag));
     return matchesSearch && matchesTags;
   });
 
@@ -29,13 +69,18 @@ const WorkspaceView: React.FC = () => {
     );
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
+  if (loading) {
+    return (
+      <div className="min-h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <FiFileText className="w-8 h-8 text-gray-400" />
+          </div>
+          <p className="text-gray-600">Loading workspace...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!workspace) {
     return (
@@ -72,7 +117,7 @@ const WorkspaceView: React.FC = () => {
               <div className="flex-1">
                 <h1 className="text-2xl font-bold text-gray-900">{workspace.name}</h1>
                 <p className="text-gray-600 mt-1">
-                  {chunks.length} content pieces • {allTags.length} categories
+                  {sections.length} content pieces • {allTags.length} categories
                 </p>
               </div>
               <button className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-2">
@@ -129,23 +174,33 @@ const WorkspaceView: React.FC = () => {
             )}
           </div>
 
-          {filteredChunks.length > 0 ? (
+          {filteredSections.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredChunks.map((chunk) => (
+              {filteredSections.map((section) => (
                 <div
-                  key={chunk.id}
+                  key={section.id}
                   className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md hover:border-gray-300 transition-all duration-200 group cursor-pointer"
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
-                      <div className="flex items-center mb-3">
-                        <span className="px-3 py-1 bg-primary/10 text-primary text-xs rounded-full font-medium flex items-center">
-                          <FiTag className="w-3 h-3 mr-1" />
-                          {chunk.tag}
-                        </span>
-                      </div>
+                      {section.tags && section.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-3">
+                          {section.tags.map((tag, index) => (
+                            <span
+                              key={index}
+                              className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full font-medium flex items-center"
+                            >
+                              <FiTag className="w-3 h-3 mr-1" />
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {section.name && (
+                        <h3 className="font-medium text-gray-900 mb-2">{section.name}</h3>
+                      )}
                       <p className="text-gray-700 text-sm leading-relaxed line-clamp-4">
-                        {chunk.text}
+                        {section.content}
                       </p>
                     </div>
                     <FiEdit3 className="w-4 h-4 text-gray-400 ml-4 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -153,12 +208,12 @@ const WorkspaceView: React.FC = () => {
 
                   <div className="flex items-center justify-between text-xs text-gray-500 pt-4 border-t border-gray-100">
                     <div className="flex items-center">
-                      <FiCalendar className="w-4 h-4 mr-1" />
-                      {formatDate(chunk.createdAt)}
+                      <FiFileText className="w-4 h-4 mr-1" />
+                      {section.source.split('/')[1] || 'Manual'}
                     </div>
                     <div className="flex items-center">
                       <FiFileText className="w-4 h-4 mr-1" />
-                      {chunk.text.split(' ').length} words
+                      {section.content.split(' ').length} words
                     </div>
                   </div>
                 </div>

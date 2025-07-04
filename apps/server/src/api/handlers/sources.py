@@ -16,7 +16,6 @@ os.makedirs(SOURCES_DIR, exist_ok=True)
 os.makedirs(EXTRACTS_DIR, exist_ok=True)
 os.makedirs(FIGURES_DIR, exist_ok=True)
 
-
 async def upload_and_extract(
     workspace_id: int,
     files: Optional[List[UploadFile]] = None,

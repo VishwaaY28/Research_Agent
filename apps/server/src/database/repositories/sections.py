@@ -1,3 +1,5 @@
+import os
+
 from database.models import Section, ContentSources, Tag, SectionTag
 from tortoise.queryset import Prefetch
 from tortoise.exceptions import DoesNotExist
@@ -7,7 +9,23 @@ class SectionRepository:
         try:
             content_source = await ContentSources.get(workspace_id=workspace_id, name=filename, deleted_at=None)
         except DoesNotExist:
-            raise ValueError("Content source not found for this workspace and filename.")
+            basename = os.path.basename(filename)
+            try:
+                content_source = await ContentSources.get(
+                    workspace_id=workspace_id,
+                    name=basename,
+                    deleted_at=None
+                )
+            except DoesNotExist:
+                try:
+                    content_source = await ContentSources.get(
+                        workspace_id=workspace_id,
+                        source_url__contains=basename,
+                        deleted_at=None
+                    )
+                except DoesNotExist:
+                    available_sources = await self._list_available_sources(workspace_id)
+                    raise ValueError(f"Content source not found for workspace {workspace_id} and filename '{filename}'. Available sources: {available_sources}")
 
         created_sections = []
         for chunk in chunks:
@@ -27,6 +45,10 @@ class SectionRepository:
                 await SectionTag.create(section=section, tag=tag_obj)
             created_sections.append(section)
         return created_sections
+
+    async def _list_available_sources(self, workspace_id):
+        sources = await ContentSources.filter(workspace_id=workspace_id, deleted_at=None).all()
+        return [{"id": s.id, "name": s.name, "source_url": s.source_url} for s in sources]
 
     async def get_sections_by_workspace(self, workspace_id):
         return await Section.filter(

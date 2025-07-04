@@ -7,6 +7,7 @@ from api.routes.auth import router as auth_router
 from api.routes.workspaces import router as workspaces_router
 from api.routes.sections import router as sections_router
 from api.routes.sources import router as sources_router
+from api.routes.tags import router as tags_router
 from config.env import env
 from database.db import init_db, close_db
 
@@ -26,7 +27,7 @@ async def shutdown_event():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,6 +45,7 @@ app.include_router(auth_router)
 app.include_router(workspaces_router)
 app.include_router(sections_router)
 app.include_router(sources_router)
+app.include_router(tags_router)
 
 @app.get("/{full_path:path}")
 async def catch_all(full_path: str):

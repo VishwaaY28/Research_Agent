@@ -23,6 +23,21 @@ async def create_workspace(data: WorkspaceCreateRequest):
     )
     return JSONResponse({"id": workspace.id, "name": workspace.name, "client": workspace.client})
 
+async def fetch_all_workspaces():
+    workspaces = await workspace_repository.fetch_all_workspaces()
+    result = []
+    for ws in workspaces:
+        tags = [wt.tag.name for wt in await ws.tags.all().prefetch_related("tag")]
+        result.append({"id": ws.id, "name": ws.name, "client": ws.client, "tags": tags})
+    return JSONResponse(result, status_code=200)
+
+async def fetch_by_id(workspace_id: int):
+    workspace = await workspace_repository.fetch_by_id(workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    tags = [wt.tag.name for wt in await workspace.tags.all().prefetch_related("tag")]
+    return JSONResponse({"id": workspace.id, "name": workspace.name, "client": workspace.client, "tags": tags})
+
 async def fetch_by_name(name: str):
     workspace = await workspace_repository.fetch_by_name(name)
     if not workspace:

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { FiArrowLeft, FiFolder, FiPlus, FiX } from 'react-icons/fi';
@@ -65,10 +65,7 @@ const CreateWorkspace: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      const newWorkspace = createWorkspace({
+      const newWorkspace = await createWorkspace({
         name: formData.name.trim(),
         clientName: formData.clientName.trim(),
         tags: formData.tags,
@@ -76,8 +73,8 @@ const CreateWorkspace: React.FC = () => {
 
       toast.success('Workspace created successfully!');
       navigate(`/dashboard/workspaces/${newWorkspace.id}`);
-    } catch (error) {
-      toast.error('Failed to create workspace. Please try again.');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create workspace. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

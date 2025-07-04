@@ -15,6 +15,10 @@ class WorkspaceRepository:
             return workspace
 
     @staticmethod
+    async def fetch_all_workspaces():
+        return await Workspace.filter(deleted_at=None).prefetch_related("tags__tag").all()
+
+    @staticmethod
     async def fetch_by_id(workspace_id: int):
         try:
             return await Workspace.get(id=workspace_id).prefetch_related("tags__tag")

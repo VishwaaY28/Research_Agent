@@ -1,4 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from 'react';
+import toast from 'react-hot-toast';
+import { API } from '../utils/constants';
 
 export type Workspace = {
   id: string;
@@ -15,90 +18,79 @@ export type ContentChunk = {
   createdAt: string;
 };
 
-const dummyWorkspaces: Workspace[] = [
-  {
-    id: 'w1',
-    name: 'Acme Corp Marketing Strategy',
-    clientName: 'Acme Corporation',
-    tags: ['marketing', 'strategy', '2025'],
-    createdAt: '2025-06-15',
-  },
-  {
-    id: 'w2',
-    name: 'University Research Partnership',
-    clientName: 'Stanford University',
-    tags: ['research', 'collaboration'],
-    createdAt: '2025-06-18',
-  },
-  {
-    id: 'w3',
-    name: 'DevOps Implementation',
-    clientName: 'TechStart Inc.',
-    tags: ['devops', 'automation'],
-    createdAt: '2025-06-20',
-  },
-];
-
-const dummyChunks: Record<string, ContentChunk[]> = {
-  w1: [
-    {
-      id: 'c1',
-      text: 'Q4 marketing plan for Acme Corporation focusing on digital transformation and customer engagement strategies. This comprehensive approach will leverage data analytics and automation tools to enhance campaign effectiveness.',
-      tag: 'marketing',
-      createdAt: '2025-06-20',
-    },
-    {
-      id: 'c2',
-      text: 'Digital strategy outline encompassing social media presence, content marketing, and SEO optimization. Key performance indicators will include engagement rates, conversion metrics, and brand awareness measurements.',
-      tag: 'strategy',
-      createdAt: '2025-06-21',
-    },
-    {
-      id: 'c3',
-      text: '2025 campaign goals include 30% increase in lead generation, 25% improvement in customer retention, and expansion into three new market segments through targeted advertising and strategic partnerships.',
-      tag: '2025',
-      createdAt: '2025-06-22',
-    },
-  ],
-  w2: [
-    {
-      id: 'c4',
-      text: 'Research proposal draft for collaborative study on artificial intelligence applications in healthcare. The project aims to develop innovative solutions for early disease detection and personalized treatment plans.',
-      tag: 'research',
-      createdAt: '2025-06-25',
-    },
-    {
-      id: 'c5',
-      text: 'Partner university list includes Stanford, MIT, Harvard, and UC Berkeley. Each institution brings unique expertise in machine learning, medical research, and data science to support the collaborative effort.',
-      tag: 'collaboration',
-      createdAt: '2025-06-26',
-    },
-  ],
-  w3: [
-    {
-      id: 'c6',
-      text: 'CI/CD pipeline notes covering automated testing, deployment strategies, and monitoring systems. Implementation includes Docker containers, Kubernetes orchestration, and comprehensive logging solutions.',
-      tag: 'devops',
-      createdAt: '2025-06-28',
-    },
-    {
-      id: 'c7',
-      text: 'Automation scripts for infrastructure provisioning, database migrations, and security compliance checks. Tools include Terraform, Ansible, and custom Python scripts for workflow optimization.',
-      tag: 'automation',
-      createdAt: '2025-06-29',
-    },
-  ],
-};
-
 export function useWorkspace() {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>(dummyWorkspaces);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  function getWorkspaceById(id: string) {
-    return workspaces.find((w) => w.id === id);
+  async function fetchWorkspaces() {
+    setLoading(true);
+    try {
+      const res = await fetch(API.BASE_URL() + API.ENDPOINTS.WORKSPACES.BASE_URL(), {
+        headers: {
+          Authorization: localStorage.getItem('token')
+            ? `Bearer ${localStorage.getItem('token')}`
+            : '',
+        },
+      });
+      if (!res.ok) throw new Error('Failed to fetch workspaces');
+      const data = await res.json();
+      setWorkspaces(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      toast.error(err.message || 'Could not load workspaces');
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function getChunksByWorkspaceId(id: string) {
-    return dummyChunks[id] || [];
+  async function fetchWorkspace(id: string) {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        API.BASE_URL() + API.ENDPOINTS.WORKSPACES.BASE_URL() + API.ENDPOINTS.WORKSPACES.BY_ID(id),
+        {
+          headers: {
+            Authorization: localStorage.getItem('token')
+              ? `Bearer ${localStorage.getItem('token')}`
+              : '',
+          },
+        },
+      );
+      if (!res.ok) throw new Error('Failed to fetch workspace');
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      toast.error(err.message || 'Could not load workspace');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function filterWorkspacesByTags(tags: string[]) {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      tags.forEach((tag) => params.append('tags', tag));
+      const res = await fetch(
+        API.BASE_URL() +
+          API.ENDPOINTS.WORKSPACES.BASE_URL() +
+          API.ENDPOINTS.WORKSPACES.FILTER() +
+          params.toString(),
+        {
+          headers: {
+            Authorization: localStorage.getItem('token')
+              ? `Bearer ${localStorage.getItem('token')}`
+              : '',
+          },
+        },
+      );
+      if (!res.ok) throw new Error('Failed to filter workspaces');
+      const data = await res.json();
+      setWorkspaces(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      toast.error(err.message || 'Could not filter workspaces');
+    } finally {
+      setLoading(false);
+    }
   }
 
   function getAllTags() {
@@ -107,19 +99,35 @@ export function useWorkspace() {
     return Array.from(tags);
   }
 
-  function createWorkspace(data: { name: string; clientName: string; tags: string[] }) {
-    const newWorkspace: Workspace = {
-      id: `w${Date.now()}`,
+  async function createWorkspace(data: { name: string; clientName: string; tags: string[] }) {
+    const payload = {
       name: data.name,
-      clientName: data.clientName,
+      client: data.clientName,
       tags: data.tags,
-      createdAt: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
     };
-
+    const res = await fetch(API.BASE_URL() + API.ENDPOINTS.WORKSPACES.BASE_URL(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: localStorage.getItem('token')
+          ? `Bearer ${localStorage.getItem('token')}`
+          : '',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to create workspace');
+    }
+    const ws = await res.json();
+    const newWorkspace: Workspace = {
+      id: ws.id.toString(),
+      name: ws.name,
+      clientName: ws.client,
+      tags: data.tags,
+      createdAt: new Date().toISOString().split('T')[0],
+    };
     setWorkspaces((prev) => [...prev, newWorkspace]);
-
-    dummyChunks[newWorkspace.id] = [];
-
     return newWorkspace;
   }
 
@@ -129,18 +137,14 @@ export function useWorkspace() {
     );
   }
 
-  function deleteWorkspace(id: string) {
-    setWorkspaces((prev) => prev.filter((workspace) => workspace.id !== id));
-    delete dummyChunks[id];
-  }
-
   return {
     workspaces,
-    getWorkspaceById,
-    getChunksByWorkspaceId,
+    loading,
+    fetchWorkspaces,
+    fetchWorkspace,
+    filterWorkspacesByTags,
     getAllTags,
     createWorkspace,
     updateWorkspace,
-    deleteWorkspace,
   };
 }

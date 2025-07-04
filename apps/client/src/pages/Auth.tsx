@@ -1,5 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from 'react';
 import { FiArrowRight, FiLock, FiMail, FiUser } from 'react-icons/fi';
+import { z } from 'zod';
+import { useAuth } from '../hooks/useAuth';
 
 const Auth: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -9,6 +12,9 @@ const Auth: React.FC = () => {
     password: '',
     confirmPassword: '',
   });
+  const [loading, setLoading] = useState(false);
+
+  const { login, register, error } = useAuth();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({
@@ -17,9 +23,45 @@ const Auth: React.FC = () => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Form submitted:', formData);
+
+    const loginSchema = z.object({
+      email: z.string().email({ message: 'Invalid email address' }),
+      password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+    });
+
+    const registerSchema = z
+      .object({
+        name: z.string().min(1, { message: 'Name is required' }),
+        email: z.string().email({ message: 'Invalid email address' }),
+        password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+        confirmPassword: z.string(),
+      })
+      .refine((data) => data.password === data.confirmPassword, {
+        message: 'Passwords do not match',
+        path: ['confirmPassword'],
+      });
+
+    try {
+      setLoading(true);
+      if (isLogin) {
+        loginSchema.parse({ email: formData.email, password: formData.password });
+        await login(formData.email, formData.password);
+      } else {
+        registerSchema.parse(formData);
+        await register(formData.name, formData.email, formData.password);
+      }
+      setLoading(false);
+    } catch (err: any) {
+      setLoading(false);
+      if (err instanceof z.ZodError) {
+        alert(err.errors[0]?.message || 'Validation error');
+        return;
+      }
+      alert('An unexpected error occurred');
+      return;
+    }
   };
 
   return (
@@ -138,11 +180,20 @@ const Auth: React.FC = () => {
                 </div>
               )}
 
+              {error && <div className="text-red-500 text-sm text-center">{error}</div>}
+
               <button
                 type="submit"
                 className="w-full inline-flex items-center justify-center px-6 py-3 bg-primary text-white rounded-lg font-medium shadow-lg shadow-primary/25 hover:bg-primary-dark transition duration-300"
+                disabled={loading}
               >
-                {isLogin ? 'Sign In' : 'Create Account'}
+                {loading
+                  ? isLogin
+                    ? 'Signing In...'
+                    : 'Creating Account...'
+                  : isLogin
+                    ? 'Sign In'
+                    : 'Create Account'}
                 <FiArrowRight className="ml-2 w-5 h-5" />
               </button>
             </form>

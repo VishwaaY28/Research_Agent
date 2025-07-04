@@ -1,41 +1,48 @@
 import React, { useState } from 'react';
 import { Toaster } from 'react-hot-toast';
-import IngestForm from '../../components/dashboard/ContentIngestion/IngestForm';
 import ContentResults from '../../components/dashboard/ContentIngestion/ContentResults';
+import IngestForm from '../../components/dashboard/ContentIngestion/IngestForm';
+
+type ExtractedContent = {
+  success: boolean;
+  content_source_id: number;
+  chunks: Array<{
+    content: string;
+    label: string;
+    file_source?: string;
+    page?: number;
+    section_type?: string;
+  }>;
+  figures?: Array<{
+    path: string;
+    page: number;
+    caption?: string;
+  }>;
+  filename?: string;
+  url?: string;
+  error?: string;
+};
 
 const ContentIngestion: React.FC = () => {
-  const [contentUploaded, setContentUploaded] = useState(false);
-  const [extractedText, setExtractedText] = useState('');
+  const [extractedResults, setExtractedResults] = useState<ExtractedContent[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const mockWorkspaces = [
-    'Marketing Proposals',
-    'Technical Documents',
-    'Client Presentations',
-    'Research Papers'
-  ];
+  const handleProcessingStart = () => {
+    setIsProcessing(true);
+  };
 
-  const handleContentUploaded = (content: any) => {
-    const mockExtractedText = `This is simulated extracted text from your ${content.type === 'file' ? 'file' : 'web link'}.
+  const handleProcessingEnd = () => {
+    setIsProcessing(false);
+  };
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-
-Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-
-Key Points:
-- Important information extracted
-- Relevant data for proposals
-- Structured content for reuse
-- Actionable insights identified
-
-This content can now be saved to your workspace for future use in proposal creation.`;
-
-    setExtractedText(mockExtractedText);
-    setContentUploaded(true);
+  const handleContentUploaded = (results: ExtractedContent[]) => {
+    setExtractedResults((prev) => [...prev, ...results]);
+    setIsProcessing(false);
   };
 
   return (
     <div className="h-full bg-white">
-      <Toaster 
+      <Toaster
         position="top-right"
         toastOptions={{
           duration: 3000,
@@ -45,14 +52,19 @@ This content can now be saved to your workspace for future use in proposal creat
           },
         }}
       />
-      {!contentUploaded ? (
+      {extractedResults.length === 0 ? (
         <div className="h-full flex items-center justify-center">
-          <IngestForm onContentUploaded={handleContentUploaded} />
+          <IngestForm
+            onContentUploaded={handleContentUploaded}
+            onProcessingStart={handleProcessingStart}
+            onProcessingEnd={handleProcessingEnd}
+            isProcessing={isProcessing}
+          />
         </div>
       ) : (
-        <ContentResults 
-          extractedText={extractedText} 
-          workspaces={mockWorkspaces}
+        <ContentResults
+          extractedResults={extractedResults}
+          onReset={() => setExtractedResults([])}
         />
       )}
     </div>

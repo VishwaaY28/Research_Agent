@@ -1,7 +1,9 @@
+import urllib.parse
 from fastapi import HTTPException
 from database.repositories.sections import section_repository
 
 async def bulk_create_sections(workspace_id: int, filename: str, chunks: list):
+    filename = urllib.parse.unquote(filename)
     if not chunks or not isinstance(chunks, list):
         raise HTTPException(status_code=400, detail="Chunks must be a non-empty list.")
     try:

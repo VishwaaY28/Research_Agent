@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FiFolder, FiPlus, FiSearch, FiTag } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { useWorkspace } from '../../hooks/useWorkspace';
 
 const Workspaces: React.FC = () => {
   const navigate = useNavigate();
-  const { workspaces, getAllTags } = useWorkspace();
+  const { workspaces, getAllTags, filterWorkspacesByTags, fetchWorkspaces, loading } =
+    useWorkspace();
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
@@ -22,6 +23,14 @@ const Workspaces: React.FC = () => {
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
     );
   }
+
+  useEffect(() => {
+    if (selectedTags.length > 0) {
+      filterWorkspacesByTags(selectedTags);
+    } else {
+      fetchWorkspaces();
+    }
+  }, [selectedTags]);
 
   return (
     <div className="min-h-full bg-white">
@@ -87,7 +96,9 @@ const Workspaces: React.FC = () => {
             )}
           </div>
 
-          {filtered.length > 0 ? (
+          {loading ? (
+            <div className="text-center py-20 text-gray-500">Loading...</div>
+          ) : filtered.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filtered.map((workspace) => (
                 <div

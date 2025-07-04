@@ -10,6 +10,14 @@ router = APIRouter(prefix="/api/workspaces")
 async def create_workspace(data: WorkspaceCreateRequest):
     return await ws_handlers.create_workspace(data)
 
+@router.get("")
+async def get_all_workspaces():
+    return await ws_handlers.fetch_all_workspaces()
+
+@router.get("/{workspace_id}")
+async def get_workspace_by_id(workspace_id: int):
+    return await ws_handlers.fetch_by_id(workspace_id)
+
 @router.get("/by-name/{name}")
 async def get_workspace_by_name(name: str):
     return await ws_handlers.fetch_by_name(name)
