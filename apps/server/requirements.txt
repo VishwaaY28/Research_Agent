@@ -14,3 +14,6 @@ requests
 PyMuPDF
 pillow
 pytesseract
+camelot-py[cv]
+pdfplumber
+tabula-py

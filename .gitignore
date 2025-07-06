@@ -28,3 +28,5 @@ db.sqlite3*
 source_files
 extracts
 figures
+tables
+tmp

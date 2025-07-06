@@ -38,6 +38,23 @@ class ContentSources(TimestampMixin):
     extracted_url = fields.CharField(max_length=1024, unique=True)
     type = fields.CharEnumField(SourceType, max_length=50)
 
+class SourceImage(TimestampMixin):
+    id = fields.IntField(pk=True)
+    content_source = fields.ForeignKeyField('models.ContentSources', related_name='images')
+    path = fields.CharField(max_length=1024)
+    page_number = fields.IntField(null=True)
+    caption = fields.TextField(null=True)
+    ocr_text = fields.TextField(null=True)
+
+class SourceTable(TimestampMixin):
+    id = fields.IntField(pk=True)
+    content_source = fields.ForeignKeyField('models.ContentSources', related_name='tables')
+    path = fields.CharField(max_length=1024)
+    page_number = fields.IntField(null=True)
+    caption = fields.TextField(null=True)
+    data = fields.TextField(null=True)
+    extraction_method = fields.CharField(max_length=50, null=True)
+
 class Section(TimestampMixin):
     id = fields.IntField(pk=True)
     content_source = fields.ForeignKeyField('models.ContentSources', related_name='sections')

@@ -1,6 +1,12 @@
 import re
 
 def clean_content(text: str) -> str:
-    text = re.sub(r'\n{2,}', '\n', text)
-    text = re.sub(r'([^\n])\n([^\n])', r'\1 \2', text)
-    return text.strip()
+    """Clean and normalize extracted text content"""
+    if not text:
+        return ""
+
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\n+', '\n', text)
+    text = text.strip()
+
+    return text

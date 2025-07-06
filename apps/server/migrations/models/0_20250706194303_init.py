@@ -13,6 +13,29 @@ async def upgrade(db: BaseDBAsyncClient) -> str:
     "extracted_url" VARCHAR(1024) NOT NULL UNIQUE,
     "type" VARCHAR(50) NOT NULL /* WEB: web\nPDF: pdf\nDOCX: docx */
 );
+CREATE TABLE IF NOT EXISTS "sourceimage" (
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at" TIMESTAMP,
+    "path" VARCHAR(1024) NOT NULL,
+    "page_number" INT,
+    "caption" TEXT,
+    "ocr_text" TEXT,
+    "content_source_id" INT NOT NULL REFERENCES "contentsources" ("id") ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS "sourcetable" (
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at" TIMESTAMP,
+    "path" VARCHAR(1024) NOT NULL,
+    "page_number" INT,
+    "caption" TEXT,
+    "data" TEXT,
+    "extraction_method" VARCHAR(50),
+    "content_source_id" INT NOT NULL REFERENCES "contentsources" ("id") ON DELETE CASCADE
+);
 CREATE TABLE IF NOT EXISTS "tag" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
