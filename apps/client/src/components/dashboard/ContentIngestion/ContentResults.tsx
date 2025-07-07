@@ -20,8 +20,8 @@ import { useDebounce } from '../../../hooks/useDebounce';
 import { useSections } from '../../../hooks/useSections';
 import { type Tag, useTags } from '../../../hooks/useTags';
 import { useWorkspace } from '../../../hooks/useWorkspace';
+import { API } from '../../../utils/constants';
 
-// Updated types to match the new structured format
 type ContentSection = {
   tag: string;
   content: Array<{
@@ -84,7 +84,7 @@ type SelectedItem = {
   originalData?: any;
 };
 
-interface ContentResultsProps {
+type ContentResultsProps = {
   extractedResults: ExtractedContent[];
   onReset: () => void;
 }
@@ -114,7 +114,6 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
 
   const debouncedTagSearch = useDebounce(tagSearchQuery, 300);
 
-  // Helper functions
   const isStructuredChunk = (chunk: Chunk): chunk is StructuredChunk => {
     return 'title' in chunk && 'content' in chunk && Array.isArray(chunk.content);
   };
@@ -210,7 +209,6 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
     setViewingItem({ item, sourceName, type });
   };
 
-  // Render structured content
   const renderStructuredChunk = (
     chunk: StructuredChunk,
     result: ExtractedContent,
@@ -343,7 +341,6 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
     );
   };
 
-  // Render simple content
   const renderSimpleChunk = (chunk: SimpleChunk, result: ExtractedContent, chunkIndex: number) => {
     const sourceName = getSourceName(result);
 
@@ -401,7 +398,6 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
     );
   };
 
-  // Render images
   const renderImages = (images: ExtractedImage[], result: ExtractedContent) => {
     if (!images || images.length === 0) return null;
 
@@ -467,7 +463,6 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
     );
   };
 
-  // Render tables
   const renderTables = (tables: ExtractedTable[], result: ExtractedContent) => {
     if (!tables || tables.length === 0) return null;
 
@@ -537,7 +532,6 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
     );
   };
 
-  // Rest of the component remains similar but with updated data handling
   const handleItemNameChange = (index: number, name: string) => {
     setSelectedItems((prev) => prev.map((item, i) => (i === index ? { ...item, name } : item)));
   };
@@ -597,23 +591,87 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
 
     setIsSaving(true);
     try {
-      const itemsBySource = selectedItems.reduce(
-        (acc, item) => {
-          if (!acc[item.sourceName]) {
-            acc[item.sourceName] = [];
-          }
-          acc[item.sourceName].push({
-            content: item.content,
-            name: item.name,
-            tags: item.tags,
-          });
-          return acc;
-        },
-        {} as Record<string, Array<{ content: string; name: string; tags: string[] }>>,
+      const sectionItems = selectedItems.filter(
+        (item) => item.type === 'section' || item.type === 'chunk',
       );
+      const imageItems = selectedItems.filter((item) => item.type === 'image');
+      const tableItems = selectedItems.filter((item) => item.type === 'table');
 
-      for (const [sourceName, items] of Object.entries(itemsBySource)) {
-        await createSections(parseInt(workspace.id), sourceName, items);
+      if (sectionItems.length > 0) {
+        const itemsBySource = sectionItems.reduce(
+          (acc, item) => {
+            if (!acc[item.sourceName]) {
+              acc[item.sourceName] = [];
+            }
+            acc[item.sourceName].push({
+              content: item.content,
+              name: item.name,
+              tags: item.tags,
+            });
+            return acc;
+          },
+          {} as Record<string, Array<{ content: string; name: string; tags: string[] }>>,
+        );
+
+        for (const [sourceName, items] of Object.entries(itemsBySource)) {
+          await createSections(parseInt(workspace.id), sourceName, items);
+        }
+      }
+
+      if (imageItems.length > 0) {
+        for (const item of imageItems) {
+          try {
+            const response = await fetch(
+              `${API.BASE_URL()}${API.ENDPOINTS.WORKSPACES.BASE_URL()}${API.ENDPOINTS.WORKSPACES.IMAGES.ADD(workspace.id, item.originalData.id)}`,
+              { method: 'POST' },
+            );
+
+            if (response.ok) {
+              const workspaceImage = await response.json();
+
+              if (item.tags.length > 0) {
+                await fetch(
+                  `${API.BASE_URL()}${API.ENDPOINTS.WORKSPACES.BASE_URL()}${API.ENDPOINTS.WORKSPACES.IMAGES.ADD_TAGS_BULK(workspace.id, workspaceImage.id)}`,
+                  {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(item.tags),
+                  },
+                );
+              }
+            }
+          } catch (error) {
+            console.error('Error saving image:', error);
+          }
+        }
+      }
+
+      if (tableItems.length > 0) {
+        for (const item of tableItems) {
+          try {
+            const response = await fetch(
+              `${API.BASE_URL()}${API.ENDPOINTS.WORKSPACES.BASE_URL()}${API.ENDPOINTS.WORKSPACES.TABLES.ADD(workspace.id, item.originalData.id)}`,
+              { method: 'POST' },
+            );
+
+            if (response.ok) {
+              const workspaceTable = await response.json();
+
+              if (item.tags.length > 0) {
+                await fetch(
+                  `${API.BASE_URL()}${API.ENDPOINTS.WORKSPACES.BASE_URL()}${API.ENDPOINTS.WORKSPACES.TABLES.ADD_TAGS_BULK(workspace.id, workspaceTable.id)}`,
+                  {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(item.tags),
+                  },
+                );
+              }
+            }
+          } catch (error) {
+            console.error('Error saving table:', error);
+          }
+        }
       }
 
       toast.success(`Successfully saved ${selectedItems.length} items to ${workspace.name}`);
@@ -630,7 +688,6 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
     }
   };
 
-  // Initialize data fetching
   useEffect(() => {
     let mounted = true;
 
@@ -651,7 +708,6 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
     };
   }, []);
 
-  // Handle tag search
   useEffect(() => {
     let mounted = true;
 
@@ -679,7 +735,6 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
     };
   }, [debouncedTagSearch]);
 
-  // Set initial suggested tags
   useEffect(() => {
     if (!tagSearchQuery.trim() && tags.length > 0) {
       setSuggestedTags(tags.slice(0, 10));

@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { API } from '../utils/constants';
 
-export function useSources(workspaceId: string | number) {
+export function useSources() {
   const baseUrl = API.BASE_URL();
 
   const uploadSources = useCallback(
@@ -14,15 +14,10 @@ export function useSources(workspaceId: string | number) {
         urls.forEach((url) => formData.append('urls', url));
       }
 
-      const response = await fetch(
-        API.BASE_URL() +
-          API.ENDPOINTS.SOURCES.BASE_URL() +
-          API.ENDPOINTS.SOURCES.UPLOAD(workspaceId),
-        {
-          method: 'POST',
-          body: formData,
-        },
-      );
+      const response = await fetch(API.BASE_URL() + API.ENDPOINTS.SOURCES.BASE_URL(), {
+        method: 'POST',
+        body: formData,
+      });
 
       if (!response.ok) {
         throw new Error(`Upload failed: ${response.statusText}`);
@@ -30,33 +25,20 @@ export function useSources(workspaceId: string | number) {
 
       return await response.json();
     },
-    [workspaceId, baseUrl],
+    [baseUrl],
   );
 
   const listSources = useCallback(async () => {
-    const response = await fetch(`${baseUrl}${API.ENDPOINTS.SOURCES.LIST(workspaceId)}`);
+    const response = await fetch(`${baseUrl}${API.ENDPOINTS.SOURCES.LIST()}`, {
+      method: 'GET',
+    });
 
     if (!response.ok) {
       throw new Error(`Failed to list sources: ${response.statusText}`);
     }
 
     return await response.json();
-  }, [workspaceId, baseUrl]);
-
-  const filterSources = useCallback(
-    async (filename: string) => {
-      const response = await fetch(
-        `${baseUrl}${API.ENDPOINTS.SOURCES.FILTER(workspaceId)}?filename=${encodeURIComponent(filename)}`,
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to filter sources: ${response.statusText}`);
-      }
-
-      return await response.json();
-    },
-    [workspaceId, baseUrl],
-  );
+  }, [baseUrl]);
 
   const deleteSource = useCallback(
     async (contentSourceId: string | number, hard = false) => {
@@ -77,5 +59,5 @@ export function useSources(workspaceId: string | number) {
     [baseUrl],
   );
 
-  return { uploadSources, listSources, filterSources, deleteSource };
+  return { uploadSources, listSources, deleteSource };
 }

@@ -3,12 +3,12 @@ import { FiFolder, FiX, FiSend, FiArrowLeft } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import WorkspaceModal from '../../components/dashboard/ProposalAuthoring/WorkspaceModal';
 
-interface ContentChunk {
+type ContentChunk = {
   id: string;
   title: string;
   preview: string;
   source: string;
-}
+};
 
 interface SelectedChunk extends ContentChunk {
   workspaceName: string;
@@ -28,7 +28,7 @@ const CreateProposal: React.FC = () => {
     'Technical Documents',
     'Client Presentations',
     'Research Papers',
-    'Financial Reports'
+    'Financial Reports',
   ];
 
   const handleWorkspaceClick = (workspace: string) => {
@@ -37,23 +37,23 @@ const CreateProposal: React.FC = () => {
   };
 
   const handleChunksSelected = (chunks: ContentChunk[], workspaceName: string) => {
-    const chunksWithWorkspace = chunks.map(chunk => ({
+    const chunksWithWorkspace = chunks.map((chunk) => ({
       ...chunk,
-      workspaceName
+      workspaceName,
     }));
-    setSelectedChunks(prev => [...prev, ...chunksWithWorkspace]);
+    setSelectedChunks((prev) => [...prev, ...chunksWithWorkspace]);
     setIsModalOpen(false);
   };
 
   const removeChunk = (chunkId: string) => {
-    setSelectedChunks(prev => prev.filter(chunk => chunk.id !== chunkId));
+    setSelectedChunks((prev) => prev.filter((chunk) => chunk.id !== chunkId));
   };
 
   const handleGenerate = async () => {
     if (!userPrompt.trim()) return;
 
     setIsGenerating(true);
-    
+
     setTimeout(() => {
       const mockResult = `# Generated Proposal
 
@@ -73,8 +73,12 @@ This proposal has been generated using the selected content from your workspaces
 
 ## Detailed Analysis
 
-${selectedChunks.length > 0 ? `This proposal incorporates insights from the following sources:
-${selectedChunks.map(chunk => `- ${chunk.title} (from ${chunk.workspaceName})`).join('\n')}` : ''}
+${
+  selectedChunks.length > 0
+    ? `This proposal incorporates insights from the following sources:
+${selectedChunks.map((chunk) => `- ${chunk.title} (from ${chunk.workspaceName})`).join('\n')}`
+    : ''
+}
 
 Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.
 
@@ -133,15 +137,31 @@ This proposal presents a comprehensive solution that addresses your specific req
               <div className="prose prose-lg max-w-none">
                 {generatedResult.split('\n').map((line, index) => {
                   if (line.startsWith('# ')) {
-                    return <h1 key={index} className="text-3xl font-bold text-gray-900 mb-6 first:mt-0">{line.substring(2)}</h1>;
+                    return (
+                      <h1 key={index} className="text-3xl font-bold text-gray-900 mb-6 first:mt-0">
+                        {line.substring(2)}
+                      </h1>
+                    );
                   } else if (line.startsWith('## ')) {
-                    return <h2 key={index} className="text-2xl font-semibold text-gray-900 mb-4 mt-8">{line.substring(3)}</h2>;
+                    return (
+                      <h2 key={index} className="text-2xl font-semibold text-gray-900 mb-4 mt-8">
+                        {line.substring(3)}
+                      </h2>
+                    );
                   } else if (line.startsWith('- ')) {
-                    return <li key={index} className="text-gray-700 mb-2">{line.substring(2)}</li>;
+                    return (
+                      <li key={index} className="text-gray-700 mb-2">
+                        {line.substring(2)}
+                      </li>
+                    );
                   } else if (line.trim() === '') {
                     return <br key={index} />;
                   } else {
-                    return <p key={index} className="text-gray-700 mb-4 leading-relaxed">{line}</p>;
+                    return (
+                      <p key={index} className="text-gray-700 mb-4 leading-relaxed">
+                        {line}
+                      </p>
+                    );
                   }
                 })}
               </div>
@@ -165,7 +185,9 @@ This proposal presents a comprehensive solution that addresses your specific req
             </button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Create New Proposal</h1>
-              <p className="text-gray-600 mt-1">Describe your proposal needs and select relevant content</p>
+              <p className="text-gray-600 mt-1">
+                Describe your proposal needs and select relevant content
+              </p>
             </div>
           </div>
         </div>
@@ -184,9 +206,13 @@ This proposal presents a comprehensive solution that addresses your specific req
           </div>
 
           <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">Select Content from Workspaces</h2>
-            <p className="text-gray-600 text-sm mb-6">Choose relevant content from your workspaces to enhance your proposal</p>
-            
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">
+              Select Content from Workspaces
+            </h2>
+            <p className="text-gray-600 text-sm mb-6">
+              Choose relevant content from your workspaces to enhance your proposal
+            </p>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
               {mockWorkspaces.map((workspace) => (
                 <button
@@ -202,10 +228,15 @@ This proposal presents a comprehensive solution that addresses your specific req
 
             {selectedChunks.length > 0 && (
               <div>
-                <h3 className="font-semibold text-gray-900 mb-4">Selected Content ({selectedChunks.length})</h3>
+                <h3 className="font-semibold text-gray-900 mb-4">
+                  Selected Content ({selectedChunks.length})
+                </h3>
                 <div className="space-y-3">
                   {selectedChunks.map((chunk) => (
-                    <div key={chunk.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div
+                      key={chunk.id}
+                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200"
+                    >
                       <div className="flex-1">
                         <p className="font-medium text-gray-900 text-sm">{chunk.title}</p>
                         <p className="text-gray-600 text-xs mt-1">from {chunk.workspaceName}</p>

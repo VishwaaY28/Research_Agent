@@ -1,14 +1,14 @@
 import { useCallback, useState } from 'react';
 import { API } from '../utils/constants';
 
-export interface Section {
+export type Section = {
   id: number;
   name: string;
   content: string;
   tags: string[];
   source: string;
   content_source?: string | null;
-}
+};
 
 export function useSections() {
   const [sections, setSections] = useState<Section[]>([]);

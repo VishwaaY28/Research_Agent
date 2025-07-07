@@ -5,6 +5,8 @@ import './index.css';
 import DashLayout from './layouts/DashLayout';
 import Auth from './pages/Auth';
 import ContentIngestion from './pages/dashboard/ContentIngestion';
+import ContentSources from './pages/dashboard/ContentSources';
+import ContentSourceView from './pages/dashboard/ContentSourceView';
 import CreateProposal from './pages/dashboard/CreateProposal';
 import CreateWorkspace from './pages/dashboard/CreateWorkspace';
 import DashHome from './pages/dashboard/Home';
@@ -54,6 +56,16 @@ const router = createBrowserRouter([
       {
         path: 'content-ingestion',
         element: <ContentIngestion />,
+        errorElement: <Error />,
+      },
+      {
+        path: 'content-sources',
+        element: <ContentSources />,
+        errorElement: <Error />,
+      },
+      {
+        path: 'content-sources/:id',
+        element: <ContentSourceView />,
         errorElement: <Error />,
       },
       {

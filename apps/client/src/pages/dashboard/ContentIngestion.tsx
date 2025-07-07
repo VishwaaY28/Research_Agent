@@ -40,6 +40,11 @@ const ContentIngestion: React.FC = () => {
     setIsProcessing(false);
   };
 
+  const handleReset = () => {
+    setExtractedResults([]);
+    setIsProcessing(false);
+  };
+
   return (
     <div className="h-full bg-white">
       <Toaster
@@ -62,10 +67,7 @@ const ContentIngestion: React.FC = () => {
           />
         </div>
       ) : (
-        <ContentResults
-          extractedResults={extractedResults}
-          onReset={() => setExtractedResults([])}
-        />
+        <ContentResults extractedResults={extractedResults} onReset={handleReset} />
       )}
     </div>
   );

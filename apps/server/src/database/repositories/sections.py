@@ -1,8 +1,8 @@
-import os
-
 from database.models import Section, ContentSources, Tag, SectionTag, Workspace
 from tortoise.queryset import Prefetch
 from tortoise.exceptions import DoesNotExist
+from typing import List
+from datetime import datetime
 
 class SectionRepository:
     async def bulk_create_sections(self, workspace_id, filename, chunks):
@@ -16,25 +16,22 @@ class SectionRepository:
             try:
                 content_source = await ContentSources.get(source_url=filename, deleted_at=None)
             except DoesNotExist:
-                try:
-                    content_source = await ContentSources.get(name=filename, deleted_at=None)
-                except DoesNotExist:
-                    pass
+                content_source = await ContentSources.create(
+                    name=filename,
+                    source_url=filename,
+                    extracted_url=filename,
+                    type="web"
+                )
         else:
             try:
                 content_source = await ContentSources.get(name=filename, deleted_at=None)
             except DoesNotExist:
-                basename = os.path.basename(filename)
-                try:
-                    content_source = await ContentSources.get(name=basename, deleted_at=None)
-                except DoesNotExist:
-                    try:
-                        content_source = await ContentSources.filter(
-                            source_url__contains=basename,
-                            deleted_at=None
-                        ).first()
-                    except DoesNotExist:
-                        pass
+                content_source = await ContentSources.create(
+                    name=filename,
+                    source_url=f"file://{filename}",
+                    extracted_url=f"file://{filename}",
+                    type="pdf" if filename.endswith('.pdf') else "docx"
+                )
 
         if not content_source:
             available_sources = await self._list_available_sources()
@@ -46,7 +43,8 @@ class SectionRepository:
             name = chunk.get("name")
             tags = chunk.get("tags", [])
             if not name:
-                name = " ".join(content.split()[:4]) + ("..." if len(content.split()) > 4 else "")
+                name = content[:50] + "..." if len(content) > 50 else content
+
             section = await Section.create(
                 content_source=content_source,
                 workspace=workspace,
@@ -54,11 +52,46 @@ class SectionRepository:
                 content=content,
                 source=filename
             )
-            for tag_name in tags:
-                tag_obj, _ = await Tag.get_or_create(name=tag_name)
-                await SectionTag.create(section=section, tag=tag_obj)
+
+            # Add tags to section
+            if tags:
+                await self.add_tags_to_section(section.id, tags)
+
             created_sections.append(section)
+
         return created_sections
+
+    async def add_tag_to_section(self, section_id: int, tag_name: str):
+        """Add a tag to a section"""
+        tag, _ = await Tag.get_or_create(name=tag_name)
+        section_tag, created = await SectionTag.get_or_create(
+            section_id=section_id,
+            tag=tag
+        )
+        return section_tag
+
+    async def add_tags_to_section(self, section_id: int, tag_names: List[str]):
+        """Add multiple tags to a section"""
+        results = []
+        for tag_name in tag_names:
+            result = await self.add_tag_to_section(section_id, tag_name)
+            results.append(result)
+        return results
+
+    async def remove_tag_from_section(self, section_id: int, tag_id: int):
+        """Remove a tag from a section"""
+        deleted_count = await SectionTag.filter(
+            section_id=section_id,
+            tag_id=tag_id
+        ).delete()
+        return deleted_count > 0
+
+    async def get_section_tags(self, section_id: int) -> List[Tag]:
+        """Get all tags for a section"""
+        section_tags = await SectionTag.filter(
+            section_id=section_id
+        ).prefetch_related('tag')
+        return [st.tag for st in section_tags]
 
     async def _list_available_sources(self):
         sources = await ContentSources.filter(deleted_at=None).all()
@@ -90,7 +123,6 @@ class SectionRepository:
         )
 
     async def soft_delete_section(self, section_id):
-        from datetime import datetime
         section = await Section.get(id=section_id)
         section.deleted_at = datetime.utcnow()
         await section.save()

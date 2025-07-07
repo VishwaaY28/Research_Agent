@@ -55,6 +55,26 @@ class SourceTable(TimestampMixin):
     data = fields.TextField(null=True)
     extraction_method = fields.CharField(max_length=50, null=True)
 
+class WorkspaceImage(TimestampMixin):
+    id = fields.IntField(pk=True)
+    workspace = fields.ForeignKeyField('models.Workspace', related_name='workspace_images')
+    source_image = fields.ForeignKeyField('models.SourceImage', related_name='workspace_images')
+
+class WorkspaceImageTag(TimestampMixin):
+    id = fields.IntField(pk=True)
+    workspace_image = fields.ForeignKeyField('models.WorkspaceImage', related_name='tags')
+    tag = fields.ForeignKeyField('models.Tag', related_name='workspace_images')
+
+class WorkspaceTable(TimestampMixin):
+    id = fields.IntField(pk=True)
+    workspace = fields.ForeignKeyField('models.Workspace', related_name='workspace_tables')
+    source_table = fields.ForeignKeyField('models.SourceTable', related_name='workspace_tables')
+
+class WorkspaceTableTag(TimestampMixin):
+    id = fields.IntField(pk=True)
+    workspace_table = fields.ForeignKeyField('models.WorkspaceTable', related_name='tags')
+    tag = fields.ForeignKeyField('models.Tag', related_name='workspace_tables')
+
 class Section(TimestampMixin):
     id = fields.IntField(pk=True)
     content_source = fields.ForeignKeyField('models.ContentSources', related_name='sections')

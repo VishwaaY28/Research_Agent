@@ -4,10 +4,10 @@ from tortoise.exceptions import DoesNotExist
 class ContentSourceRepository:
     async def upsert(self, name, source_url, extracted_url, type):
         obj, _ = await ContentSources.get_or_create(
-            name=name,
-            defaults={"source_url": source_url, "extracted_url": extracted_url, "type": type}
+            source_url=source_url,
+            defaults={"name": name, "extracted_url": extracted_url, "type": type}
         )
-        obj.source_url = source_url
+        obj.name = name
         obj.extracted_url = extracted_url
         obj.type = type
         await obj.save()
@@ -15,6 +15,18 @@ class ContentSourceRepository:
 
     async def filter_by_filename(self, filename):
         return await ContentSources.filter(name=filename, deleted_at=None)
+    
+    async def filter_by_url(self, url):
+        return await ContentSources.filter(source_url=url, deleted_at=None)
+
+    async def list_all(self):
+        return await ContentSources.filter(deleted_at=None).order_by('-created_at')
+    
+    async def get_by_id(self, content_source_id):
+        try:
+            return await ContentSources.get(id=content_source_id, deleted_at=None)
+        except DoesNotExist:
+            return None
 
     async def soft_delete(self, content_source_id):
         from datetime import datetime

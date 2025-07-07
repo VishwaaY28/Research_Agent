@@ -2,20 +2,20 @@ import React, { useState } from 'react';
 import { FiX, FiFolder, FiCheck } from 'react-icons/fi';
 import type { ContentChunk } from '../../../hooks/useContentIngestion';
 
-interface WorkspaceModalProps {
+type WorkspaceModalProps = {
   isOpen: boolean;
   chunks: ContentChunk[];
   workspaces: string[];
   onSave: (workspaceName: string) => void;
   onClose: () => void;
-}
+};
 
 const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   isOpen,
   chunks,
   workspaces,
   onSave,
-  onClose
+  onClose,
 }) => {
   const [selectedWorkspace, setSelectedWorkspace] = useState('');
 
@@ -26,13 +26,16 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     }
   };
 
-  const groupedChunks = chunks.reduce((acc, chunk) => {
-    if (!acc[chunk.tag]) {
-      acc[chunk.tag] = [];
-    }
-    acc[chunk.tag].push(chunk);
-    return acc;
-  }, {} as Record<string, ContentChunk[]>);
+  const groupedChunks = chunks.reduce(
+    (acc, chunk) => {
+      if (!acc[chunk.tag]) {
+        acc[chunk.tag] = [];
+      }
+      acc[chunk.tag].push(chunk);
+      return acc;
+    },
+    {} as Record<string, ContentChunk[]>,
+  );
 
   if (!isOpen) return null;
 
@@ -41,7 +44,7 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
       <div className="bg-white rounded-xl p-6 w-full max-w-2xl mx-4 max-h-[80vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-xl font-semibold text-black">Save to Workspace</h3>
-          <button 
+          <button
             onClick={onClose}
             className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
           >
@@ -91,18 +94,20 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                     className="sr-only"
                   />
                   <div className="flex items-center flex-1">
-                    <div className={`p-2 rounded-lg mr-3 ${
-                      selectedWorkspace === workspace ? 'bg-primary/20' : 'bg-gray-100'
-                    }`}>
-                      <FiFolder className={`w-5 h-5 ${
-                        selectedWorkspace === workspace ? 'text-primary' : 'text-gray-500'
-                      }`} />
+                    <div
+                      className={`p-2 rounded-lg mr-3 ${
+                        selectedWorkspace === workspace ? 'bg-primary/20' : 'bg-gray-100'
+                      }`}
+                    >
+                      <FiFolder
+                        className={`w-5 h-5 ${
+                          selectedWorkspace === workspace ? 'text-primary' : 'text-gray-500'
+                        }`}
+                      />
                     </div>
                     <span className="font-medium text-neutral-800">{workspace}</span>
                   </div>
-                  {selectedWorkspace === workspace && (
-                    <FiCheck className="w-5 h-5 text-primary" />
-                  )}
+                  {selectedWorkspace === workspace && <FiCheck className="w-5 h-5 text-primary" />}
                 </label>
               ))}
             </div>

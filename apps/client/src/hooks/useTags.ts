@@ -1,11 +1,11 @@
 import { useCallback, useState } from 'react';
 import { API } from '../utils/constants';
 
-export interface Tag {
+export type Tag = {
   id: number;
   name: string;
   usage_count: number;
-}
+};
 
 export function useTags() {
   const [tags, setTags] = useState<Tag[]>([]);

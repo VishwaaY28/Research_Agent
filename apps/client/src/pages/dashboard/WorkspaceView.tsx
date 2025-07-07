@@ -1,59 +1,94 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useState } from 'react';
-import { FiArrowLeft, FiEdit3, FiEye, FiFileText, FiSearch, FiTag, FiX } from 'react-icons/fi';
+import {
+  FiArrowLeft,
+  FiEdit3,
+  FiEye,
+  FiFileText,
+  FiGrid,
+  FiImage,
+  FiSearch,
+  FiTag,
+  FiX,
+} from 'react-icons/fi';
 import { useNavigate, useParams } from 'react-router-dom';
 import { type Section, useSections } from '../../hooks/useSections';
 import { useWorkspace } from '../../hooks/useWorkspace';
+import { useWorkspaceImages, type WorkspaceImage } from '../../hooks/useWorkspaceImages';
+import { useWorkspaceTables, type WorkspaceTable } from '../../hooks/useWorkspaceTables';
 
-interface Workspace {
+type Workspace = {
   id: string;
   name: string;
   clientName?: string;
   tags: string[];
-}
+};
+
+type TabType = 'sections' | 'images' | 'tables';
 
 const WorkspaceView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [sections, setSections] = useState<Section[]>([]);
+  const [images, setImages] = useState<WorkspaceImage[]>([]);
+  const [tables, setTables] = useState<WorkspaceTable[]>([]);
   const [allSections, setAllSections] = useState<Section[]>([]);
+  const [allImages, setAllImages] = useState<WorkspaceImage[]>([]);
+  const [allTables, setAllTables] = useState<WorkspaceTable[]>([]);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [viewingSection, setViewingSection] = useState<Section | null>(null);
+  const [activeTab, setActiveTab] = useState<TabType>('sections');
 
   const { fetchWorkspace } = useWorkspace();
   const { fetchSections, filterSectionsByTags } = useSections();
+  const { getWorkspaceImages, filterImagesByTags } = useWorkspaceImages();
+  const { getWorkspaceTables, filterTablesByTags } = useWorkspaceTables();
 
   useEffect(() => {
     if (!id) return;
 
     const loadWorkspaceData = async () => {
       try {
+        setLoading(true);
+
         const workspaceData = await fetchWorkspace(id);
         if (!workspaceData) {
           setWorkspace(null);
           setLoading(false);
           return;
         }
+
         setWorkspace({
           id: workspaceData.id,
           name: workspaceData.name,
           clientName: workspaceData.client,
           tags: workspaceData.tags || [],
         });
-        const sectionsData = await fetchSections(id);
+
+        const [sectionsData, imagesData, tablesData] = await Promise.all([
+          fetchSections(id),
+          getWorkspaceImages(id),
+          getWorkspaceTables(id),
+        ]);
+
         setAllSections(sectionsData);
         setSections(sectionsData);
-        setLoading(false);
+        setAllImages(imagesData);
+        setImages(imagesData);
+        setAllTables(tablesData);
+        setTables(tablesData);
       } catch (error) {
         console.error('Failed to fetch workspace data:', error);
+      } finally {
         setLoading(false);
       }
     };
 
     loadWorkspaceData();
-  }, []);
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
@@ -61,43 +96,234 @@ const WorkspaceView: React.FC = () => {
     const handleTagFilter = async () => {
       try {
         if (selectedTags.length > 0) {
-          const filteredData = await filterSectionsByTags(id, selectedTags);
-          setSections(filteredData);
+          const [filteredSections, filteredImages, filteredTables] = await Promise.all([
+            filterSectionsByTags(id, selectedTags),
+            filterImagesByTags(id, selectedTags),
+            filterTablesByTags(id, selectedTags),
+          ]);
+          setSections(filteredSections);
+          setImages(filteredImages);
+          setTables(filteredTables);
         } else {
           setSections(allSections);
+          setImages(allImages);
+          setTables(allTables);
         }
       } catch (error) {
-        console.error('Failed to filter sections:', error);
+        console.error('Failed to filter by tags:', error);
+        setSections(allSections);
+        setImages(allImages);
+        setTables(allTables);
       }
     };
 
     handleTagFilter();
-  }, [selectedTags, id, allSections]);
+  }, [selectedTags, id, allSections, allImages, allTables]);
 
-  const allTags = Array.from(new Set(allSections.flatMap((s) => s.tags || [])));
-
-  const filteredSections = sections.filter((section) => {
-    if (!search) return true;
-    return (
-      section.content.toLowerCase().includes(search.toLowerCase()) ||
-      (section.tags || []).some((tag) => tag.toLowerCase().includes(search.toLowerCase())) ||
-      (section.name && section.name.toLowerCase().includes(search.toLowerCase()))
+  const allTags = React.useMemo(() => {
+    return Array.from(
+      new Set([
+        ...allSections.flatMap((s) => s.tags || []),
+        ...allImages.flatMap((i) => i.tags || []),
+        ...allTables.flatMap((t) => t.tags || []),
+      ]),
     );
-  });
+  }, [allSections, allImages, allTables]);
 
-  function toggleTag(tag: string) {
+  const getFilteredData = React.useCallback(() => {
+    const currentData =
+      activeTab === 'sections' ? sections : activeTab === 'images' ? images : tables;
+
+    if (!search) return currentData;
+
+    return currentData.filter((item: any) => {
+      const searchLower = search.toLowerCase();
+      if (activeTab === 'sections') {
+        return (
+          item.content.toLowerCase().includes(searchLower) ||
+          (item.tags || []).some((tag: string) => tag.toLowerCase().includes(searchLower)) ||
+          (item.name && item.name.toLowerCase().includes(searchLower))
+        );
+      } else if (activeTab === 'images') {
+        return (
+          (item.source_image.caption &&
+            item.source_image.caption.toLowerCase().includes(searchLower)) ||
+          (item.source_image.ocr_text &&
+            item.source_image.ocr_text.toLowerCase().includes(searchLower)) ||
+          (item.tags || []).some((tag: string) => tag.toLowerCase().includes(searchLower))
+        );
+      } else {
+        return (
+          (item.source_table.caption &&
+            item.source_table.caption.toLowerCase().includes(searchLower)) ||
+          (item.source_table.data && item.source_table.data.toLowerCase().includes(searchLower)) ||
+          (item.tags || []).some((tag: string) => tag.toLowerCase().includes(searchLower))
+        );
+      }
+    });
+  }, [activeTab, sections, images, tables, search]);
+
+  const filteredData = getFilteredData();
+
+  const toggleTag = React.useCallback((tag: string) => {
     setSelectedTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
     );
-  }
+  }, []);
 
-  const handleViewSection = (section: Section, e: React.MouseEvent) => {
+  const handleViewSection = React.useCallback((section: Section, e: React.MouseEvent) => {
     e.stopPropagation();
     setViewingSection(section);
-  };
+  }, []);
 
-  const closeModal = () => {
+  const closeModal = React.useCallback(() => {
     setViewingSection(null);
+  }, []);
+
+  const renderTabContent = () => {
+    if (activeTab === 'sections') {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {(filteredData as Section[]).map((section) => (
+            <div
+              key={section.id}
+              className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md hover:border-gray-300 transition-all duration-200 group cursor-pointer"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1">
+                  {section.tags && section.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {section.tags.map((tag, index) => (
+                        <span
+                          key={index}
+                          className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full font-medium flex items-center"
+                        >
+                          <FiTag className="w-3 h-3 mr-1" />
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {section.name && (
+                    <h3 className="font-medium text-gray-900 mb-2">{section.name}</h3>
+                  )}
+                  <p className="text-gray-700 text-sm leading-relaxed line-clamp-4">
+                    {section.content}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                  <button
+                    onClick={(e) => handleViewSection(section, e)}
+                    className="p-1 text-gray-400 hover:text-primary opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-primary/10 rounded"
+                    title="View full content"
+                  >
+                    <FiEye className="w-4 h-4" />
+                  </button>
+                  <FiEdit3 className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-gray-500 pt-4 border-t border-gray-100">
+                <div className="flex items-center">
+                  <FiFileText className="w-4 h-4 mr-1" />
+                  {section.content_source}
+                </div>
+                <div className="flex items-center">
+                  <FiFileText className="w-4 h-4 mr-1" />
+                  {section.content.split(' ').length} words
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    } else if (activeTab === 'images') {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {(filteredData as WorkspaceImage[]).map((image) => (
+            <div
+              key={image.id}
+              className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md hover:border-gray-300 transition-all duration-200 group"
+            >
+              <div className="aspect-square bg-gray-100 rounded-lg mb-4 flex items-center justify-center">
+                <FiImage className="w-8 h-8 text-gray-400" />
+              </div>
+
+              {image.tags && image.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-3">
+                  {image.tags.map((tag, index) => (
+                    <span
+                      key={index}
+                      className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full font-medium flex items-center"
+                    >
+                      <FiTag className="w-3 h-3 mr-1" />
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {image.source_image.caption && (
+                <p className="text-sm text-gray-700 mb-2">{image.source_image.caption}</p>
+              )}
+
+              <div className="text-xs text-gray-500">
+                {image.source_image.page_number && <p>Page {image.source_image.page_number}</p>}
+                <p>Image ID: {image.source_image.id}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    } else {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {(filteredData as WorkspaceTable[]).map((table) => (
+            <div
+              key={table.id}
+              className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md hover:border-gray-300 transition-all duration-200 group"
+            >
+              <div className="flex items-center justify-center bg-gray-100 rounded-lg p-4 mb-4">
+                <FiGrid className="w-8 h-8 text-gray-400" />
+              </div>
+
+              {table.tags && table.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-3">
+                  {table.tags.map((tag, index) => (
+                    <span
+                      key={index}
+                      className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full font-medium flex items-center"
+                    >
+                      <FiTag className="w-3 h-3 mr-1" />
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {table.source_table.caption && (
+                <h4 className="font-medium text-gray-900 mb-2">{table.source_table.caption}</h4>
+              )}
+
+              {table.source_table.data && (
+                <div className="text-sm text-gray-700 mb-2 max-h-32 overflow-hidden">
+                  <pre className="whitespace-pre-wrap text-xs">
+                    {table.source_table.data.slice(0, 200)}...
+                  </pre>
+                </div>
+              )}
+
+              <div className="text-xs text-gray-500 flex justify-between">
+                {table.source_table.page_number && (
+                  <span>Page {table.source_table.page_number}</span>
+                )}
+                <span>{table.source_table.extraction_method}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
   };
 
   if (loading) {
@@ -148,12 +374,52 @@ const WorkspaceView: React.FC = () => {
               <div className="flex-1">
                 <h1 className="text-2xl font-bold text-gray-900">{workspace.name}</h1>
                 <p className="text-gray-600 mt-1">
-                  {allSections.length} content pieces • {allTags.length} categories
+                  {allSections.length} sections • {allImages.length} images • {allTables.length}{' '}
+                  tables
                 </p>
               </div>
-              <button className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-2">
+              <button
+                onClick={() => navigate('/dashboard/content-ingestion')}
+                className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-2"
+              >
                 <FiEdit3 className="w-4 h-4" />
                 Add Content
+              </button>
+            </div>
+
+            <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-fit">
+              <button
+                onClick={() => setActiveTab('sections')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'sections'
+                    ? 'bg-white text-primary shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <FiFileText className="w-4 h-4 inline mr-2" />
+                Sections ({allSections.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('images')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'images'
+                    ? 'bg-white text-primary shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <FiImage className="w-4 h-4 inline mr-2" />
+                Images ({allImages.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('tables')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'tables'
+                    ? 'bg-white text-primary shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <FiGrid className="w-4 h-4 inline mr-2" />
+                Tables ({allTables.length})
               </button>
             </div>
           </div>
@@ -167,7 +433,7 @@ const WorkspaceView: React.FC = () => {
               <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Search content..."
+                placeholder={`Search ${activeTab}...`}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full md:w-96 pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-200"
@@ -205,77 +471,32 @@ const WorkspaceView: React.FC = () => {
             )}
           </div>
 
-          {filteredSections.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredSections.map((section) => (
-                <div
-                  key={section.id}
-                  className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md hover:border-gray-300 transition-all duration-200 group cursor-pointer"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      {section.tags && section.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-3">
-                          {section.tags.map((tag, index) => (
-                            <span
-                              key={index}
-                              className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full font-medium flex items-center"
-                            >
-                              <FiTag className="w-3 h-3 mr-1" />
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {section.name && (
-                        <h3 className="font-medium text-gray-900 mb-2">{section.name}</h3>
-                      )}
-                      <p className="text-gray-700 text-sm leading-relaxed line-clamp-4">
-                        {section.content}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                      <button
-                        onClick={(e) => handleViewSection(section, e)}
-                        className="p-1 text-gray-400 hover:text-primary opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-primary/10 rounded"
-                        title="View full content"
-                      >
-                        <FiEye className="w-4 h-4" />
-                      </button>
-                      <FiEdit3 className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs text-gray-500 pt-4 border-t border-gray-100">
-                    <div className="flex items-center">
-                      <FiFileText className="w-4 h-4 mr-1" />
-                      {section.content_source}
-                    </div>
-                    <div className="flex items-center">
-                      <FiFileText className="w-4 h-4 mr-1" />
-                      {section.content.split(' ').length} words
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+          {filteredData.length > 0 ? (
+            renderTabContent()
           ) : (
             <div className="text-center py-20">
               <div className="max-w-md mx-auto">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <FiFileText className="w-8 h-8 text-gray-400" />
+                  {activeTab === 'sections' && <FiFileText className="w-8 h-8 text-gray-400" />}
+                  {activeTab === 'images' && <FiImage className="w-8 h-8 text-gray-400" />}
+                  {activeTab === 'tables' && <FiGrid className="w-8 h-8 text-gray-400" />}
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                  {search || selectedTags.length > 0 ? 'No content found' : 'No content yet'}
+                  {search || selectedTags.length > 0
+                    ? `No ${activeTab} found`
+                    : `No ${activeTab} yet`}
                 </h3>
                 <p className="text-gray-600 mb-8">
                   {search || selectedTags.length > 0
                     ? 'Try adjusting your search or filter criteria'
-                    : 'Start adding reusable content pieces to this workspace'}
+                    : `Start adding ${activeTab} to this workspace`}
                 </p>
                 {!search && selectedTags.length === 0 && (
-                  <button className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors">
-                    Add Your First Content
+                  <button
+                    onClick={() => navigate('/dashboard/content-ingestion')}
+                    className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors"
+                  >
+                    Add Your First {activeTab.slice(0, -1)}
                   </button>
                 )}
               </div>

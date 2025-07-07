@@ -1,20 +1,24 @@
 import React, { useState } from 'react';
 import { FiX, FiFile, FiCheck } from 'react-icons/fi';
 
-interface ContentChunk {
+type ContentChunk = {
   id: string;
   title: string;
   preview: string;
   source: string;
-}
+};
 
-interface WorkspaceModalProps {
+type WorkspaceModalProps = {
   workspaceName: string;
   onClose: () => void;
   onChunksSelected: (chunks: ContentChunk[], workspaceName: string) => void;
-}
+};
 
-const WorkspaceModal: React.FC<WorkspaceModalProps> = ({ workspaceName, onClose, onChunksSelected }) => {
+const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
+  workspaceName,
+  onClose,
+  onChunksSelected,
+}) => {
   const [selectedChunks, setSelectedChunks] = useState<string[]>([]);
 
   const mockContentChunks: ContentChunk[] = [
@@ -22,44 +26,42 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({ workspaceName, onClose,
       id: '1',
       title: 'Market Analysis Overview',
       preview: 'Comprehensive analysis of market trends and competitive landscape...',
-      source: 'market-research.pdf'
+      source: 'market-research.pdf',
     },
     {
       id: '2',
       title: 'Customer Segmentation Data',
       preview: 'Detailed breakdown of customer demographics and behavior patterns...',
-      source: 'customer-analysis.docx'
+      source: 'customer-analysis.docx',
     },
     {
       id: '3',
       title: 'Financial Projections',
       preview: 'Revenue forecasts and budget allocations for the next fiscal year...',
-      source: 'financial-report.pdf'
+      source: 'financial-report.pdf',
     },
     {
       id: '4',
       title: 'Technology Stack Overview',
       preview: 'Technical specifications and architecture recommendations...',
-      source: 'tech-specs.pdf'
+      source: 'tech-specs.pdf',
     },
     {
       id: '5',
       title: 'Implementation Timeline',
       preview: 'Project milestones and delivery schedule breakdown...',
-      source: 'project-timeline.docx'
-    }
+      source: 'project-timeline.docx',
+    },
   ];
 
   const toggleChunk = (chunkId: string) => {
-    setSelectedChunks(prev => 
-      prev.includes(chunkId) 
-        ? prev.filter(id => id !== chunkId)
-        : [...prev, chunkId]
+    setSelectedChunks((prev) =>
+      prev.includes(chunkId) ? prev.filter((id) => id !== chunkId) : [...prev, chunkId],
     );
   };
 
   const handleAddSelected = () => {
-    const chunksToAdd = mockContentChunks.filter(chunk => selectedChunks.includes(chunk.id));
+    const chunksToAdd = mockContentChunks.filter((chunk) => selectedChunks.includes(chunk.id));
     onChunksSelected(chunksToAdd, workspaceName);
   };
 
@@ -100,11 +102,13 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({ workspaceName, onClose,
                     <p className="text-neutral-600 text-sm mb-2">{chunk.preview}</p>
                     <p className="text-neutral-500 text-xs">Source: {chunk.source}</p>
                   </div>
-                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ml-4 ${
-                    selectedChunks.includes(chunk.id)
-                      ? 'bg-primary border-primary'
-                      : 'border-gray-300'
-                  }`}>
+                  <div
+                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ml-4 ${
+                      selectedChunks.includes(chunk.id)
+                        ? 'bg-primary border-primary'
+                        : 'border-gray-300'
+                    }`}
+                  >
                     {selectedChunks.includes(chunk.id) && (
                       <FiCheck className="w-4 h-4 text-white" />
                     )}

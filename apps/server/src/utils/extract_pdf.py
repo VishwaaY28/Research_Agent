@@ -1,5 +1,4 @@
 import fitz
-import re
 import os
 import json
 from PIL import Image
@@ -74,36 +73,41 @@ def extract_images_from_pdf(filepath: str, output_folder: str = "tmp/") -> List[
     logger.info(f"Extracted {len(images)} images total")
     return images
 
-def save_table_screenshots_from_unstructured(elements, output_folder="tmp/tables"):
-    """Save table screenshots following pdf.py logic exactly"""
+def save_table_screenshots_from_unstructured(table_elements, output_folder="tmp/tables", pdf_filepath=None):
+    """Save table screenshots with explicit PDF filepath parameter"""
     logger.info("Starting table screenshot saving...")
 
-    tables = [el for el in elements if
-              (getattr(el, "category", None) == "Table" or el.get("category") == "Table" or
-               getattr(el, "type", None) == "Table" or el.get("type") == "Table")]
+    tables = []
+    for el in table_elements:
+        category = el.get("category") if isinstance(el, dict) else getattr(el, "category", None)
+        element_type = el.get("type") if isinstance(el, dict) else getattr(el, "type", None)
+
+        if category == "Table" or element_type == "Table":
+            tables.append(el)
+
     logger.info(f"Found {len(tables)} table elements for screenshots")
 
     if not tables:
-        logger.warning("No table elements found for screenshots")
+        logger.info("No tables found, returning empty list")
         return []
 
-    first_table = tables[0]
-    metadata = first_table.get("metadata") if isinstance(first_table, dict) else getattr(first_table, "metadata", None)
-    pdf_path = metadata.get("filename") if metadata and isinstance(metadata, dict) else None
-
-    if not pdf_path:
-        logger.error("PDF path not found in metadata, cannot save table screenshots.")
+    if not pdf_filepath:
+        logger.error("PDF filepath not provided for table screenshots")
         return []
 
-    logger.info(f"Using PDF path for screenshots: {pdf_path}")
+    logger.info(f"Using PDF path for screenshots: {pdf_filepath}")
+
+    if not os.path.exists(pdf_filepath):
+        logger.error(f"PDF file not found at path: {pdf_filepath}")
+        return []
 
     os.makedirs(output_folder, exist_ok=True)
-    doc_name = Path(pdf_path).stem
-    doc = fitz.open(pdf_path)
+    doc_name = Path(pdf_filepath).stem
+    doc = fitz.open(pdf_filepath)
     table_results = []
     table_count = 0
 
-    for el in elements:
+    for el in table_elements:
         category = el.get("category") if isinstance(el, dict) else getattr(el, "category", None)
         element_type = el.get("type") if isinstance(el, dict) else getattr(el, "type", None)
         metadata = el.get("metadata") if isinstance(el, dict) else getattr(el, "metadata", None)
@@ -125,11 +129,17 @@ def save_table_screenshots_from_unstructured(elements, output_folder="tmp/tables
 
                 table_text = el.get("text") if isinstance(el, dict) else getattr(el, "text", "")
 
+                html_content = None
+                if metadata and hasattr(metadata, 'text_as_html'):
+                    html_content = metadata.text_as_html
+                elif isinstance(metadata, dict) and 'text_as_html' in metadata:
+                    html_content = metadata['text_as_html']
+
                 table_results.append({
                     "path": img_path,
                     "page_number": int(page_number),
                     "caption": f"Table {table_count+1} from page {page_number}",
-                    "data": table_text,
+                    "data": html_content or table_text,
                     "extraction_method": "unstructured"
                 })
                 table_count += 1
@@ -337,7 +347,8 @@ def extract_pdf_sections(filepath: str, figures_dir: str) -> Tuple[List[Dict], L
 
     tables = save_table_screenshots_from_unstructured(
         table_elements,
-        os.path.join(figures_dir, "tables")
+        os.path.join(figures_dir, "tables"),
+        pdf_filepath=filepath
     )
 
     merged_sections = merge_split_titles(sections_dicts)

@@ -2,14 +2,14 @@ import React from 'react';
 import { FiCalendar, FiEdit3, FiFileText, FiPlus } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 
-interface Proposal {
+type Proposal = {
   id: string;
   title: string;
   description: string;
   createdAt: string;
   status: 'draft' | 'completed' | 'in-progress';
   wordCount: number;
-}
+};
 
 const ProposalAuthoring: React.FC = () => {
   const navigate = useNavigate();

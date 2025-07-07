@@ -21,7 +21,6 @@ USER_AGENTS = [
 ]
 
 def download_web_images(url: str, elements: list, figures_dir: str) -> List[Dict]:
-    """Download images from web page following pdf.py logic exactly"""
     images = []
     base_url = urllib.parse.urljoin(url, '/')
     doc_name = url.replace("://", "_").replace("/", "_")[:30]
@@ -78,7 +77,6 @@ def download_web_images(url: str, elements: list, figures_dir: str) -> List[Dict
     return images
 
 def save_table_screenshots_from_web(elements, output_folder="tmp/tables"):
-    """Save table content from web following pdf.py logic exactly"""
     tables = [el for el in elements if
               (getattr(el, "category", None) == "Table" or el.get("category") == "Table" or
                getattr(el, "type", None) == "Table" or el.get("type") == "Table")]
@@ -116,14 +114,12 @@ def save_table_screenshots_from_web(elements, output_folder="tmp/tables"):
     return table_results
 
 def filter_footer_content(elements):
-    """Filter out footer content from elements"""
     filtered = []
     for element in elements:
         element_type = element.get("type", "")
         category = element.get("category", "")
 
         if element_type == "Footer" or category == "Footer":
-            logger.debug(f"Skipping footer content: {element.get('text', '')[:50]}...")
             continue
 
         filtered.append(element)
@@ -132,31 +128,21 @@ def filter_footer_content(elements):
     return filtered
 
 def merge_split_titles(elements):
-    """Merge split titles that appear on consecutive elements"""
     merged = []
     i = 0
     while i < len(elements):
         current = elements[i]
-
-        if (current.get("type") == "Title" and
-            current.get("text") and
-            len(current["text"].strip()) < 100):
-
+        if (current.get("type") == "Title" and current.get("text") and len(current["text"].strip()) < 100):
             j = i + 1
             title_text = current["text"].strip()
-
             while j < len(elements):
                 next_el = elements[j]
                 next_text = next_el.get("text", "").strip()
-
-                if (len(next_text) < 50 and
-                    not next_text.endswith('.') and
-                    next_el.get("type") in ["Title", "Text"]):
+                if (len(next_text) < 50 and not next_text.endswith('.') and next_el.get("type") in ["Title", "Text"]):
                     title_text += " " + next_text
                     j += 1
                 else:
                     break
-
             merged_element = current.copy()
             merged_element["text"] = title_text
             merged.append(merged_element)
@@ -164,46 +150,32 @@ def merge_split_titles(elements):
         else:
             merged.append(current)
             i += 1
-
     return merged
 
 def extract_toc(elements):
-    """Extract table of contents sections"""
     toc_sections = []
     in_toc = False
-
     for element in elements:
         text = element.get("text", "").strip().lower()
-
         if any(phrase in text for phrase in ["table of contents", "contents", "index"]):
             in_toc = True
             continue
-
-        if in_toc and (len(text) > 200 or
-                      any(phrase in text for phrase in ["introduction", "chapter 1", "section 1"])):
+        if in_toc and (len(text) > 200 or any(phrase in text for phrase in ["introduction", "chapter 1", "section 1"])):
             in_toc = False
-
         if in_toc and text:
             toc_sections.append(element)
-
     return toc_sections
 
 def clean_toc_sections(toc_sections):
-    """Clean and format TOC sections"""
     cleaned = []
     for section in toc_sections:
         text = section.get("text", "").strip()
         if text and len(text) > 5:
-            cleaned.append({
-                "title": text,
-                "level": 1
-            })
+            cleaned.append({"title": text, "level": 1})
     return cleaned
 
 def parse_toc_content(elements, toc_sections):
-    """Parse content based on TOC structure"""
     chunks = []
-
     if not toc_sections:
         return chunks
 
@@ -221,7 +193,6 @@ def parse_toc_content(elements, toc_sections):
                     "label": current_label,
                     "content": clean_content(current_chunk)
                 })
-
             current_label = text
             current_chunk = ""
         elif text:
@@ -237,7 +208,6 @@ def parse_toc_content(elements, toc_sections):
     return chunks
 
 def extract_web_sections(url: str, figures_dir: str) -> Tuple[List[Dict], List[Dict], List[Dict]]:
-    """Extract sections, images, and tables from web content following pdf.py logic exactly"""
     cached_data = check_extracted_cache(url)
     if cached_data and all(k in cached_data for k in ['chunks', 'images', 'tables']):
         return cached_data['chunks'], cached_data['images'], cached_data['tables']
@@ -265,14 +235,9 @@ def extract_web_sections(url: str, figures_dir: str) -> Tuple[List[Dict], List[D
                     json.dump(sections_dicts, f)
 
             sections_dicts = filter_footer_content(sections_dicts)
-
             images = download_web_images(url, elements or [], os.path.join(figures_dir, "images"))
-
             tables = save_table_screenshots_from_web(sections_dicts, os.path.join(figures_dir, "tables"))
-
             merged_sections = merge_split_titles(sections_dicts)
-
-            title_sections = [section for section in merged_sections if section.get("type") == "Title"]
             toc_sections_raw = extract_toc(merged_sections)
 
             if toc_sections_raw:
@@ -280,27 +245,32 @@ def extract_web_sections(url: str, figures_dir: str) -> Tuple[List[Dict], List[D
                 chunks = parse_toc_content(merged_sections, toc_sections)
             else:
                 chunks = []
-                buffer = ""
-                section_num = 1
+                current_chunk = {
+                    "file_source": url,
+                    "label": "untitled_section",
+                    "content": []
+                }
 
-                for el in sections_dicts:
-                    if el.get("text"):
-                        buffer += el["text"] + "\n"
-                        if len(buffer) > 1000:
-                            chunks.append({
-                                "file_source": url,
-                                "label": f"Section {section_num}",
-                                "content": clean_content(buffer)
-                            })
-                            section_num += 1
-                            buffer = ""
+                for el in merged_sections:
+                    text = el.get("text", "").strip()
+                    el_type = el.get("type", "").lower()
 
-                if buffer.strip():
-                    chunks.append({
-                        "file_source": url,
-                        "label": f"Section {section_num}",
-                        "content": clean_content(buffer)
-                    })
+                    if not text:
+                        continue
+
+                    if el_type in ["title", "heading", "header"]:
+                        if current_chunk["content"]:
+                            chunks.append(current_chunk)
+                        current_chunk = {
+                            "file_source": url,
+                            "label": text,
+                            "content": []
+                        }
+                    elif el_type in ["text", "list", "paragraph"]:
+                        current_chunk["content"].append(text)
+
+                if current_chunk["content"]:
+                    chunks.append(current_chunk)
 
             for chunk in chunks:
                 chunk["file_source"] = url
