@@ -1,0 +1,15 @@
+meta {
+  name: add-table-tags
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseurl}}/sources/1/tables/1/tags
+  body: json
+  auth: inherit
+}
+
+body:json {
+  ["financial", "data"]
+}

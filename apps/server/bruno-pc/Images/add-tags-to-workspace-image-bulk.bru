@@ -1,0 +1,15 @@
+meta {
+  name: add-tags-to-workspace-image-bulk
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseurl}}/workspaces/1/images/1/tags/bulk
+  body: json
+  auth: inherit
+}
+
+body:json {
+  ["diagram", "chart", "visualization"]
+}

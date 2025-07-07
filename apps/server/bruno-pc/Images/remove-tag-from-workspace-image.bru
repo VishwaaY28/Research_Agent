@@ -1,0 +1,11 @@
+meta {
+  name: remove-tag-from-workspace-image
+  type: http
+  seq: 6
+}
+
+delete {
+  url: {{baseurl}}/workspaces/1/images/1/tags/1
+  body: none
+  auth: inherit
+}

@@ -1,0 +1,16 @@
+meta {
+  name: filter-workspaces-by-tags
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseurl}}/workspaces/filter?tags=project&tags=important
+  body: none
+  auth: inherit
+}
+
+params:query {
+  tags: project
+  tags: important
+}

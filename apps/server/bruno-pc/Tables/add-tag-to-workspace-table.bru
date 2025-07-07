@@ -1,0 +1,15 @@
+meta {
+  name: add-tag-to-workspace-table
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseurl}}/workspaces/1/tables/1/tags
+  body: json
+  auth: inherit
+}
+
+body:json {
+  "financial"
+}

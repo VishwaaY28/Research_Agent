@@ -1,0 +1,15 @@
+meta {
+  name: filter-sections-by-tags
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseurl}}/sections/filter/1
+  body: json
+  auth: inherit
+}
+
+body:json {
+  ["important", "summary"]
+}
