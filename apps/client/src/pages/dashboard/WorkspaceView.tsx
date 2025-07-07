@@ -1,18 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useState } from 'react';
-import {
-  FiArrowLeft,
-  FiEdit3,
-  FiEye,
-  FiFileText,
-  FiGrid,
-  FiImage,
-  FiSearch,
-  FiTag,
-  FiX,
-} from 'react-icons/fi';
+import { FiEdit3, FiEye, FiFileText, FiGrid, FiImage, FiSearch, FiTag, FiX } from 'react-icons/fi';
 import { useNavigate, useParams } from 'react-router-dom';
 import { type Section, useSections } from '../../hooks/useSections';
+import { useTags } from '../../hooks/useTags';
 import { useWorkspace } from '../../hooks/useWorkspace';
 import { useWorkspaceImages, type WorkspaceImage } from '../../hooks/useWorkspaceImages';
 import { useWorkspaceTables, type WorkspaceTable } from '../../hooks/useWorkspaceTables';
@@ -41,11 +32,38 @@ const WorkspaceView: React.FC = () => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [viewingSection, setViewingSection] = useState<Section | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('sections');
+  const [currentTags, setCurrentTags] = useState<any[]>([]);
 
   const { fetchWorkspace } = useWorkspace();
   const { fetchSections, filterSectionsByTags } = useSections();
   const { getWorkspaceImages, filterImagesByTags } = useWorkspaceImages();
   const { getWorkspaceTables, filterTablesByTags } = useWorkspaceTables();
+  const { fetchAllSectionTags, fetchAllImageTags, fetchAllTableTags } = useTags();
+
+  useEffect(() => {
+    const fetchTagsForTab = async () => {
+      try {
+        let tags = [];
+        switch (activeTab) {
+          case 'sections':
+            tags = await fetchAllSectionTags();
+            break;
+          case 'images':
+            tags = await fetchAllImageTags();
+            break;
+          case 'tables':
+            tags = await fetchAllTableTags();
+            break;
+        }
+        setCurrentTags(tags);
+      } catch (error) {
+        console.error(`Failed to fetch ${activeTab} tags:`, error);
+        setCurrentTags([]);
+      }
+    };
+
+    fetchTagsForTab();
+  }, [activeTab, fetchAllSectionTags, fetchAllImageTags, fetchAllTableTags]);
 
   useEffect(() => {
     if (!id) return;
@@ -121,14 +139,58 @@ const WorkspaceView: React.FC = () => {
   }, [selectedTags, id, allSections, allImages, allTables]);
 
   const allTags = React.useMemo(() => {
-    return Array.from(
-      new Set([
-        ...allSections.flatMap((s) => s.tags || []),
-        ...allImages.flatMap((i) => i.tags || []),
-        ...allTables.flatMap((t) => t.tags || []),
-      ]),
-    );
-  }, [allSections, allImages, allTables]);
+    const tagSet = new Set<string>();
+
+    if (activeTab === 'sections') {
+      allSections.forEach((section) => {
+        section.tags?.forEach((tag) => tagSet.add(tag));
+      });
+    } else if (activeTab === 'images') {
+      allImages.forEach((image) => {
+        image.tags?.forEach((tag) => tagSet.add(tag));
+      });
+    } else if (activeTab === 'tables') {
+      allTables.forEach((table) => {
+        table.tags?.forEach((tag) => tagSet.add(tag));
+      });
+    }
+
+    currentTags.forEach((tag) => tagSet.add(tag.name));
+
+    return Array.from(tagSet);
+  }, [activeTab, allSections, allImages, allTables, currentTags]);
+
+  useEffect(() => {
+    if (!id) return;
+
+    const handleTagFilter = async () => {
+      try {
+        if (selectedTags.length > 0) {
+          if (activeTab === 'sections') {
+            const filteredSections = await filterSectionsByTags(id, selectedTags);
+            setSections(filteredSections);
+          } else if (activeTab === 'images') {
+            const filteredImages = await filterImagesByTags(id, selectedTags);
+            setImages(filteredImages);
+          } else if (activeTab === 'tables') {
+            const filteredTables = await filterTablesByTags(id, selectedTags);
+            setTables(filteredTables);
+          }
+        } else {
+          setSections(allSections);
+          setImages(allImages);
+          setTables(allTables);
+        }
+      } catch (error) {
+        console.error('Failed to filter by tags:', error);
+        setSections(allSections);
+        setImages(allImages);
+        setTables(allTables);
+      }
+    };
+
+    handleTagFilter();
+  }, [selectedTags, activeTab, id, allSections, allImages, allTables]);
 
   const getFilteredData = React.useCallback(() => {
     const currentData =
@@ -179,6 +241,12 @@ const WorkspaceView: React.FC = () => {
   const closeModal = React.useCallback(() => {
     setViewingSection(null);
   }, []);
+
+  const handleTabChange = (newTab: TabType) => {
+    setActiveTab(newTab);
+    setSelectedTags([]);
+    setSearch('');
+  };
 
   const renderTabContent = () => {
     if (activeTab === 'sections') {
@@ -364,32 +432,11 @@ const WorkspaceView: React.FC = () => {
       <div className="bg-white border-b border-gray-200">
         <div className="px-8 py-6">
           <div className="max-w-7xl mx-auto">
-            <div className="flex items-center mb-4">
-              <button
-                onClick={() => navigate('/dashboard/workspaces')}
-                className="mr-4 p-2 text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <FiArrowLeft className="w-5 h-5" />
-              </button>
-              <div className="flex-1">
-                <h1 className="text-2xl font-bold text-gray-900">{workspace.name}</h1>
-                <p className="text-gray-600 mt-1">
-                  {allSections.length} sections • {allImages.length} images • {allTables.length}{' '}
-                  tables
-                </p>
-              </div>
-              <button
-                onClick={() => navigate('/dashboard/content-ingestion')}
-                className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-2"
-              >
-                <FiEdit3 className="w-4 h-4" />
-                Add Content
-              </button>
-            </div>
+            {/* ...existing header content... */}
 
             <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-fit">
               <button
-                onClick={() => setActiveTab('sections')}
+                onClick={() => handleTabChange('sections')}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeTab === 'sections'
                     ? 'bg-white text-primary shadow-sm'
@@ -400,7 +447,7 @@ const WorkspaceView: React.FC = () => {
                 Sections ({allSections.length})
               </button>
               <button
-                onClick={() => setActiveTab('images')}
+                onClick={() => handleTabChange('images')}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeTab === 'images'
                     ? 'bg-white text-primary shadow-sm'
@@ -411,7 +458,7 @@ const WorkspaceView: React.FC = () => {
                 Images ({allImages.length})
               </button>
               <button
-                onClick={() => setActiveTab('tables')}
+                onClick={() => handleTabChange('tables')}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeTab === 'tables'
                     ? 'bg-white text-primary shadow-sm'
@@ -443,7 +490,7 @@ const WorkspaceView: React.FC = () => {
             {allTags.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 <span className="text-sm font-medium text-gray-700 mr-2 py-2">
-                  Filter by category:
+                  Filter by {activeTab === 'sections' ? 'section' : activeTab.slice(0, -1)} tags:
                 </span>
                 {allTags.map((tag) => (
                   <button

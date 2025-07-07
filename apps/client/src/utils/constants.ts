@@ -78,6 +78,10 @@ export const API = {
       SECTIONS: () => '/sections',
       SECTIONS_SEARCH: () => '/sections/search',
       USER_SECTIONS: (userId: string | number) => `/sections/user/${userId}`,
+      IMAGES: () => '/images',
+      IMAGES_SEARCH: () => '/images/search',
+      TABLES: () => '/tables',
+      TABLES_SEARCH: () => '/tables/search',
     },
   },
 };

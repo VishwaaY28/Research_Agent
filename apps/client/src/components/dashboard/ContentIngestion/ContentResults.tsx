@@ -87,7 +87,7 @@ type SelectedItem = {
 type ContentResultsProps = {
   extractedResults: ExtractedContent[];
   onReset: () => void;
-}
+};
 
 const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onReset }) => {
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
@@ -106,13 +106,29 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
   const [selectedWorkspaceTags, setSelectedWorkspaceTags] = useState<string[]>([]);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'content' | 'images' | 'tables'>('content');
+  const [imageTagSearchQuery, setImageTagSearchQuery] = useState('');
+  const [tableTagSearchQuery, setTableTagSearchQuery] = useState('');
+  const [suggestedImageTags, setSuggestedImageTags] = useState<Tag[]>([]);
+  const [suggestedTableTags, setSuggestedTableTags] = useState<Tag[]>([]);
 
   const navigate = useNavigate();
   const { createSections } = useSections();
-  const { tags, fetchAllSectionTags, searchTags } = useTags();
+  const {
+    tags,
+    imageTags,
+    tableTags,
+    fetchAllSectionTags,
+    searchTags,
+    fetchAllImageTags,
+    searchImageTags,
+    fetchAllTableTags,
+    searchTableTags,
+  } = useTags();
   const { workspaces, fetchWorkspaces } = useWorkspace();
 
   const debouncedTagSearch = useDebounce(tagSearchQuery, 300);
+  const debouncedImageTagSearch = useDebounce(imageTagSearchQuery, 300);
+  const debouncedTableTagSearch = useDebounce(tableTagSearchQuery, 300);
 
   const isStructuredChunk = (chunk: Chunk): chunk is StructuredChunk => {
     return 'title' in chunk && 'content' in chunk && Array.isArray(chunk.content);
@@ -550,8 +566,18 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
 
   const handleShowTagModal = (itemIndex: number) => {
     setShowTagModal({ itemIndex });
-    setTagSearchQuery('');
-    setSuggestedTags(tags.slice(0, 10));
+    const item = selectedItems[itemIndex];
+
+    if (item.type === 'image') {
+      setImageTagSearchQuery('');
+      setSuggestedImageTags(imageTags.slice(0, 10));
+    } else if (item.type === 'table') {
+      setTableTagSearchQuery('');
+      setSuggestedTableTags(tableTags.slice(0, 10));
+    } else {
+      setTagSearchQuery('');
+      setSuggestedTags(tags.slice(0, 10));
+    }
   };
 
   const handleSelectSuggestedTag = (tagName: string, itemIndex: number) => {
@@ -568,7 +594,17 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
   };
 
   const handleAddCustomTag = (itemIndex: number) => {
-    const tagValue = tagSearchQuery.trim();
+    const item = selectedItems[itemIndex];
+    let tagValue = '';
+
+    if (item.type === 'image') {
+      tagValue = imageTagSearchQuery.trim();
+    } else if (item.type === 'table') {
+      tagValue = tableTagSearchQuery.trim();
+    } else {
+      tagValue = tagSearchQuery.trim();
+    }
+
     if (!tagValue) return;
 
     setSelectedItems((prev) =>
@@ -694,7 +730,12 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
     const fetchData = async () => {
       try {
         if (mounted) {
-          await Promise.all([fetchAllSectionTags(), fetchWorkspaces()]);
+          await Promise.all([
+            fetchAllSectionTags(),
+            fetchAllImageTags(),
+            fetchAllTableTags(),
+            fetchWorkspaces(),
+          ]);
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -714,14 +755,10 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
     const searchForTags = async () => {
       try {
         if (debouncedTagSearch.trim()) {
-          const results = await searchTags(debouncedTagSearch);
-          if (mounted) {
-            setSuggestedTags(results);
-          }
+          const results = await searchTags(debouncedTagSearch, 10);
+          if (mounted) setSuggestedTags(results);
         } else {
-          if (mounted) {
-            setSuggestedTags(tags.slice(0, 10));
-          }
+          if (mounted) setSuggestedTags(tags.slice(0, 10));
         }
       } catch (error) {
         console.error('Error searching tags:', error);
@@ -736,10 +773,68 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
   }, [debouncedTagSearch]);
 
   useEffect(() => {
+    let mounted = true;
+
+    const searchForImageTags = async () => {
+      try {
+        if (debouncedImageTagSearch.trim()) {
+          const results = await searchImageTags(debouncedImageTagSearch, 10);
+          if (mounted) setSuggestedImageTags(results);
+        } else {
+          if (mounted) setSuggestedImageTags(imageTags.slice(0, 10));
+        }
+      } catch (error) {
+        console.error('Error searching image tags:', error);
+      }
+    };
+
+    searchForImageTags();
+
+    return () => {
+      mounted = false;
+    };
+  }, [debouncedImageTagSearch]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const searchForTableTags = async () => {
+      try {
+        if (debouncedTableTagSearch.trim()) {
+          const results = await searchTableTags(debouncedTableTagSearch, 10);
+          if (mounted) setSuggestedTableTags(results);
+        } else {
+          if (mounted) setSuggestedTableTags(tableTags.slice(0, 10));
+        }
+      } catch (error) {
+        console.error('Error searching table tags:', error);
+      }
+    };
+
+    searchForTableTags();
+
+    return () => {
+      mounted = false;
+    };
+  }, [debouncedTableTagSearch]);
+
+  useEffect(() => {
     if (!tagSearchQuery.trim() && tags.length > 0) {
       setSuggestedTags(tags.slice(0, 10));
     }
   }, [tags]);
+
+  useEffect(() => {
+    if (!imageTagSearchQuery.trim() && imageTags.length > 0) {
+      setSuggestedImageTags(imageTags.slice(0, 10));
+    }
+  }, [imageTags]);
+
+  useEffect(() => {
+    if (!tableTagSearchQuery.trim() && tableTags.length > 0) {
+      setSuggestedTableTags(tableTags.slice(0, 10));
+    }
+  }, [tableTags]);
 
   const getAllWorkspaceTags = useMemo(() => {
     const allTags = new Set<string>();
@@ -786,525 +881,571 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
     return acc + count;
   }, 0);
 
-  return (
-    <div className="h-full bg-gray-50">
-      <div className="h-full flex flex-col">
-        <div className="bg-white border-b border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={onReset}
-                className="p-2 text-neutral-600 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
-                title="Upload more files"
-              >
-                <FiArrowLeft className="w-5 h-5" />
-              </button>
-              <div>
-                <h2 className="text-2xl font-bold text-black">Extracted Content</h2>
-                <p className="text-neutral-600">
-                  {extractedResults.length} source(s) processed • {selectedItems.length} items
-                  selected • {totalItems} total items
-                </p>
+  const renderTagModal = () => {
+    if (!showTagModal) return null;
+
+    const item = selectedItems[showTagModal.itemIndex];
+    const isImageTag = item.type === 'image';
+    const isTableTag = item.type === 'table';
+
+    const currentSearchQuery = isImageTag
+      ? imageTagSearchQuery
+      : isTableTag
+        ? tableTagSearchQuery
+        : tagSearchQuery;
+
+    const setCurrentSearchQuery = isImageTag
+      ? setImageTagSearchQuery
+      : isTableTag
+        ? setTableTagSearchQuery
+        : setTagSearchQuery;
+
+    const currentSuggestedTags = isImageTag
+      ? suggestedImageTags
+      : isTableTag
+        ? suggestedTableTags
+        : suggestedTags;
+
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 max-h-[70vh] flex flex-col">
+          <h3 className="text-lg font-semibold mb-4">
+            Add {isImageTag ? 'Image' : isTableTag ? 'Table' : 'Section'} Tags
+          </h3>
+
+          <div className="mb-4">
+            <input
+              type="text"
+              placeholder={`Search ${isImageTag ? 'image' : isTableTag ? 'table' : 'section'} tags...`}
+              value={currentSearchQuery}
+              onChange={(e) => setCurrentSearchQuery(e.target.value)}
+              className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              autoFocus
+            />
+          </div>
+
+          <div className="flex-1 overflow-y-auto mb-4">
+            {currentSuggestedTags.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-xs text-gray-500 mb-2">Suggested tags:</p>
+                {currentSuggestedTags.map((tag) => (
+                  <button
+                    key={tag.id}
+                    onClick={() => handleSelectSuggestedTag(tag.name, showTagModal.itemIndex)}
+                    className="w-full text-left p-2 hover:bg-gray-50 rounded-lg flex items-center justify-between"
+                  >
+                    <span>{tag.name}</span>
+                    <span className="text-sm text-gray-500">{tag.usage_count} uses</span>
+                  </button>
+                ))}
               </div>
-            </div>
-            <div className="flex items-center space-x-3">
+            )}
+
+            {currentSuggestedTags.length === 0 && currentSearchQuery.trim() === '' && (
+              <div className="text-center text-gray-500 py-4">
+                Start typing to search for {isImageTag ? 'image' : isTableTag ? 'table' : 'section'}{' '}
+                tags
+              </div>
+            )}
+          </div>
+
+          <div className="flex space-x-3">
+            <button
+              onClick={() => setShowTagModal(null)}
+              className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-neutral-700 hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            {currentSearchQuery.trim() && (
               <button
-                onClick={onReset}
-                className="px-4 py-2 border border-gray-300 text-neutral-700 rounded-lg hover:bg-gray-50 transition-colors"
+                onClick={() => handleAddCustomTag(showTagModal.itemIndex)}
+                className="flex-1 py-2 px-4 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
               >
-                Upload More
+                {currentSuggestedTags.some(
+                  (tag) => tag.name.toLowerCase() === currentSearchQuery.toLowerCase(),
+                )
+                  ? `Add "${currentSearchQuery}"`
+                  : `Create "${currentSearchQuery}"`}
               </button>
-              {selectedItems.length > 0 && (
-                <button
-                  onClick={() => setShowWorkspaceModal(true)}
-                  className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium flex items-center space-x-2"
-                >
-                  <FiSave className="w-4 h-4" />
-                  <span>Save to Workspace</span>
-                </button>
-              )}
-            </div>
+            )}
           </div>
         </div>
+      </div>
+    );
+  };
 
-        <div className="flex-1 overflow-hidden">
-          <div className="h-full flex">
-            <div className="flex-1 p-6 overflow-y-auto">
-              <div className="space-y-6">
-                {extractedResults.map((result, resultIndex) => (
-                  <div key={resultIndex} className="bg-white rounded-xl border border-gray-200">
-                    <div className="p-6 border-b border-gray-200">
-                      <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-primary/10 rounded-lg">
-                          <FiFile className="w-5 h-5 text-primary" />
+  return (
+    <>
+      {renderTagModal()}
+      <div className="h-full bg-gray-50">
+        <div className="h-full flex flex-col">
+          <div className="bg-white border-b border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={onReset}
+                  className="p-2 text-neutral-600 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                  title="Upload more files"
+                >
+                  <FiArrowLeft className="w-5 h-5" />
+                </button>
+                <div>
+                  <h2 className="text-2xl font-bold text-black">Extracted Content</h2>
+                  <p className="text-neutral-600">
+                    {extractedResults.length} source(s) processed • {selectedItems.length} items
+                    selected • {totalItems} total items
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={onReset}
+                  className="px-4 py-2 border border-gray-300 text-neutral-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Upload More
+                </button>
+                {selectedItems.length > 0 && (
+                  <button
+                    onClick={() => setShowWorkspaceModal(true)}
+                    className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium flex items-center space-x-2"
+                  >
+                    <FiSave className="w-4 h-4" />
+                    <span>Save to Workspace</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-hidden">
+            <div className="h-full flex">
+              <div className="flex-1 p-6 overflow-y-auto">
+                <div className="space-y-6">
+                  {extractedResults.map((result, resultIndex) => (
+                    <div key={resultIndex} className="bg-white rounded-xl border border-gray-200">
+                      <div className="p-6 border-b border-gray-200">
+                        <div className="flex items-center space-x-3">
+                          <div className="p-2 bg-primary/10 rounded-lg">
+                            <FiFile className="w-5 h-5 text-primary" />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-black">{getSourceName(result)}</h3>
+                            <div className="flex items-center space-x-4 text-sm text-neutral-600">
+                              <span>{result.chunks?.length || 0} content sections</span>
+                              {result.images && result.images.length > 0 && (
+                                <span>{result.images.length} images</span>
+                              )}
+                              {result.tables && result.tables.length > 0 && (
+                                <span>{result.tables.length} tables</span>
+                              )}
+                            </div>
+                          </div>
+                          {result.type && (
+                            <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded uppercase">
+                              {result.type}
+                            </span>
+                          )}
+                          {!result.success && (
+                            <div className="px-3 py-1 bg-red-100 text-red-700 text-sm rounded-md">
+                              Failed: {result.error}
+                            </div>
+                          )}
                         </div>
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-black">{getSourceName(result)}</h3>
-                          <div className="flex items-center space-x-4 text-sm text-neutral-600">
-                            <span>{result.chunks?.length || 0} content sections</span>
+
+                        {result.success && (
+                          <div className="flex space-x-1 mt-4">
+                            <button
+                              onClick={() => setActiveTab('content')}
+                              className={`px-3 py-2 text-sm rounded-lg transition-colors ${
+                                activeTab === 'content'
+                                  ? 'bg-primary text-white'
+                                  : 'text-gray-600 hover:bg-gray-100'
+                              }`}
+                            >
+                              <FiFileText className="w-4 h-4 inline mr-1" />
+                              Content ({result.chunks?.length || 0})
+                            </button>
                             {result.images && result.images.length > 0 && (
-                              <span>{result.images.length} images</span>
+                              <button
+                                onClick={() => setActiveTab('images')}
+                                className={`px-3 py-2 text-sm rounded-lg transition-colors ${
+                                  activeTab === 'images'
+                                    ? 'bg-primary text-white'
+                                    : 'text-gray-600 hover:bg-gray-100'
+                                }`}
+                              >
+                                <FiImage className="w-4 h-4 inline mr-1" />
+                                Images ({result.images.length})
+                              </button>
                             )}
                             {result.tables && result.tables.length > 0 && (
-                              <span>{result.tables.length} tables</span>
+                              <button
+                                onClick={() => setActiveTab('tables')}
+                                className={`px-3 py-2 text-sm rounded-lg transition-colors ${
+                                  activeTab === 'tables'
+                                    ? 'bg-primary text-white'
+                                    : 'text-gray-600 hover:bg-gray-100'
+                                }`}
+                              >
+                                <FiGrid className="w-4 h-4 inline mr-1" />
+                                Tables ({result.tables.length})
+                              </button>
                             )}
-                          </div>
-                        </div>
-                        {result.type && (
-                          <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded uppercase">
-                            {result.type}
-                          </span>
-                        )}
-                        {!result.success && (
-                          <div className="px-3 py-1 bg-red-100 text-red-700 text-sm rounded-md">
-                            Failed: {result.error}
                           </div>
                         )}
                       </div>
 
                       {result.success && (
-                        <div className="flex space-x-1 mt-4">
-                          <button
-                            onClick={() => setActiveTab('content')}
-                            className={`px-3 py-2 text-sm rounded-lg transition-colors ${
-                              activeTab === 'content'
-                                ? 'bg-primary text-white'
-                                : 'text-gray-600 hover:bg-gray-100'
-                            }`}
-                          >
-                            <FiFileText className="w-4 h-4 inline mr-1" />
-                            Content ({result.chunks?.length || 0})
-                          </button>
-                          {result.images && result.images.length > 0 && (
-                            <button
-                              onClick={() => setActiveTab('images')}
-                              className={`px-3 py-2 text-sm rounded-lg transition-colors ${
-                                activeTab === 'images'
-                                  ? 'bg-primary text-white'
-                                  : 'text-gray-600 hover:bg-gray-100'
-                              }`}
-                            >
-                              <FiImage className="w-4 h-4 inline mr-1" />
-                              Images ({result.images.length})
-                            </button>
+                        <div className="p-6">
+                          {activeTab === 'content' && result.chunks && result.chunks.length > 0 && (
+                            <div className="space-y-4">
+                              {result.chunks.map((chunk, chunkIndex) =>
+                                isStructuredChunk(chunk)
+                                  ? renderStructuredChunk(chunk, result, chunkIndex)
+                                  : renderSimpleChunk(chunk as SimpleChunk, result, chunkIndex),
+                              )}
+                            </div>
                           )}
-                          {result.tables && result.tables.length > 0 && (
-                            <button
-                              onClick={() => setActiveTab('tables')}
-                              className={`px-3 py-2 text-sm rounded-lg transition-colors ${
-                                activeTab === 'tables'
-                                  ? 'bg-primary text-white'
-                                  : 'text-gray-600 hover:bg-gray-100'
-                              }`}
-                            >
-                              <FiGrid className="w-4 h-4 inline mr-1" />
-                              Tables ({result.tables.length})
-                            </button>
-                          )}
+
+                          {activeTab === 'images' &&
+                            result.images &&
+                            renderImages(result.images, result)}
+
+                          {activeTab === 'tables' &&
+                            result.tables &&
+                            renderTables(result.tables, result)}
                         </div>
                       )}
                     </div>
+                  ))}
+                </div>
+              </div>
 
-                    {result.success && (
-                      <div className="p-6">
-                        {activeTab === 'content' && result.chunks && result.chunks.length > 0 && (
-                          <div className="space-y-4">
-                            {result.chunks.map((chunk, chunkIndex) =>
-                              isStructuredChunk(chunk)
-                                ? renderStructuredChunk(chunk, result, chunkIndex)
-                                : renderSimpleChunk(chunk as SimpleChunk, result, chunkIndex),
+              {selectedItems.length > 0 && (
+                <div className="w-1/3 border-l border-gray-200 bg-white p-6 overflow-y-auto">
+                  <h3 className="text-lg font-semibold text-black mb-4">
+                    Selected Items ({selectedItems.length})
+                  </h3>
+                  <div className="space-y-4">
+                    {selectedItems.map((item, index) => (
+                      <div key={index} className="p-4 border border-gray-200 rounded-lg">
+                        <div className="space-y-3">
+                          <div className="flex items-center space-x-2 mb-2">
+                            {item.type === 'chunk' && (
+                              <FiFileText className="w-4 h-4 text-primary" />
                             )}
+                            {item.type === 'section' && (
+                              <FiFileText className="w-4 h-4 text-blue-500" />
+                            )}
+                            {item.type === 'image' && (
+                              <FiImage className="w-4 h-4 text-green-500" />
+                            )}
+                            {item.type === 'table' && (
+                              <FiGrid className="w-4 h-4 text-purple-500" />
+                            )}
+                            <span className="text-xs text-gray-500 capitalize">{item.type}</span>
                           </div>
-                        )}
 
-                        {activeTab === 'images' &&
-                          result.images &&
-                          renderImages(result.images, result)}
+                          <div>
+                            <label className="block text-sm font-medium text-neutral-700 mb-1">
+                              Item Name
+                            </label>
+                            <input
+                              type="text"
+                              value={item.name}
+                              onChange={(e) => handleItemNameChange(index, e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+                              placeholder="Enter item name..."
+                            />
+                          </div>
 
-                        {activeTab === 'tables' &&
-                          result.tables &&
-                          renderTables(result.tables, result)}
+                          <div>
+                            <label className="block text-sm font-medium text-neutral-700 mb-1">
+                              Tags
+                            </label>
+
+                            {item.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mb-2">
+                                {item.tags.map((tag, tagIndex) => (
+                                  <span
+                                    key={tagIndex}
+                                    className="inline-flex items-center px-2 py-1 bg-primary/10 text-primary text-xs rounded-md"
+                                  >
+                                    {tag}
+                                    <button
+                                      onClick={() => handleRemoveTag(index, tagIndex)}
+                                      className="ml-1 text-primary/60 hover:text-primary"
+                                    >
+                                      ×
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            <button
+                              onClick={() => handleShowTagModal(index)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-left text-gray-600 hover:bg-gray-50 transition-colors"
+                            >
+                              + Add tag...
+                            </button>
+                          </div>
+
+                          <p className="text-xs text-neutral-600 line-clamp-2">{item.content}</p>
+                        </div>
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        {viewingItem && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl w-full max-w-4xl mx-4 max-h-[80vh] flex flex-col">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center space-x-2 mb-1">
+                    {viewingItem.type === 'chunk' && (
+                      <FiFileText className="w-5 h-5 text-primary" />
+                    )}
+                    {viewingItem.type === 'section' && (
+                      <FiFileText className="w-5 h-5 text-blue-500" />
+                    )}
+                    {viewingItem.type === 'image' && <FiImage className="w-5 h-5 text-green-500" />}
+                    {viewingItem.type === 'table' && <FiGrid className="w-5 h-5 text-purple-500" />}
+                    <h3 className="text-xl font-semibold text-black capitalize">
+                      {viewingItem.type} Content
+                    </h3>
+                  </div>
+                  <p className="text-sm text-neutral-600">Source: {viewingItem.sourceName}</p>
+                </div>
+                <button
+                  onClick={() => setViewingItem(null)}
+                  className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <FiX className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="prose max-w-none">
+                  {viewingItem.type === 'chunk' && isStructuredChunk(viewingItem.item) && (
+                    <div>
+                      <h2>{viewingItem.item.title}</h2>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Pages {viewingItem.item.start_range}-{viewingItem.item.end_range}
+                      </p>
+                      {viewingItem.item.content.map((section, index) => (
+                        <div key={index} className="mb-6">
+                          <h3 className="text-lg font-semibold mb-2">{section.tag}</h3>
+                          {section.content.map((content, contentIndex) => (
+                            <div key={contentIndex} className="mb-3">
+                              <p className="text-sm">{content.text}</p>
+                              <span className="text-xs text-gray-500">
+                                Page {content.page_number}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {viewingItem.type === 'section' && (
+                    <div>
+                      <h2>{viewingItem.item.tag}</h2>
+                      {viewingItem.item.content.map((content: any, index: number) => (
+                        <div key={index} className="mb-3">
+                          <p className="text-sm">{content.text}</p>
+                          <span className="text-xs text-gray-500">Page {content.page_number}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {viewingItem.type === 'chunk' && !isStructuredChunk(viewingItem.item) && (
+                    <div>
+                      <h2>{viewingItem.item.label || 'Content'}</h2>
+                      <pre className="whitespace-pre-wrap text-sm text-neutral-700 font-sans leading-relaxed">
+                        {viewingItem.item.content}
+                      </pre>
+                    </div>
+                  )}
+
+                  {viewingItem.type === 'image' && (
+                    <div>
+                      <h2>{viewingItem.item.caption || 'Image'}</h2>
+                      {viewingItem.item.page_number && (
+                        <p className="text-sm text-gray-600 mb-4">
+                          Page {viewingItem.item.page_number}
+                        </p>
+                      )}
+                      {viewingItem.item.ocr_text && (
+                        <div>
+                          <h3>OCR Text:</h3>
+                          <p className="text-sm">{viewingItem.item.ocr_text}</p>
+                        </div>
+                      )}
+                      <p className="text-sm text-gray-600 mt-4">
+                        Image path: {viewingItem.item.path}
+                      </p>
+                    </div>
+                  )}
+
+                  {viewingItem.type === 'table' && (
+                    <div>
+                      <h2>{viewingItem.item.caption || 'Table'}</h2>
+                      {viewingItem.item.page_number && (
+                        <p className="text-sm text-gray-600 mb-4">
+                          Page {viewingItem.item.page_number}
+                        </p>
+                      )}
+                      {viewingItem.item.data && (
+                        <div className="overflow-x-auto">
+                          <pre className="text-xs bg-gray-50 p-4 rounded">
+                            {JSON.stringify(viewingItem.item.data, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="p-6 border-t border-gray-200">
+                <button
+                  onClick={() => setViewingItem(null)}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Close
+                </button>
               </div>
             </div>
+          </div>
+        )}
 
-            {selectedItems.length > 0 && (
-              <div className="w-1/3 border-l border-gray-200 bg-white p-6 overflow-y-auto">
-                <h3 className="text-lg font-semibold text-black mb-4">
-                  Selected Items ({selectedItems.length})
-                </h3>
-                <div className="space-y-4">
-                  {selectedItems.map((item, index) => (
-                    <div key={index} className="p-4 border border-gray-200 rounded-lg">
-                      <div className="space-y-3">
-                        <div className="flex items-center space-x-2 mb-2">
-                          {item.type === 'chunk' && <FiFileText className="w-4 h-4 text-primary" />}
-                          {item.type === 'section' && (
-                            <FiFileText className="w-4 h-4 text-blue-500" />
+        {showWorkspaceModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col">
+              <h3 className="text-xl font-semibold text-black mb-4">Save to Workspace</h3>
+
+              <div className="space-y-4 mb-4">
+                <div className="relative">
+                  <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={workspaceSearchQuery}
+                    onChange={(e) => setWorkspaceSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+                    placeholder="Search workspaces by name or client..."
+                  />
+                </div>
+
+                {getAllWorkspaceTags.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-2">Filter by tags:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {getAllWorkspaceTags.map((tag) => (
+                        <button
+                          key={tag}
+                          onClick={() => handleWorkspaceTagToggle(tag)}
+                          className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                            selectedWorkspaceTags.includes(tag)
+                              ? 'bg-primary text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1 overflow-y-auto mb-4 border border-gray-200 rounded-lg">
+                {workspaces.length === 0 ? (
+                  <div className="p-6 text-center text-gray-500">
+                    <p>Loading workspaces...</p>
+                    <button
+                      onClick={() => fetchWorkspaces()}
+                      className="mt-2 px-3 py-1 bg-primary text-white text-sm rounded"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : filteredWorkspaces.length > 0 ? (
+                  <div className="divide-y divide-gray-200">
+                    {filteredWorkspaces.map((workspace) => (
+                      <div
+                        key={workspace.id}
+                        className="flex items-center p-3 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => setSelectedWorkspace(workspace.id)}
+                      >
+                        <input
+                          type="radio"
+                          name="workspace"
+                          value={workspace.id}
+                          checked={selectedWorkspace === workspace.id}
+                          onChange={(e) => setSelectedWorkspace(e.target.value)}
+                          className="mr-3"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <div className="flex-1">
+                          <h4 className="font-medium text-black">{workspace.name}</h4>
+                          {workspace.clientName && (
+                            <p className="text-sm text-gray-600">{workspace.clientName}</p>
                           )}
-                          {item.type === 'image' && <FiImage className="w-4 h-4 text-green-500" />}
-                          {item.type === 'table' && <FiGrid className="w-4 h-4 text-purple-500" />}
-                          <span className="text-xs text-gray-500 capitalize">{item.type}</span>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-neutral-700 mb-1">
-                            Item Name
-                          </label>
-                          <input
-                            type="text"
-                            value={item.name}
-                            onChange={(e) => handleItemNameChange(index, e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
-                            placeholder="Enter item name..."
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-neutral-700 mb-1">
-                            Tags
-                          </label>
-
-                          {item.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mb-2">
-                              {item.tags.map((tag, tagIndex) => (
+                          {workspace.tags.length > 0 && (
+                            <div className="flex gap-1 mt-1">
+                              {workspace.tags.map((tag) => (
                                 <span
-                                  key={tagIndex}
-                                  className="inline-flex items-center px-2 py-1 bg-primary/10 text-primary text-xs rounded-md"
+                                  key={tag}
+                                  className="px-1 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"
                                 >
                                   {tag}
-                                  <button
-                                    onClick={() => handleRemoveTag(index, tagIndex)}
-                                    className="ml-1 text-primary/60 hover:text-primary"
-                                  >
-                                    ×
-                                  </button>
                                 </span>
                               ))}
                             </div>
                           )}
-
-                          <button
-                            onClick={() => handleShowTagModal(index)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-left text-gray-600 hover:bg-gray-50 transition-colors"
-                          >
-                            + Add tag...
-                          </button>
                         </div>
-
-                        <p className="text-xs text-neutral-600 line-clamp-2">{item.content}</p>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-gray-500">
+                    No workspaces found matching your criteria
+                  </div>
+                )}
               </div>
-            )}
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowWorkspaceModal(false)}
+                  disabled={isSaving}
+                  className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-neutral-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveToWorkspace}
+                  disabled={!selectedWorkspace || isSaving}
+                  className={`flex-1 py-2 px-4 rounded-lg transition-colors ${
+                    selectedWorkspace && !isSaving
+                      ? 'bg-primary text-white hover:bg-primary/90'
+                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {isSaving
+                    ? 'Saving...'
+                    : `Save${selectedWorkspace ? ` to ${filteredWorkspaces.find((w) => w.id === selectedWorkspace)?.name || selectedWorkspace}` : ''}`}
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
-
-      {viewingItem && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-4xl mx-4 max-h-[80vh] flex flex-col">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <div>
-                <div className="flex items-center space-x-2 mb-1">
-                  {viewingItem.type === 'chunk' && <FiFileText className="w-5 h-5 text-primary" />}
-                  {viewingItem.type === 'section' && (
-                    <FiFileText className="w-5 h-5 text-blue-500" />
-                  )}
-                  {viewingItem.type === 'image' && <FiImage className="w-5 h-5 text-green-500" />}
-                  {viewingItem.type === 'table' && <FiGrid className="w-5 h-5 text-purple-500" />}
-                  <h3 className="text-xl font-semibold text-black capitalize">
-                    {viewingItem.type} Content
-                  </h3>
-                </div>
-                <p className="text-sm text-neutral-600">Source: {viewingItem.sourceName}</p>
-              </div>
-              <button
-                onClick={() => setViewingItem(null)}
-                className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <FiX className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="prose max-w-none">
-                {viewingItem.type === 'chunk' && isStructuredChunk(viewingItem.item) && (
-                  <div>
-                    <h2>{viewingItem.item.title}</h2>
-                    <p className="text-sm text-gray-600 mb-4">
-                      Pages {viewingItem.item.start_range}-{viewingItem.item.end_range}
-                    </p>
-                    {viewingItem.item.content.map((section, index) => (
-                      <div key={index} className="mb-6">
-                        <h3 className="text-lg font-semibold mb-2">{section.tag}</h3>
-                        {section.content.map((content, contentIndex) => (
-                          <div key={contentIndex} className="mb-3">
-                            <p className="text-sm">{content.text}</p>
-                            <span className="text-xs text-gray-500">
-                              Page {content.page_number}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {viewingItem.type === 'section' && (
-                  <div>
-                    <h2>{viewingItem.item.tag}</h2>
-                    {viewingItem.item.content.map((content: any, index: number) => (
-                      <div key={index} className="mb-3">
-                        <p className="text-sm">{content.text}</p>
-                        <span className="text-xs text-gray-500">Page {content.page_number}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {viewingItem.type === 'chunk' && !isStructuredChunk(viewingItem.item) && (
-                  <div>
-                    <h2>{viewingItem.item.label || 'Content'}</h2>
-                    <pre className="whitespace-pre-wrap text-sm text-neutral-700 font-sans leading-relaxed">
-                      {viewingItem.item.content}
-                    </pre>
-                  </div>
-                )}
-
-                {viewingItem.type === 'image' && (
-                  <div>
-                    <h2>{viewingItem.item.caption || 'Image'}</h2>
-                    {viewingItem.item.page_number && (
-                      <p className="text-sm text-gray-600 mb-4">
-                        Page {viewingItem.item.page_number}
-                      </p>
-                    )}
-                    {viewingItem.item.ocr_text && (
-                      <div>
-                        <h3>OCR Text:</h3>
-                        <p className="text-sm">{viewingItem.item.ocr_text}</p>
-                      </div>
-                    )}
-                    <p className="text-sm text-gray-600 mt-4">
-                      Image path: {viewingItem.item.path}
-                    </p>
-                  </div>
-                )}
-
-                {viewingItem.type === 'table' && (
-                  <div>
-                    <h2>{viewingItem.item.caption || 'Table'}</h2>
-                    {viewingItem.item.page_number && (
-                      <p className="text-sm text-gray-600 mb-4">
-                        Page {viewingItem.item.page_number}
-                      </p>
-                    )}
-                    {viewingItem.item.data && (
-                      <div className="overflow-x-auto">
-                        <pre className="text-xs bg-gray-50 p-4 rounded">
-                          {JSON.stringify(viewingItem.item.data, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="p-6 border-t border-gray-200">
-              <button
-                onClick={() => setViewingItem(null)}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showTagModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4 max-h-[70vh] flex flex-col">
-            <h3 className="text-lg font-semibold text-black mb-4">Add Tag</h3>
-
-            <div className="mb-4">
-              <input
-                type="text"
-                value={tagSearchQuery}
-                onChange={(e) => setTagSearchQuery(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
-                placeholder="Search or type new tag..."
-                autoFocus
-              />
-            </div>
-
-            <div className="flex-1 overflow-y-auto mb-4">
-              {suggestedTags.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs text-gray-500 mb-2">Suggested tags:</p>
-                  {suggestedTags.map((tag) => (
-                    <button
-                      key={tag.id}
-                      onClick={() => handleSelectSuggestedTag(tag.name, showTagModal.itemIndex)}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded-md transition-colors"
-                    >
-                      <span className="font-medium">{tag.name}</span>
-                      <span className="text-gray-500 ml-2">({tag.usage_count} uses)</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="flex space-x-3">
-              <button
-                onClick={() => setShowTagModal(null)}
-                className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-neutral-700 hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              {tagSearchQuery.trim() &&
-                !suggestedTags.some(
-                  (tag) => tag.name.toLowerCase() === tagSearchQuery.toLowerCase(),
-                ) && (
-                  <button
-                    onClick={() => handleAddCustomTag(showTagModal.itemIndex)}
-                    className="flex-1 py-2 px-4 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-                  >
-                    Create "{tagSearchQuery}"
-                  </button>
-                )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showWorkspaceModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col">
-            <h3 className="text-xl font-semibold text-black mb-4">Save to Workspace</h3>
-
-            <div className="space-y-4 mb-4">
-              <div className="relative">
-                <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={workspaceSearchQuery}
-                  onChange={(e) => setWorkspaceSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
-                  placeholder="Search workspaces by name or client..."
-                />
-              </div>
-
-              {getAllWorkspaceTags.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-2">Filter by tags:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {getAllWorkspaceTags.map((tag) => (
-                      <button
-                        key={tag}
-                        onClick={() => handleWorkspaceTagToggle(tag)}
-                        className={`px-2 py-1 text-xs rounded-md transition-colors ${
-                          selectedWorkspaceTags.includes(tag)
-                            ? 'bg-primary text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        {tag}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="flex-1 overflow-y-auto mb-4 border border-gray-200 rounded-lg">
-              {workspaces.length === 0 ? (
-                <div className="p-6 text-center text-gray-500">
-                  <p>Loading workspaces...</p>
-                  <button
-                    onClick={() => fetchWorkspaces()}
-                    className="mt-2 px-3 py-1 bg-primary text-white text-sm rounded"
-                  >
-                    Retry
-                  </button>
-                </div>
-              ) : filteredWorkspaces.length > 0 ? (
-                <div className="divide-y divide-gray-200">
-                  {filteredWorkspaces.map((workspace) => (
-                    <div
-                      key={workspace.id}
-                      className="flex items-center p-3 hover:bg-gray-50 cursor-pointer"
-                      onClick={() => setSelectedWorkspace(workspace.id)}
-                    >
-                      <input
-                        type="radio"
-                        name="workspace"
-                        value={workspace.id}
-                        checked={selectedWorkspace === workspace.id}
-                        onChange={(e) => setSelectedWorkspace(e.target.value)}
-                        className="mr-3"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <div className="flex-1">
-                        <h4 className="font-medium text-black">{workspace.name}</h4>
-                        {workspace.clientName && (
-                          <p className="text-sm text-gray-600">{workspace.clientName}</p>
-                        )}
-                        {workspace.tags.length > 0 && (
-                          <div className="flex gap-1 mt-1">
-                            {workspace.tags.map((tag) => (
-                              <span
-                                key={tag}
-                                className="px-1 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-6 text-center text-gray-500">
-                  No workspaces found matching your criteria
-                </div>
-              )}
-            </div>
-
-            <div className="flex space-x-3">
-              <button
-                onClick={() => setShowWorkspaceModal(false)}
-                disabled={isSaving}
-                className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-neutral-700 hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveToWorkspace}
-                disabled={!selectedWorkspace || isSaving}
-                className={`flex-1 py-2 px-4 rounded-lg transition-colors ${
-                  selectedWorkspace && !isSaving
-                    ? 'bg-primary text-white hover:bg-primary/90'
-                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                }`}
-              >
-                {isSaving
-                  ? 'Saving...'
-                  : `Save${selectedWorkspace ? ` to ${filteredWorkspaces.find((w) => w.id === selectedWorkspace)?.name || selectedWorkspace}` : ''}`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   );
 };
 
