@@ -66,17 +66,41 @@ CREATE TABLE IF NOT EXISTS "workspace" (
     "name" VARCHAR(255) NOT NULL,
     "client" VARCHAR(255) NOT NULL
 );
-CREATE TABLE IF NOT EXISTS "proposal" (
+CREATE TABLE IF NOT EXISTS "prompt" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deleted_at" TIMESTAMP,
     "title" VARCHAR(255) NOT NULL,
-    "generated_content" TEXT NOT NULL,
-    "prompt" TEXT NOT NULL,
-    "section_ids" JSON NOT NULL,
+    "content" TEXT NOT NULL,
     "user_id" INT NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
     "workspace_id" INT NOT NULL REFERENCES "workspace" ("id") ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS "generatedcontent" (
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at" TIMESTAMP,
+    "content" TEXT NOT NULL,
+    "prompt_id" INT NOT NULL REFERENCES "prompt" ("id") ON DELETE CASCADE,
+    "user_id" INT NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
+    "workspace_id" INT NOT NULL REFERENCES "workspace" ("id") ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS "generatedcontenttag" (
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at" TIMESTAMP,
+    "generated_content_id" INT NOT NULL REFERENCES "generatedcontent" ("id") ON DELETE CASCADE,
+    "tag_id" INT NOT NULL REFERENCES "tag" ("id") ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS "prompttag" (
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at" TIMESTAMP,
+    "prompt_id" INT NOT NULL REFERENCES "prompt" ("id") ON DELETE CASCADE,
+    "tag_id" INT NOT NULL REFERENCES "tag" ("id") ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS "section" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -88,6 +112,14 @@ CREATE TABLE IF NOT EXISTS "section" (
     "source" VARCHAR(1024) NOT NULL,
     "content_source_id" INT NOT NULL REFERENCES "contentsources" ("id") ON DELETE CASCADE,
     "workspace_id" INT NOT NULL REFERENCES "workspace" ("id") ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS "generatedcontentsection" (
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at" TIMESTAMP,
+    "generated_content_id" INT NOT NULL REFERENCES "generatedcontent" ("id") ON DELETE CASCADE,
+    "section_id" INT NOT NULL REFERENCES "section" ("id") ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS "sectiontag" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -105,6 +137,14 @@ CREATE TABLE IF NOT EXISTS "workspaceimage" (
     "source_image_id" INT NOT NULL REFERENCES "sourceimage" ("id") ON DELETE CASCADE,
     "workspace_id" INT NOT NULL REFERENCES "workspace" ("id") ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS "generatedcontentimage" (
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at" TIMESTAMP,
+    "generated_content_id" INT NOT NULL REFERENCES "generatedcontent" ("id") ON DELETE CASCADE,
+    "image_id" INT NOT NULL REFERENCES "workspaceimage" ("id") ON DELETE CASCADE
+);
 CREATE TABLE IF NOT EXISTS "workspaceimagetag" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -120,6 +160,14 @@ CREATE TABLE IF NOT EXISTS "workspacetable" (
     "deleted_at" TIMESTAMP,
     "source_table_id" INT NOT NULL REFERENCES "sourcetable" ("id") ON DELETE CASCADE,
     "workspace_id" INT NOT NULL REFERENCES "workspace" ("id") ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS "generatedcontenttable" (
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at" TIMESTAMP,
+    "generated_content_id" INT NOT NULL REFERENCES "generatedcontent" ("id") ON DELETE CASCADE,
+    "table_id" INT NOT NULL REFERENCES "workspacetable" ("id") ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS "workspacetabletag" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,

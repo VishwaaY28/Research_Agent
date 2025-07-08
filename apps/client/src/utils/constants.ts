@@ -55,6 +55,41 @@ export const API = {
         DELETE_HARD: (workspaceId: string | number, workspaceTableId: string | number) =>
           `/${workspaceId}/tables/${workspaceTableId}/hard`,
       },
+      CONTENT: {
+        WORKSPACE_CONTENT: (workspaceId: string | number) =>
+          `/${workspaceId}/content/workspace-content`,
+        GENERATE: (workspaceId: string | number) => `/${workspaceId}/content/generate`,
+        SAVE_GENERATED: (workspaceId: string | number) => `/${workspaceId}/content/save-generated`,
+        PROMPTS: {
+          LIST: (workspaceId: string | number) => `/${workspaceId}/content/prompts`,
+          CREATE: (workspaceId: string | number) => `/${workspaceId}/content/prompts`,
+          FILTER: (workspaceId: string | number) => `/${workspaceId}/content/prompts/filter`,
+          ADD_TAG: (workspaceId: string | number, promptId: string | number) =>
+            `/${workspaceId}/content/prompts/${promptId}/tags`,
+          REMOVE_TAG: (
+            workspaceId: string | number,
+            promptId: string | number,
+            tagId: string | number,
+          ) => `/${workspaceId}/content/prompts/${promptId}/tags/${tagId}`,
+          DELETE: (workspaceId: string | number, promptId: string | number) =>
+            `/${workspaceId}/content/prompts/${promptId}`,
+        },
+        GENERATED: {
+          LIST: (workspaceId: string | number) => `/${workspaceId}/content/generated`,
+          BY_ID: (workspaceId: string | number, contentId: string | number) =>
+            `/${workspaceId}/content/generated/${contentId}`,
+          FILTER: (workspaceId: string | number) => `/${workspaceId}/content/generated/filter`,
+          ADD_TAG: (workspaceId: string | number, contentId: string | number) =>
+            `/${workspaceId}/content/generated/${contentId}/tags`,
+          REMOVE_TAG: (
+            workspaceId: string | number,
+            contentId: string | number,
+            tagId: string | number,
+          ) => `/${workspaceId}/content/generated/${contentId}/tags/${tagId}`,
+          DELETE: (workspaceId: string | number, contentId: string | number) =>
+            `/${workspaceId}/content/generated/${contentId}`,
+        },
+      },
     },
     SECTIONS: {
       BASE_URL: () => '/api/sections',

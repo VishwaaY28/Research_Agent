@@ -88,11 +88,41 @@ class SectionTag(TimestampMixin):
     section = fields.ForeignKeyField('models.Section', related_name='tags')
     tag = fields.ForeignKeyField('models.Tag', related_name='sections')
 
-class Proposal(TimestampMixin):
+class Prompt(TimestampMixin):
     id = fields.IntField(pk=True)
-    workspace = fields.ForeignKeyField('models.Workspace', related_name='proposals')
-    user = fields.ForeignKeyField('models.User', related_name='proposals')
+    workspace = fields.ForeignKeyField('models.Workspace', related_name='prompts')
+    user = fields.ForeignKeyField('models.User', related_name='prompts')
     title = fields.CharField(max_length=255)
-    generated_content = fields.TextField()
-    prompt = fields.TextField()
-    section_ids = fields.JSONField()
+    content = fields.TextField()
+
+class PromptTag(TimestampMixin):
+    id = fields.IntField(pk=True)
+    prompt = fields.ForeignKeyField('models.Prompt', related_name='tags')
+    tag = fields.ForeignKeyField('models.Tag', related_name='prompt_tags')
+
+class GeneratedContent(TimestampMixin):
+    id = fields.IntField(pk=True)
+    workspace = fields.ForeignKeyField('models.Workspace', related_name='generated_contents')
+    prompt = fields.ForeignKeyField('models.Prompt', related_name='generated_contents')
+    user = fields.ForeignKeyField('models.User', related_name='generated_contents')
+    content = fields.TextField()
+
+class GeneratedContentTag(TimestampMixin):
+    id = fields.IntField(pk=True)
+    generated_content = fields.ForeignKeyField('models.GeneratedContent', related_name='tags')
+    tag = fields.ForeignKeyField('models.Tag', related_name='generated_content_tags')
+
+class GeneratedContentSection(TimestampMixin):
+    id = fields.IntField(pk=True)
+    generated_content = fields.ForeignKeyField('models.GeneratedContent', related_name='sections')
+    section = fields.ForeignKeyField('models.Section', related_name='generated_contents')
+
+class GeneratedContentImage(TimestampMixin):
+    id = fields.IntField(pk=True)
+    generated_content = fields.ForeignKeyField('models.GeneratedContent', related_name='images')
+    image = fields.ForeignKeyField('models.WorkspaceImage', related_name='generated_contents')
+
+class GeneratedContentTable(TimestampMixin):
+    id = fields.IntField(pk=True)
+    generated_content = fields.ForeignKeyField('models.GeneratedContent', related_name='tables')
+    table = fields.ForeignKeyField('models.WorkspaceTable', related_name='generated_contents')

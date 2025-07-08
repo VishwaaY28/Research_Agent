@@ -1,290 +1,468 @@
-import React, { useState } from 'react';
-import { FiFolder, FiX, FiSend, FiArrowLeft } from 'react-icons/fi';
+import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import {
+  FiArrowLeft,
+  FiChevronDown,
+  FiCopy,
+  FiFileText,
+  FiGrid,
+  FiImage,
+  FiLoader,
+  FiRefreshCw,
+  FiSave,
+  FiTag,
+  FiX,
+  FiZap,
+} from 'react-icons/fi';
+import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
-import WorkspaceModal from '../../components/dashboard/ProposalAuthoring/WorkspaceModal';
-
-type ContentChunk = {
-  id: string;
-  title: string;
-  preview: string;
-  source: string;
-};
-
-interface SelectedChunk extends ContentChunk {
-  workspaceName: string;
-}
+import { useContent, type Section, type WorkspaceContent } from '../../hooks/useContent';
+import { useWorkspace } from '../../hooks/useWorkspace';
 
 const CreateProposal: React.FC = () => {
   const navigate = useNavigate();
-  const [userPrompt, setUserPrompt] = useState('');
-  const [selectedChunks, setSelectedChunks] = useState<SelectedChunk[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { workspaces, fetchWorkspaces } = useWorkspace();
+  const {
+    getWorkspaceContent,
+    generateContent,
+    saveGeneratedContent,
+    loading: contentLoading,
+  } = useContent();
+
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>('');
+  const [workspaceContent, setWorkspaceContent] = useState<WorkspaceContent | null>(null);
+  const [prompt, setPrompt] = useState('');
+  const [selectedSections, setSelectedSections] = useState<number[]>([]);
+  const [selectedImages, setSelectedImages] = useState<number[]>([]);
+  const [selectedTables, setSelectedTables] = useState<number[]>([]);
+  const [generatedContent, setGeneratedContent] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedResult, setGeneratedResult] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [showWorkspaceDropdown, setShowWorkspaceDropdown] = useState(false);
+  const [tags, setTags] = useState<string[]>([]);
+  const [newTag, setNewTag] = useState('');
 
-  const mockWorkspaces = [
-    'Marketing Proposals',
-    'Technical Documents',
-    'Client Presentations',
-    'Research Papers',
-    'Financial Reports',
-  ];
+  useEffect(() => {
+    fetchWorkspaces();
+  }, []);
 
-  const handleWorkspaceClick = (workspace: string) => {
-    setSelectedWorkspace(workspace);
-    setIsModalOpen(true);
+  useEffect(() => {
+    if (selectedWorkspace) {
+      loadWorkspaceContent();
+    }
+  }, [selectedWorkspace]);
+
+  const loadWorkspaceContent = async () => {
+    if (!selectedWorkspace) return;
+
+    try {
+      const content = await getWorkspaceContent(selectedWorkspace);
+      setWorkspaceContent(content);
+    } catch (error) {
+      toast.error('Failed to load workspace content');
+      console.error('Error loading workspace content:', error);
+    }
   };
 
-  const handleChunksSelected = (chunks: ContentChunk[], workspaceName: string) => {
-    const chunksWithWorkspace = chunks.map((chunk) => ({
-      ...chunk,
-      workspaceName,
-    }));
-    setSelectedChunks((prev) => [...prev, ...chunksWithWorkspace]);
-    setIsModalOpen(false);
+  const handleSectionToggle = (sectionId: number) => {
+    setSelectedSections((prev) =>
+      prev.includes(sectionId) ? prev.filter((id) => id !== sectionId) : [...prev, sectionId],
+    );
   };
 
-  const removeChunk = (chunkId: string) => {
-    setSelectedChunks((prev) => prev.filter((chunk) => chunk.id !== chunkId));
+  const handleImageToggle = (imageId: number) => {
+    setSelectedImages((prev) =>
+      prev.includes(imageId) ? prev.filter((id) => id !== imageId) : [...prev, imageId],
+    );
+  };
+
+  const handleTableToggle = (tableId: number) => {
+    setSelectedTables((prev) =>
+      prev.includes(tableId) ? prev.filter((id) => id !== tableId) : [...prev, tableId],
+    );
   };
 
   const handleGenerate = async () => {
-    if (!userPrompt.trim()) return;
+    if (!prompt.trim() || !selectedWorkspace) {
+      toast.error('Please enter a prompt and select a workspace');
+      return;
+    }
 
     setIsGenerating(true);
-
-    setTimeout(() => {
-      const mockResult = `# Generated Proposal
-
-## Executive Summary
-
-Based on your prompt: "${userPrompt}"
-
-This proposal has been generated using the selected content from your workspaces. The AI has analyzed and synthesized information from ${selectedChunks.length} content pieces to create this comprehensive proposal.
-
-## Key Recommendations
-
-1. **Strategic Implementation**: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
-
-2. **Technical Approach**: Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-
-3. **Timeline & Milestones**: Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
-
-## Detailed Analysis
-
-${
-  selectedChunks.length > 0
-    ? `This proposal incorporates insights from the following sources:
-${selectedChunks.map((chunk) => `- ${chunk.title} (from ${chunk.workspaceName})`).join('\n')}`
-    : ''
-}
-
-Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.
-
-## Implementation Plan
-
-- **Phase 1**: Initial setup and planning (2 weeks)
-- **Phase 2**: Core development and testing (6 weeks)
-- **Phase 3**: Deployment and optimization (2 weeks)
-
-## Budget Considerations
-
-Total estimated investment: $XXX,XXX
-Expected ROI: XX% within 12 months
-
-## Conclusion
-
-This proposal presents a comprehensive solution that addresses your specific requirements while leveraging best practices and proven methodologies. We are confident this approach will deliver exceptional results within the proposed timeline and budget.`;
-
-      setGeneratedResult(mockResult);
+    try {
+      const content = await generateContent(
+        selectedWorkspace,
+        prompt,
+        selectedSections,
+        selectedImages,
+        selectedTables,
+      );
+      setGeneratedContent(content);
+      toast.success('Content generated successfully!');
+    } catch (error) {
+      toast.error('Failed to generate content');
+      console.error(error);
+    } finally {
       setIsGenerating(false);
-    }, 2000);
+    }
   };
 
-  if (generatedResult) {
-    return (
-      <div className="min-h-full bg-white">
-        <div className="bg-white border-b border-gray-200">
-          <div className="px-8 py-6">
-            <div className="max-w-4xl mx-auto flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => navigate('/dashboard/proposal-authoring')}
-                  className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  <FiArrowLeft className="w-5 h-5" />
-                </button>
-                <h1 className="text-2xl font-bold text-gray-900">Generated Proposal</h1>
-              </div>
-              <button
-                onClick={() => {
-                  setGeneratedResult('');
-                  setUserPrompt('');
-                  setSelectedChunks([]);
-                }}
-                className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors"
-              >
-                Create New Proposal
-              </button>
-            </div>
-          </div>
-        </div>
+  const handleSave = async () => {
+    if (!generatedContent || !selectedWorkspace) {
+      toast.error('No content to save');
+      return;
+    }
 
-        <div className="px-8 py-8">
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-white border border-gray-200 rounded-xl p-8 shadow-sm">
-              <div className="prose prose-lg max-w-none">
-                {generatedResult.split('\n').map((line, index) => {
-                  if (line.startsWith('# ')) {
-                    return (
-                      <h1 key={index} className="text-3xl font-bold text-gray-900 mb-6 first:mt-0">
-                        {line.substring(2)}
-                      </h1>
-                    );
-                  } else if (line.startsWith('## ')) {
-                    return (
-                      <h2 key={index} className="text-2xl font-semibold text-gray-900 mb-4 mt-8">
-                        {line.substring(3)}
-                      </h2>
-                    );
-                  } else if (line.startsWith('- ')) {
-                    return (
-                      <li key={index} className="text-gray-700 mb-2">
-                        {line.substring(2)}
-                      </li>
-                    );
-                  } else if (line.trim() === '') {
-                    return <br key={index} />;
-                  } else {
-                    return (
-                      <p key={index} className="text-gray-700 mb-4 leading-relaxed">
-                        {line}
-                      </p>
-                    );
-                  }
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+    setIsSaving(true);
+    try {
+      await saveGeneratedContent(
+        selectedWorkspace,
+        prompt,
+        generatedContent,
+        selectedSections,
+        selectedImages,
+        selectedTables,
+        tags,
+      );
+      toast.success('Content saved successfully!');
+      navigate('/dashboard/proposal-authoring');
+    } catch (error) {
+      toast.error('Failed to save content');
+      console.error(error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleRetry = () => {
+    setGeneratedContent('');
+    handleGenerate();
+  };
+
+  const handleAddTag = () => {
+    if (newTag.trim() && !tags.includes(newTag.trim())) {
+      setTags([...tags, newTag.trim()]);
+      setNewTag('');
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(tags.filter((tag) => tag !== tagToRemove));
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Content copied to clipboard!');
+    } catch (error) {
+      toast.error('Failed to copy content');
+      console.error('Error copying content:', error);
+    }
+  };
+
+  const selectedWorkspaceData = workspaces.find((w) => w.id === selectedWorkspace);
 
   return (
-    <div className="min-h-full bg-white">
-      <div className="bg-white border-b border-gray-200">
+    <div className="min-h-full bg-gradient-to-br from-gray-50 to-gray-100/50">
+      <div className="bg-white border-b border-gray-200 shadow-sm">
         <div className="px-8 py-6">
-          <div className="max-w-4xl mx-auto flex items-center gap-4">
-            <button
-              onClick={() => navigate('/dashboard/proposal-authoring')}
-              className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <FiArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Create New Proposal</h1>
-              <p className="text-gray-600 mt-1">
-                Describe your proposal needs and select relevant content
-              </p>
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => navigate('/dashboard/proposal-authoring')}
+                className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100"
+              >
+                <FiArrowLeft className="w-5 h-5" />
+              </button>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Generate Content</h1>
+                <p className="text-gray-600 mt-1">
+                  Create AI-powered content using your workspace resources
+                </p>
+              </div>
             </div>
+
+            {generatedContent && (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => copyToClipboard(generatedContent)}
+                  className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-primary hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <FiCopy className="w-4 h-4" />
+                  Copy
+                </button>
+                <button
+                  onClick={handleRetry}
+                  disabled={isGenerating}
+                  className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <FiRefreshCw className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
+                  Retry
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-medium hover:from-green-700 hover:to-green-800 transition-all duration-200 shadow-lg shadow-green-600/25 disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <FiLoader className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <FiSave className="w-4 h-4" />
+                  )}
+                  Save Content
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="px-8 py-8">
-        <div className="max-w-4xl mx-auto space-y-8">
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Describe Your Proposal</h2>
-            <textarea
-              value={userPrompt}
-              onChange={(e) => setUserPrompt(e.target.value)}
-              placeholder="Describe what kind of proposal you want to create. Be specific about the goals, audience, and key points you want to include..."
-              className="w-full h-32 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-none text-gray-900 placeholder-gray-500"
-            />
-          </div>
-
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">
-              Select Content from Workspaces
-            </h2>
-            <p className="text-gray-600 text-sm mb-6">
-              Choose relevant content from your workspaces to enhance your proposal
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-              {mockWorkspaces.map((workspace) => (
+      <div className="max-w-7xl mx-auto px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-1 space-y-6">
+            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Select Workspace</h3>
+              <div className="relative">
                 <button
-                  key={workspace}
-                  onClick={() => handleWorkspaceClick(workspace)}
-                  className="p-4 border border-gray-200 rounded-lg hover:border-primary hover:bg-primary/5 transition-all duration-200 text-left group"
+                  onClick={() => setShowWorkspaceDropdown(!showWorkspaceDropdown)}
+                  className="w-full flex items-center justify-between p-3 border border-gray-300 rounded-lg hover:border-gray-400 transition-colors"
                 >
-                  <FiFolder className="w-6 h-6 text-primary mb-3 group-hover:scale-110 transition-transform" />
-                  <p className="font-medium text-gray-900 text-sm">{workspace}</p>
+                  <span className={selectedWorkspaceData ? 'text-gray-900' : 'text-gray-500'}>
+                    {selectedWorkspaceData ? selectedWorkspaceData.name : 'Choose a workspace...'}
+                  </span>
+                  <FiChevronDown className="w-4 h-4" />
                 </button>
-              ))}
+
+                {showWorkspaceDropdown && (
+                  <div className="absolute z-10 mt-2 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {workspaces.map((workspace) => (
+                      <button
+                        key={workspace.id}
+                        onClick={() => {
+                          setSelectedWorkspace(workspace.id);
+                          setShowWorkspaceDropdown(false);
+                        }}
+                        className="w-full text-left px-4 py-3 hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg transition-colors"
+                      >
+                        <div className="font-medium text-gray-900">{workspace.name}</div>
+                        <div className="text-sm text-gray-500">{workspace.clientName}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {selectedChunks.length > 0 && (
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-4">
-                  Selected Content ({selectedChunks.length})
-                </h3>
-                <div className="space-y-3">
-                  {selectedChunks.map((chunk) => (
-                    <div
-                      key={chunk.id}
-                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200"
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900 text-sm">{chunk.title}</p>
-                        <p className="text-gray-600 text-xs mt-1">from {chunk.workspaceName}</p>
+            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Prompt</h3>
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Describe what you want to generate... (e.g., 'Create an executive summary for a software development proposal')"
+                className="w-full h-32 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+              />
+            </div>
+
+            {workspaceContent && (
+              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Select Context</h3>
+
+                <div className="space-y-4">
+                  {workspaceContent.sections.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-gray-800 mb-2 flex items-center gap-2">
+                        <FiFileText className="w-4 h-4" />
+                        Content Sections ({selectedSections.length}/
+                        {workspaceContent.sections.length})
+                      </h4>
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {workspaceContent.sections.map((section: Section) => (
+                          <label
+                            key={section.id}
+                            className="flex items-start gap-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedSections.includes(section.id)}
+                              onChange={() => handleSectionToggle(section.id)}
+                              className="mt-1 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm text-gray-900 truncate">
+                                {section.name}
+                              </div>
+                              <div className="text-xs text-gray-500 truncate">
+                                {section.content.substring(0, 100)}...
+                              </div>
+                            </div>
+                          </label>
+                        ))}
                       </div>
-                      <button
-                        onClick={() => removeChunk(chunk.id)}
-                        className="p-2 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50"
-                      >
-                        <FiX className="w-4 h-4" />
-                      </button>
                     </div>
-                  ))}
+                  )}
+
+                  {workspaceContent.images.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-gray-800 mb-2 flex items-center gap-2">
+                        <FiImage className="w-4 h-4" />
+                        Images ({selectedImages.length}/{workspaceContent.images.length})
+                      </h4>
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {workspaceContent.images.map((image) => (
+                          <label
+                            key={image.id}
+                            className="flex items-start gap-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedImages.includes(image.id)}
+                              onChange={() => handleImageToggle(image.id)}
+                              className="mt-1 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm text-gray-900 truncate">
+                                {image.caption || 'Untitled Image'}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {typeof image.page_number === 'number'
+                                  ? `Page ${image.page_number}`
+                                  : 'Page N/A'}
+                              </div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {workspaceContent.tables.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-gray-800 mb-2 flex items-center gap-2">
+                        <FiGrid className="w-4 h-4" />
+                        Tables ({selectedTables.length}/{workspaceContent.tables.length})
+                      </h4>
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {workspaceContent.tables.map((table) => (
+                          <label
+                            key={table.id}
+                            className="flex items-start gap-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedTables.includes(table.id)}
+                              onChange={() => handleTableToggle(table.id)}
+                              className="mt-1 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm text-gray-900 truncate">
+                                {table.caption || 'Untitled Table'}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {typeof table.page_number === 'number'
+                                  ? `Page ${table.page_number}`
+                                  : 'Page N/A'}
+                              </div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
+
+            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Tags</h3>
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+                    placeholder="Add a tag..."
+                    className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                  <button
+                    onClick={handleAddTag}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
+                {tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center px-3 py-1 bg-primary/10 text-primary rounded-full text-sm"
+                      >
+                        <FiTag className="w-3 h-3 mr-1" />
+                        {tag}
+                        <button
+                          onClick={() => handleRemoveTag(tag)}
+                          className="ml-2 text-primary hover:text-primary/80"
+                        >
+                          <FiX className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button
+              onClick={handleGenerate}
+              disabled={!prompt.trim() || !selectedWorkspace || isGenerating}
+              className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-primary to-primary/90 text-white rounded-xl font-medium hover:from-primary/90 hover:to-primary/80 transition-all duration-200 shadow-lg shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isGenerating ? (
+                <FiLoader className="w-5 h-5 animate-spin" />
+              ) : (
+                <FiZap className="w-5 h-5" />
+              )}
+              {isGenerating ? 'Generating...' : 'Generate Content'}
+            </button>
           </div>
 
-          <button
-            onClick={handleGenerate}
-            disabled={!userPrompt.trim() || isGenerating}
-            className={`w-full py-4 px-8 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-3 ${
-              userPrompt.trim() && !isGenerating
-                ? 'bg-primary text-white hover:bg-primary/90 shadow-sm'
-                : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-            }`}
-          >
-            {isGenerating ? (
-              <>
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                Generating Proposal...
-              </>
-            ) : (
-              <>
-                <FiSend className="w-5 h-5" />
-                Generate Proposal
-              </>
-            )}
-          </button>
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm min-h-[600px]">
+              <div className="p-6 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">Generated Content</h3>
+              </div>
+              <div className="p-6">
+                {contentLoading || isGenerating ? (
+                  <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                      <FiLoader className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
+                      <p className="text-gray-600">Generating your content...</p>
+                    </div>
+                  </div>
+                ) : generatedContent ? (
+                  <div className="prose prose-gray max-w-none">
+                    <ReactMarkdown>{generatedContent}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <FiZap className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <h4 className="text-lg font-medium text-gray-900 mb-2">Ready to generate</h4>
+                      <p className="text-gray-600">
+                        Configure your prompt and context, then click "Generate Content" to get
+                        started.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-
-      {isModalOpen && (
-        <WorkspaceModal
-          workspaceName={selectedWorkspace}
-          onClose={() => setIsModalOpen(false)}
-          onChunksSelected={handleChunksSelected}
-        />
-      )}
     </div>
   );
 };

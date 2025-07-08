@@ -17,3 +17,4 @@ pytesseract
 camelot-py[cv]
 pdfplumber
 tabula-py
+openai
