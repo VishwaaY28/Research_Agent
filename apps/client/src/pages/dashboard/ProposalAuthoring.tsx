@@ -151,7 +151,6 @@ const ProposalAuthoring: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [tagSuggestions, setTagSuggestions] = useState<Array<{ id: number; name: string }>>([]);
 
-  // Modal state
   const [viewModal, setViewModal] = useState<{
     isOpen: boolean;
     title: string;

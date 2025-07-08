@@ -7,11 +7,12 @@ class WorkspaceRepository:
     async def create_workspace(name: str, client: str, tag_names: list[str]):
         async with in_transaction():
             workspace = await Workspace.create(name=name, client=client)
-            tags = []
+
             for tag_name in tag_names:
-                tag, _ = await Tag.get_or_create(name=tag_name)
-                tags.append(tag)
-                await WorkspaceTag.create(workspace=workspace, tag=tag)
+                if tag_name.strip():
+                    tag, _ = await Tag.get_or_create(name=tag_name.strip())
+                    await WorkspaceTag.create(workspace=workspace, tag=tag)
+
             return workspace
 
     @staticmethod
@@ -21,16 +22,32 @@ class WorkspaceRepository:
     @staticmethod
     async def fetch_by_id(workspace_id: int):
         try:
-            return await Workspace.get(id=workspace_id).prefetch_related("tags__tag")
+            return await Workspace.get(id=workspace_id, deleted_at=None).prefetch_related("tags__tag")
         except DoesNotExist:
             return None
 
     @staticmethod
     async def fetch_by_name(name: str):
         try:
-            return await Workspace.get(name=name).prefetch_related("tags__tag")
+            return await Workspace.get(name=name, deleted_at=None).prefetch_related("tags__tag")
         except DoesNotExist:
             return None
+
+    @staticmethod
+    async def filter_workspaces(name_query: str = None, tag_names: list[str] = None):
+        query = Workspace.filter(deleted_at=None)
+
+        if name_query:
+            query = query.filter(name__icontains=name_query)
+
+        if tag_names:
+            query = query.filter(tags__tag__name__in=tag_names).distinct()
+
+        return await query.prefetch_related("tags__tag")
+
+    @staticmethod
+    async def search_workspaces(name_query: str = None, tag_names: list[str] = None):
+        return await WorkspaceRepository.filter_workspaces(name_query, tag_names)
 
     @staticmethod
     async def filter_by_tags(tag_names: list[str]):
@@ -41,7 +58,7 @@ class WorkspaceRepository:
 
     @staticmethod
     async def update_workspace(workspace_id: int, **kwargs):
-        workspace = await Workspace.get_or_none(id=workspace_id)
+        workspace = await Workspace.get_or_none(id=workspace_id, deleted_at=None)
         if not workspace:
             return None
         allowed_fields = {"name", "client"}
@@ -53,16 +70,19 @@ class WorkspaceRepository:
 
     @staticmethod
     async def update_workspace_tags(workspace_id: int, tag_names: list[str]):
-        from database.models import Tag, WorkspaceTag
-        tags = []
-        for tag_name in tag_names:
-            tag = await Tag.get_or_none(name=tag_name)
-            if not tag:
-                raise ValueError(f"Tag '{tag_name}' does not exist")
-            tags.append(tag)
-        await WorkspaceTag.filter(workspace_id=workspace_id).delete()
-        for tag in tags:
-            await WorkspaceTag.create(workspace_id=workspace_id, tag_id=tag.id)
+        async with in_transaction():
+            workspace = await Workspace.get_or_none(id=workspace_id, deleted_at=None)
+            if not workspace:
+                raise ValueError("Workspace not found")
+
+            await WorkspaceTag.filter(workspace=workspace).delete()
+
+            for tag_name in tag_names:
+                if tag_name.strip():
+                    tag, _ = await Tag.get_or_create(name=tag_name.strip())
+                    await WorkspaceTag.create(workspace=workspace, tag=tag)
+
+            return workspace
 
     @staticmethod
     async def soft_delete(workspace_id: int):

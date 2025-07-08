@@ -1,22 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { FiFolder, FiPlus, FiSearch, FiTag } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
+import { useDebounce } from '../../hooks/useDebounce';
 import { useWorkspace } from '../../hooks/useWorkspace';
 
 const Workspaces: React.FC = () => {
   const navigate = useNavigate();
-  const { workspaces, getAllTags, filterWorkspacesByTags, fetchWorkspaces, loading } =
-    useWorkspace();
+  const { workspaces, getAllTags, filterWorkspaces, fetchWorkspaces, loading } = useWorkspace();
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
-  const tags = getAllTags();
+  const debouncedSearch = useDebounce(search, 500);
 
-  const filtered = workspaces.filter(
-    (w) =>
-      w.name.toLowerCase().includes(search.toLowerCase()) &&
-      (selectedTags.length === 0 || selectedTags.every((tag) => w.tags.includes(tag))),
-  );
+  const tags = getAllTags();
 
   function toggleTag(tag: string) {
     setSelectedTags((prev) =>
@@ -25,12 +21,19 @@ const Workspaces: React.FC = () => {
   }
 
   useEffect(() => {
-    if (selectedTags.length > 0) {
-      filterWorkspacesByTags(selectedTags);
-    } else {
-      fetchWorkspaces();
-    }
-  }, [selectedTags]);
+    const performFilter = async () => {
+      if (debouncedSearch || selectedTags.length > 0) {
+        await filterWorkspaces(
+          debouncedSearch || undefined,
+          selectedTags.length > 0 ? selectedTags : undefined,
+        );
+      } else {
+        await fetchWorkspaces();
+      }
+    };
+
+    performFilter();
+  }, [debouncedSearch, selectedTags]);
 
   return (
     <div className="min-h-full bg-white">
@@ -98,9 +101,9 @@ const Workspaces: React.FC = () => {
 
           {loading ? (
             <div className="text-center py-20 text-gray-500">Loading...</div>
-          ) : filtered.length > 0 ? (
+          ) : workspaces.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filtered.map((workspace) => (
+              {workspaces.map((workspace) => (
                 <div
                   key={workspace.id}
                   onClick={() => navigate(`/dashboard/workspaces/${workspace.id}`)}

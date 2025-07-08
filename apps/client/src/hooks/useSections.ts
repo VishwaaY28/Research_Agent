@@ -28,6 +28,39 @@ export function useSections() {
     return data;
   };
 
+  const searchSections = useCallback(
+    async (workspaceId: string, contentQuery?: string, nameQuery?: string, tags?: string[]) => {
+      try {
+        const response = await fetch(
+          `${baseUrl}${API.ENDPOINTS.SECTIONS.BASE_URL()}${API.ENDPOINTS.SECTIONS.SEARCH(workspaceId)}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${localStorage.getItem('token')}`,
+            },
+            body: JSON.stringify({
+              content_query: contentQuery,
+              name_query: nameQuery,
+              tags: tags,
+            }),
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to search sections');
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error('Error searching sections:', error);
+        throw error;
+      }
+    },
+    [],
+  );
+
   const filterSectionsByTags = async (workspaceId: string, tags: string[]) => {
     const response = await fetch(
       `${API.BASE_URL()}${API.ENDPOINTS.SECTIONS.BASE_URL()}/filter/${workspaceId}`,
@@ -101,6 +134,7 @@ export function useSections() {
 
   return {
     sections,
+    searchSections,
     fetchSections,
     filterSectionsByTags,
     createSections,

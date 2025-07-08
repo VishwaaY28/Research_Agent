@@ -8,9 +8,9 @@ from api.routes.workspaces import router as workspaces_router
 from api.routes.sections import router as sections_router
 from api.routes.sources import router as sources_router
 from api.routes.tags import router as tags_router
-from api.routes.images import router as images_router
-from api.routes.tables import router as tables_router
 from api.routes.prompts import router as prompts_router
+# from api.routes.images import router as images_router
+# from api.routes.tables import router as tables_router
 from config.env import env
 from database.db import init_db, close_db
 
@@ -47,11 +47,12 @@ app.add_middleware(AuthMiddleware)
 app.include_router(auth_router)
 app.include_router(workspaces_router)
 app.include_router(sections_router)
-app.include_router(images_router)
-app.include_router(tables_router)
 app.include_router(sources_router)
 app.include_router(tags_router)
 app.include_router(prompts_router)
+# app.include_router(images_router)
+# app.include_router(tables_router)
+
 
 @app.get("/{full_path:path}")
 async def catch_all(full_path: str):

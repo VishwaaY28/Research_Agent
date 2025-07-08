@@ -2,17 +2,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-  FiArrowLeft,
   FiCheck,
   FiChevronDown,
   FiChevronRight,
   FiEye,
-  FiFile,
-  FiFileText,
-  FiGrid,
-  FiImage,
+  FiPlus,
   FiSave,
   FiSearch,
+  FiTag,
   FiX,
 } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
@@ -20,7 +17,6 @@ import { useDebounce } from '../../../hooks/useDebounce';
 import { useSections } from '../../../hooks/useSections';
 import { type Tag, useTags } from '../../../hooks/useTags';
 import { useWorkspace } from '../../../hooks/useWorkspace';
-import { API } from '../../../utils/constants';
 
 type ContentSection = {
   tag: string;
@@ -47,26 +43,10 @@ type SimpleChunk = {
 
 type Chunk = StructuredChunk | SimpleChunk;
 
-type ExtractedImage = {
-  path: string;
-  page_number?: number;
-  caption?: string;
-  ocr_text?: string;
-};
-
-type ExtractedTable = {
-  path: string;
-  page_number?: number;
-  caption?: string;
-  data?: any[];
-};
-
 type ExtractedContent = {
   success: boolean;
   content_source_id: number;
   chunks: Chunk[];
-  images?: ExtractedImage[];
-  tables?: ExtractedTable[];
   filename?: string;
   url?: string;
   error?: string;
@@ -74,7 +54,7 @@ type ExtractedContent = {
 };
 
 type SelectedItem = {
-  type: 'chunk' | 'section' | 'image' | 'table';
+  type: 'chunk' | 'section';
   sourceId: number;
   sourceName: string;
   name: string;
@@ -97,7 +77,7 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
   const [viewingItem, setViewingItem] = useState<{
     item: any;
     sourceName: string;
-    type: 'chunk' | 'section' | 'image' | 'table';
+    type: 'chunk' | 'section';
   } | null>(null);
   const [showTagModal, setShowTagModal] = useState<{ itemIndex: number } | null>(null);
   const [tagSearchQuery, setTagSearchQuery] = useState('');
@@ -105,30 +85,14 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
   const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState('');
   const [selectedWorkspaceTags, setSelectedWorkspaceTags] = useState<string[]>([]);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<'content' | 'images' | 'tables'>('content');
-  const [imageTagSearchQuery, setImageTagSearchQuery] = useState('');
-  const [tableTagSearchQuery, setTableTagSearchQuery] = useState('');
-  const [suggestedImageTags, setSuggestedImageTags] = useState<Tag[]>([]);
-  const [suggestedTableTags, setSuggestedTableTags] = useState<Tag[]>([]);
+  const [newTagInput, setNewTagInput] = useState('');
 
   const navigate = useNavigate();
   const { createSections } = useSections();
-  const {
-    tags,
-    imageTags,
-    tableTags,
-    fetchAllSectionTags,
-    searchTags,
-    fetchAllImageTags,
-    searchImageTags,
-    fetchAllTableTags,
-    searchTableTags,
-  } = useTags();
+  const { tags, fetchAllSectionTags, searchTags } = useTags();
   const { workspaces, fetchWorkspaces } = useWorkspace();
 
   const debouncedTagSearch = useDebounce(tagSearchQuery, 300);
-  const debouncedImageTagSearch = useDebounce(imageTagSearchQuery, 300);
-  const debouncedTableTagSearch = useDebounce(tableTagSearchQuery, 300);
 
   const isStructuredChunk = (chunk: Chunk): chunk is StructuredChunk => {
     return 'title' in chunk && 'content' in chunk && Array.isArray(chunk.content);
@@ -158,7 +122,7 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
     item: any,
     sourceId: number,
     sourceName: string,
-    type: 'chunk' | 'section' | 'image' | 'table',
+    type: 'chunk' | 'section',
     index: number,
   ) => {
     const uniqueId = generateItemId(item, sourceId, type, index);
@@ -186,14 +150,6 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
           content = item.content.map((c: any) => c.text).join('\n');
           name = item.tag;
           break;
-        case 'image':
-          content = item.ocr_text || item.caption || 'Image content';
-          name = item.caption || `Image ${index + 1}`;
-          break;
-        case 'table':
-          content = JSON.stringify(item.data, null, 2);
-          name = item.caption || `Table ${index + 1}`;
-          break;
       }
 
       const newItem: SelectedItem = {
@@ -218,11 +174,15 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
   const handleViewItem = (
     item: any,
     sourceName: string,
-    type: 'chunk' | 'section' | 'image' | 'table',
+    type: 'chunk' | 'section',
     e: React.MouseEvent,
   ) => {
     e.stopPropagation();
     setViewingItem({ item, sourceName, type });
+  };
+
+  const handleAddTag = (itemIndex: number) => {
+    setShowTagModal({ itemIndex });
   };
 
   const renderStructuredChunk = (
@@ -231,75 +191,116 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
     chunkIndex: number,
   ) => {
     const sourceName = getSourceName(result);
-    const sectionId = `${result.content_source_id}-${chunkIndex}`;
+    const isSelected = isItemSelected(chunk, result.content_source_id, 'chunk', chunkIndex);
+    const sectionId = `${result.content_source_id}-chunk-${chunkIndex}`;
     const isExpanded = expandedSections.has(sectionId);
+    const selectedItem = selectedItems.find(
+      (item) =>
+        item.uniqueId === generateItemId(chunk, result.content_source_id, 'chunk', chunkIndex),
+    );
 
     return (
-      <div key={chunkIndex} className="border border-gray-200 rounded-lg">
+      <div key={chunkIndex} className="border border-gray-200 rounded-lg overflow-hidden">
         <div
-          className={`p-4 cursor-pointer transition-all ${
-            isItemSelected(chunk, result.content_source_id, 'chunk', chunkIndex)
-              ? 'border-primary bg-primary/5'
-              : 'hover:border-gray-300'
+          className={`p-4 cursor-pointer transition-colors ${
+            isSelected ? 'bg-primary/10' : 'bg-gray-50 hover:bg-gray-100'
           }`}
           onClick={() =>
             handleItemToggle(chunk, result.content_source_id, sourceName, 'chunk', chunkIndex)
           }
         >
-          <div className="flex items-start space-x-3">
-            <div
-              className={`w-5 h-5 rounded-md border-2 flex items-center justify-center mt-0.5 ${
-                isItemSelected(chunk, result.content_source_id, 'chunk', chunkIndex)
-                  ? 'border-primary bg-primary'
-                  : 'border-gray-300'
-              }`}
-            >
-              {isItemSelected(chunk, result.content_source_id, 'chunk', chunkIndex) && (
-                <FiCheck className="w-3 h-3 text-white" />
-              )}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div
+                className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                  isSelected ? 'bg-primary border-primary text-white' : 'border-gray-300'
+                }`}
+              >
+                {isSelected && <FiCheck className="w-3 h-3" />}
+              </div>
+              <div className="flex-1">
+                <h4 className="font-medium text-gray-900">{chunk.title}</h4>
+                <p className="text-sm text-gray-500">
+                  {chunk.content.length} sections • {chunk.start_range} - {chunk.end_range}
+                </p>
+                {selectedItem && selectedItem.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {selectedItem.tags.map((tag, tagIndex) => (
+                      <span
+                        key={tagIndex}
+                        className="inline-flex items-center bg-primary/10 text-primary px-2 py-1 rounded-full text-xs"
+                      >
+                        <FiTag className="w-2 h-2 mr-1" />
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="flex-1">
-              <div className="flex items-center space-x-2">
-                <h4 className="font-medium text-black">{chunk.title}</h4>
-                <span className="px-2 py-1 bg-blue-100 text-blue-600 text-xs rounded">
-                  Pages {chunk.start_range}-{chunk.end_range}
-                </span>
+            <div className="flex items-center space-x-2">
+              {isSelected && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    toggleSection(sectionId);
+                    const itemIndex = selectedItems.findIndex(
+                      (item) =>
+                        item.uniqueId ===
+                        generateItemId(chunk, result.content_source_id, 'chunk', chunkIndex),
+                    );
+                    if (itemIndex !== -1) {
+                      handleAddTag(itemIndex);
+                    }
                   }}
-                  className="p-1 text-gray-400 hover:text-gray-600"
+                  className="p-2 text-gray-400 hover:text-primary rounded-lg transition-colors"
+                  title="Add tags"
                 >
-                  {isExpanded ? (
-                    <FiChevronDown className="w-4 h-4" />
-                  ) : (
-                    <FiChevronRight className="w-4 h-4" />
-                  )}
+                  <FiPlus className="w-4 h-4" />
                 </button>
-              </div>
-              <p className="text-sm text-gray-600 mt-1">{chunk.content.length} sections</p>
+              )}
+              <button
+                onClick={(e) => handleViewItem(chunk, sourceName, 'chunk', e)}
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-colors"
+              >
+                <FiEye className="w-4 h-4" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleSection(sectionId);
+                }}
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-colors"
+              >
+                {isExpanded ? (
+                  <FiChevronDown className="w-4 h-4" />
+                ) : (
+                  <FiChevronRight className="w-4 h-4" />
+                )}
+              </button>
             </div>
-            <button
-              onClick={(e) => handleViewItem(chunk, sourceName, 'chunk', e)}
-              className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-              title="View full content"
-            >
-              <FiEye className="w-4 h-4" />
-            </button>
           </div>
         </div>
 
         {isExpanded && (
-          <div className="border-t border-gray-200 p-4 bg-gray-50">
-            <div className="space-y-3">
-              {chunk.content.map((section, sectionIndex) => (
+          <div className="border-t border-gray-200 bg-white">
+            {chunk.content.map((section, sectionIndex) => {
+              const sectionIsSelected = isItemSelected(
+                section,
+                result.content_source_id,
+                'section',
+                sectionIndex,
+              );
+              const selectedSectionItem = selectedItems.find(
+                (item) =>
+                  item.uniqueId ===
+                  generateItemId(section, result.content_source_id, 'section', sectionIndex),
+              );
+
+              return (
                 <div
                   key={sectionIndex}
-                  className={`p-3 border rounded-lg cursor-pointer transition-all ${
-                    isItemSelected(section, result.content_source_id, 'section', sectionIndex)
-                      ? 'border-primary bg-primary/5'
-                      : 'border-gray-200 hover:border-gray-300 bg-white'
+                  className={`p-4 border-b border-gray-100 last:border-b-0 cursor-pointer transition-colors ${
+                    sectionIsSelected ? 'bg-primary/5' : 'hover:bg-gray-50'
                   }`}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -314,43 +315,79 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
                 >
                   <div className="flex items-start space-x-3">
                     <div
-                      className={`w-4 h-4 rounded border-2 flex items-center justify-center mt-0.5 ${
-                        isItemSelected(section, result.content_source_id, 'section', sectionIndex)
-                          ? 'border-primary bg-primary'
+                      className={`w-4 h-4 mt-1 rounded border-2 flex items-center justify-center ${
+                        sectionIsSelected
+                          ? 'bg-primary border-primary text-white'
                           : 'border-gray-300'
                       }`}
                     >
-                      {isItemSelected(
-                        section,
-                        result.content_source_id,
-                        'section',
-                        sectionIndex,
-                      ) && <FiCheck className="w-2 h-2 text-white" />}
+                      {sectionIsSelected && <FiCheck className="w-2.5 h-2.5" />}
                     </div>
                     <div className="flex-1">
-                      <h5 className="font-medium text-sm text-black">{section.tag}</h5>
-                      <p className="text-xs text-gray-600 line-clamp-2 mt-1">
-                        {section.content
-                          .map((c) => c.text)
-                          .join(' ')
-                          .substring(0, 150)}
-                        ...
-                      </p>
-                      <span className="text-xs text-gray-500">
-                        {section.content.length} text blocks
-                      </span>
+                      <h5 className="font-medium text-gray-800 mb-2">{section.tag}</h5>
+                      {selectedSectionItem && selectedSectionItem.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {selectedSectionItem.tags.map((tag, tagIndex) => (
+                            <span
+                              key={tagIndex}
+                              className="inline-flex items-center bg-primary/10 text-primary px-2 py-1 rounded-full text-xs"
+                            >
+                              <FiTag className="w-2 h-2 mr-1" />
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="text-sm text-gray-600 space-y-1">
+                        {section.content.slice(0, 2).map((content, contentIndex) => (
+                          <p key={contentIndex} className="line-clamp-2">
+                            {content.text.substring(0, 200)}
+                            {content.text.length > 200 && '...'}
+                          </p>
+                        ))}
+                        {section.content.length > 2 && (
+                          <p className="text-gray-500 italic">
+                            +{section.content.length - 2} more items
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <button
-                      onClick={(e) => handleViewItem(section, sourceName, 'section', e)}
-                      className="p-1 text-gray-400 hover:text-primary hover:bg-primary/10 rounded transition-colors"
-                      title="View section"
-                    >
-                      <FiEye className="w-3 h-3" />
-                    </button>
+                    <div className="flex items-center space-x-1">
+                      {sectionIsSelected && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const itemIndex = selectedItems.findIndex(
+                              (item) =>
+                                item.uniqueId ===
+                                generateItemId(
+                                  section,
+                                  result.content_source_id,
+                                  'section',
+                                  sectionIndex,
+                                ),
+                            );
+                            if (itemIndex !== -1) {
+                              handleAddTag(itemIndex);
+                            }
+                          }}
+                          className="p-1 text-gray-400 hover:text-primary rounded transition-colors"
+                          title="Add tags"
+                        >
+                          <FiPlus className="w-3 h-3" />
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => handleViewItem(section, sourceName, 'section', e)}
+                        className="p-1 text-gray-400 hover:text-gray-600 rounded transition-colors"
+                      >
+                        <FiEye className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -359,14 +396,17 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
 
   const renderSimpleChunk = (chunk: SimpleChunk, result: ExtractedContent, chunkIndex: number) => {
     const sourceName = getSourceName(result);
+    const isSelected = isItemSelected(chunk, result.content_source_id, 'chunk', chunkIndex);
+    const selectedItem = selectedItems.find(
+      (item) =>
+        item.uniqueId === generateItemId(chunk, result.content_source_id, 'chunk', chunkIndex),
+    );
 
     return (
       <div
         key={chunkIndex}
-        className={`p-4 border rounded-lg cursor-pointer transition-all ${
-          isItemSelected(chunk, result.content_source_id, 'chunk', chunkIndex)
-            ? 'border-primary bg-primary/5'
-            : 'border-gray-200 hover:border-gray-300'
+        className={`border border-gray-200 rounded-lg p-4 cursor-pointer transition-colors ${
+          isSelected ? 'bg-primary/10 border-primary/30' : 'hover:bg-gray-50'
         }`}
         onClick={() =>
           handleItemToggle(chunk, result.content_source_id, sourceName, 'chunk', chunkIndex)
@@ -374,249 +414,76 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
       >
         <div className="flex items-start space-x-3">
           <div
-            className={`w-5 h-5 rounded-md border-2 flex items-center justify-center mt-0.5 ${
-              isItemSelected(chunk, result.content_source_id, 'chunk', chunkIndex)
-                ? 'border-primary bg-primary'
-                : 'border-gray-300'
+            className={`w-5 h-5 mt-1 rounded border-2 flex items-center justify-center ${
+              isSelected ? 'bg-primary border-primary text-white' : 'border-gray-300'
             }`}
           >
-            {isItemSelected(chunk, result.content_source_id, 'chunk', chunkIndex) && (
-              <FiCheck className="w-3 h-3 text-white" />
-            )}
+            {isSelected && <FiCheck className="w-3 h-3" />}
           </div>
           <div className="flex-1">
-            {chunk.label && <h4 className="font-medium text-black mb-2">{chunk.label}</h4>}
-            <p className="text-sm text-neutral-700 line-clamp-3">{chunk.content}</p>
-            {(chunk.page || chunk.section_type || chunk.file_source) && (
-              <div className="flex items-center space-x-2 mt-2">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-medium text-gray-900">
+                {chunk.label || chunk.content.substring(0, 50) + '...'}
+              </h4>
+              <div className="flex items-center space-x-2">
                 {chunk.page && (
-                  <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
+                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
                     Page {chunk.page}
                   </span>
                 )}
                 {chunk.section_type && (
-                  <span className="px-2 py-1 bg-blue-100 text-blue-600 text-xs rounded">
+                  <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
                     {chunk.section_type}
                   </span>
                 )}
+                {isSelected && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const itemIndex = selectedItems.findIndex(
+                        (item) =>
+                          item.uniqueId ===
+                          generateItemId(chunk, result.content_source_id, 'chunk', chunkIndex),
+                      );
+                      if (itemIndex !== -1) {
+                        handleAddTag(itemIndex);
+                      }
+                    }}
+                    className="p-1 text-gray-400 hover:text-primary rounded transition-colors"
+                    title="Add tags"
+                  >
+                    <FiPlus className="w-3 h-3" />
+                  </button>
+                )}
+                <button
+                  onClick={(e) => handleViewItem(chunk, sourceName, 'chunk', e)}
+                  className="p-1 text-gray-400 hover:text-gray-600 rounded transition-colors"
+                >
+                  <FiEye className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            {selectedItem && selectedItem.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-2">
+                {selectedItem.tags.map((tag, tagIndex) => (
+                  <span
+                    key={tagIndex}
+                    className="inline-flex items-center bg-primary/10 text-primary px-2 py-1 rounded-full text-xs"
+                  >
+                    <FiTag className="w-2 h-2 mr-1" />
+                    {tag}
+                  </span>
+                ))}
               </div>
             )}
+            <p className="text-sm text-gray-600 line-clamp-3">
+              {chunk.content.substring(0, 300)}
+              {chunk.content.length > 300 && '...'}
+            </p>
           </div>
-          <button
-            onClick={(e) => handleViewItem(chunk, sourceName, 'chunk', e)}
-            className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-            title="View full content"
-          >
-            <FiEye className="w-4 h-4" />
-          </button>
         </div>
       </div>
     );
-  };
-
-  const renderImages = (images: ExtractedImage[], result: ExtractedContent) => {
-    if (!images || images.length === 0) return null;
-
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {images.map((image, index) => (
-          <div
-            key={index}
-            className={`p-4 border rounded-lg cursor-pointer transition-all ${
-              isItemSelected(image, result.content_source_id, 'image', index)
-                ? 'border-primary bg-primary/5'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-            onClick={() =>
-              handleItemToggle(
-                image,
-                result.content_source_id,
-                getSourceName(result),
-                'image',
-                index,
-              )
-            }
-          >
-            <div className="flex items-start space-x-3">
-              <div
-                className={`w-5 h-5 rounded-md border-2 flex items-center justify-center mt-0.5 ${
-                  isItemSelected(image, result.content_source_id, 'image', index)
-                    ? 'border-primary bg-primary'
-                    : 'border-gray-300'
-                }`}
-              >
-                {isItemSelected(image, result.content_source_id, 'image', index) && (
-                  <FiCheck className="w-3 h-3 text-white" />
-                )}
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center space-x-2 mb-2">
-                  <FiImage className="w-4 h-4 text-primary" />
-                  <h4 className="font-medium text-black text-sm">
-                    {image.caption || `Image ${index + 1}`}
-                  </h4>
-                </div>
-                {image.page_number && (
-                  <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
-                    Page {image.page_number}
-                  </span>
-                )}
-                {image.ocr_text && (
-                  <p className="text-xs text-gray-600 mt-2 line-clamp-2">OCR: {image.ocr_text}</p>
-                )}
-              </div>
-              <button
-                onClick={(e) => handleViewItem(image, getSourceName(result), 'image', e)}
-                className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                title="View image"
-              >
-                <FiEye className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  const renderTables = (tables: ExtractedTable[], result: ExtractedContent) => {
-    if (!tables || tables.length === 0) return null;
-
-    return (
-      <div className="space-y-4">
-        {tables.map((table, index) => (
-          <div
-            key={index}
-            className={`p-4 border rounded-lg cursor-pointer transition-all ${
-              isItemSelected(table, result.content_source_id, 'table', index)
-                ? 'border-primary bg-primary/5'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-            onClick={() =>
-              handleItemToggle(
-                table,
-                result.content_source_id,
-                getSourceName(result),
-                'table',
-                index,
-              )
-            }
-          >
-            <div className="flex items-start space-x-3">
-              <div
-                className={`w-5 h-5 rounded-md border-2 flex items-center justify-center mt-0.5 ${
-                  isItemSelected(table, result.content_source_id, 'table', index)
-                    ? 'border-primary bg-primary'
-                    : 'border-gray-300'
-                }`}
-              >
-                {isItemSelected(table, result.content_source_id, 'table', index) && (
-                  <FiCheck className="w-3 h-3 text-white" />
-                )}
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center space-x-2 mb-2">
-                  <FiGrid className="w-4 h-4 text-primary" />
-                  <h4 className="font-medium text-black text-sm">
-                    {table.caption || `Table ${index + 1}`}
-                  </h4>
-                </div>
-                {table.page_number && (
-                  <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
-                    Page {table.page_number}
-                  </span>
-                )}
-                {table.data && (
-                  <p className="text-xs text-gray-600 mt-2">
-                    {Array.isArray(table.data)
-                      ? `${table.data.length} rows`
-                      : 'Table data available'}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={(e) => handleViewItem(table, getSourceName(result), 'table', e)}
-                className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                title="View table"
-              >
-                <FiEye className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  const handleItemNameChange = (index: number, name: string) => {
-    setSelectedItems((prev) => prev.map((item, i) => (i === index ? { ...item, name } : item)));
-  };
-
-  const handleRemoveTag = (itemIndex: number, tagIndex: number) => {
-    setSelectedItems((prev) =>
-      prev.map((item, i) => {
-        if (i === itemIndex) {
-          const newTags = item.tags.filter((_, ti) => ti !== tagIndex);
-          return { ...item, tags: newTags };
-        }
-        return item;
-      }),
-    );
-  };
-
-  const handleShowTagModal = (itemIndex: number) => {
-    setShowTagModal({ itemIndex });
-    const item = selectedItems[itemIndex];
-
-    if (item.type === 'image') {
-      setImageTagSearchQuery('');
-      setSuggestedImageTags(imageTags.slice(0, 10));
-    } else if (item.type === 'table') {
-      setTableTagSearchQuery('');
-      setSuggestedTableTags(tableTags.slice(0, 10));
-    } else {
-      setTagSearchQuery('');
-      setSuggestedTags(tags.slice(0, 10));
-    }
-  };
-
-  const handleSelectSuggestedTag = (tagName: string, itemIndex: number) => {
-    setSelectedItems((prev) =>
-      prev.map((item, i) => {
-        if (i === itemIndex) {
-          const newTags = item.tags.includes(tagName) ? item.tags : [...item.tags, tagName];
-          return { ...item, tags: newTags };
-        }
-        return item;
-      }),
-    );
-    setShowTagModal(null);
-  };
-
-  const handleAddCustomTag = (itemIndex: number) => {
-    const item = selectedItems[itemIndex];
-    let tagValue = '';
-
-    if (item.type === 'image') {
-      tagValue = imageTagSearchQuery.trim();
-    } else if (item.type === 'table') {
-      tagValue = tableTagSearchQuery.trim();
-    } else {
-      tagValue = tagSearchQuery.trim();
-    }
-
-    if (!tagValue) return;
-
-    setSelectedItems((prev) =>
-      prev.map((item, i) => {
-        if (i === itemIndex) {
-          const newTags = item.tags.includes(tagValue) ? item.tags : [...item.tags, tagValue];
-          return { ...item, tags: newTags };
-        }
-        return item;
-      }),
-    );
-    setShowTagModal(null);
   };
 
   const handleSaveToWorkspace = async () => {
@@ -630,84 +497,15 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
       const sectionItems = selectedItems.filter(
         (item) => item.type === 'section' || item.type === 'chunk',
       );
-      const imageItems = selectedItems.filter((item) => item.type === 'image');
-      const tableItems = selectedItems.filter((item) => item.type === 'table');
 
       if (sectionItems.length > 0) {
-        const itemsBySource = sectionItems.reduce(
-          (acc, item) => {
-            if (!acc[item.sourceName]) {
-              acc[item.sourceName] = [];
-            }
-            acc[item.sourceName].push({
-              content: item.content,
-              name: item.name,
-              tags: item.tags,
-            });
-            return acc;
-          },
-          {} as Record<string, Array<{ content: string; name: string; tags: string[] }>>,
-        );
+        const sectionsToCreate = sectionItems.map((item) => ({
+          content: item.content,
+          name: item.name,
+          tags: item.tags,
+        }));
 
-        for (const [sourceName, items] of Object.entries(itemsBySource)) {
-          await createSections(parseInt(workspace.id), sourceName, items);
-        }
-      }
-
-      if (imageItems.length > 0) {
-        for (const item of imageItems) {
-          try {
-            const response = await fetch(
-              `${API.BASE_URL()}${API.ENDPOINTS.WORKSPACES.BASE_URL()}${API.ENDPOINTS.WORKSPACES.IMAGES.ADD(workspace.id, item.originalData.id)}`,
-              { method: 'POST' },
-            );
-
-            if (response.ok) {
-              const workspaceImage = await response.json();
-
-              if (item.tags.length > 0) {
-                await fetch(
-                  `${API.BASE_URL()}${API.ENDPOINTS.WORKSPACES.BASE_URL()}${API.ENDPOINTS.WORKSPACES.IMAGES.ADD_TAGS_BULK(workspace.id, workspaceImage.id)}`,
-                  {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(item.tags),
-                  },
-                );
-              }
-            }
-          } catch (error) {
-            console.error('Error saving image:', error);
-          }
-        }
-      }
-
-      if (tableItems.length > 0) {
-        for (const item of tableItems) {
-          try {
-            const response = await fetch(
-              `${API.BASE_URL()}${API.ENDPOINTS.WORKSPACES.BASE_URL()}${API.ENDPOINTS.WORKSPACES.TABLES.ADD(workspace.id, item.originalData.id)}`,
-              { method: 'POST' },
-            );
-
-            if (response.ok) {
-              const workspaceTable = await response.json();
-
-              if (item.tags.length > 0) {
-                await fetch(
-                  `${API.BASE_URL()}${API.ENDPOINTS.WORKSPACES.BASE_URL()}${API.ENDPOINTS.WORKSPACES.TABLES.ADD_TAGS_BULK(workspace.id, workspaceTable.id)}`,
-                  {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(item.tags),
-                  },
-                );
-              }
-            }
-          } catch (error) {
-            console.error('Error saving table:', error);
-          }
-        }
+        await createSections(parseInt(workspace.id), sectionItems[0].sourceName, sectionsToCreate);
       }
 
       toast.success(`Successfully saved ${selectedItems.length} items to ${workspace.name}`);
@@ -724,18 +522,29 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
     }
   };
 
+  const handleTagChange = (itemIndex: number, newTags: string[]) => {
+    setSelectedItems((prev) =>
+      prev.map((item, index) => (index === itemIndex ? { ...item, tags: newTags } : item)),
+    );
+  };
+
+  const handleAddNewTag = () => {
+    if (!newTagInput.trim() || !showTagModal) return;
+
+    const item = selectedItems[showTagModal.itemIndex];
+    if (!item || item.tags.includes(newTagInput.trim())) return;
+
+    handleTagChange(showTagModal.itemIndex, [...item.tags, newTagInput.trim()]);
+    setNewTagInput('');
+  };
+
   useEffect(() => {
     let mounted = true;
 
     const fetchData = async () => {
       try {
         if (mounted) {
-          await Promise.all([
-            fetchAllSectionTags(),
-            fetchAllImageTags(),
-            fetchAllTableTags(),
-            fetchWorkspaces(),
-          ]);
+          await Promise.all([fetchAllSectionTags(), fetchWorkspaces()]);
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -750,223 +559,359 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
   }, []);
 
   useEffect(() => {
-    let mounted = true;
-
-    const searchForTags = async () => {
-      try {
-        if (debouncedTagSearch.trim()) {
-          const results = await searchTags(debouncedTagSearch, 10);
-          if (mounted) setSuggestedTags(results);
-        } else {
-          if (mounted) setSuggestedTags(tags.slice(0, 10));
+    const fetchSuggestedTags = async () => {
+      if (debouncedTagSearch.trim()) {
+        try {
+          const searchResults = await searchTags(debouncedTagSearch);
+          setSuggestedTags(searchResults);
+        } catch (error) {
+          console.error('Error searching tags:', error);
+          setSuggestedTags([]);
         }
-      } catch (error) {
-        console.error('Error searching tags:', error);
+      } else {
+        setSuggestedTags(tags.slice(0, 10));
       }
     };
 
-    searchForTags();
-
-    return () => {
-      mounted = false;
-    };
-  }, [debouncedTagSearch]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const searchForImageTags = async () => {
-      try {
-        if (debouncedImageTagSearch.trim()) {
-          const results = await searchImageTags(debouncedImageTagSearch, 10);
-          if (mounted) setSuggestedImageTags(results);
-        } else {
-          if (mounted) setSuggestedImageTags(imageTags.slice(0, 10));
-        }
-      } catch (error) {
-        console.error('Error searching image tags:', error);
-      }
-    };
-
-    searchForImageTags();
-
-    return () => {
-      mounted = false;
-    };
-  }, [debouncedImageTagSearch]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const searchForTableTags = async () => {
-      try {
-        if (debouncedTableTagSearch.trim()) {
-          const results = await searchTableTags(debouncedTableTagSearch, 10);
-          if (mounted) setSuggestedTableTags(results);
-        } else {
-          if (mounted) setSuggestedTableTags(tableTags.slice(0, 10));
-        }
-      } catch (error) {
-        console.error('Error searching table tags:', error);
-      }
-    };
-
-    searchForTableTags();
-
-    return () => {
-      mounted = false;
-    };
-  }, [debouncedTableTagSearch]);
-
-  useEffect(() => {
-    if (!tagSearchQuery.trim() && tags.length > 0) {
-      setSuggestedTags(tags.slice(0, 10));
-    }
-  }, [tags]);
-
-  useEffect(() => {
-    if (!imageTagSearchQuery.trim() && imageTags.length > 0) {
-      setSuggestedImageTags(imageTags.slice(0, 10));
-    }
-  }, [imageTags]);
-
-  useEffect(() => {
-    if (!tableTagSearchQuery.trim() && tableTags.length > 0) {
-      setSuggestedTableTags(tableTags.slice(0, 10));
-    }
-  }, [tableTags]);
-
-  const getAllWorkspaceTags = useMemo(() => {
-    const allTags = new Set<string>();
-    workspaces.forEach((workspace) => {
-      workspace.tags.forEach((tag) => allTags.add(tag));
-    });
-    return Array.from(allTags);
-  }, [workspaces]);
-
-  const filteredWorkspaces = useMemo(() => {
-    let filtered = workspaces;
-
-    if (workspaceSearchQuery.trim()) {
-      filtered = filtered.filter(
-        (ws) =>
-          ws.name.toLowerCase().includes(workspaceSearchQuery.toLowerCase()) ||
-          (ws.clientName &&
-            ws.clientName.toLowerCase().includes(workspaceSearchQuery.toLowerCase())),
-      );
-    }
-
-    if (selectedWorkspaceTags.length > 0) {
-      filtered = filtered.filter((ws) =>
-        selectedWorkspaceTags.some((tag) => ws.tags.includes(tag)),
-      );
-    }
-
-    return filtered;
-  }, [workspaces, workspaceSearchQuery, selectedWorkspaceTags]);
-
-  const handleWorkspaceTagToggle = (tag: string) => {
-    setSelectedWorkspaceTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
-    );
-  };
+    fetchSuggestedTags();
+  }, [debouncedTagSearch, tags, searchTags]);
 
   const totalItems = extractedResults.reduce((acc, result) => {
     if (!result.success) return acc;
-
-    let count = result.chunks?.length || 0;
-    count += result.images?.length || 0;
-    count += result.tables?.length || 0;
-
-    return acc + count;
+    return acc + (result.chunks?.length || 0);
   }, 0);
+
+  const filteredWorkspaces = useMemo(() => {
+    if (!workspaceSearchQuery.trim()) {
+      return selectedWorkspaceTags.length > 0
+        ? workspaces.filter((ws) => selectedWorkspaceTags.some((tag) => ws.tags.includes(tag)))
+        : workspaces;
+    }
+
+    return workspaces.filter((ws) => {
+      const matchesSearch =
+        ws.name.toLowerCase().includes(workspaceSearchQuery.toLowerCase()) ||
+        ws.clientName?.toLowerCase().includes(workspaceSearchQuery.toLowerCase());
+      const matchesTags =
+        selectedWorkspaceTags.length === 0 ||
+        selectedWorkspaceTags.some((tag) => ws.tags.includes(tag));
+      return matchesSearch && matchesTags;
+    });
+  }, [workspaces, workspaceSearchQuery, selectedWorkspaceTags]);
+
+  const allWorkspaceTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    workspaces.forEach((ws) => ws.tags.forEach((tag) => tagSet.add(tag)));
+    return Array.from(tagSet);
+  }, [workspaces]);
 
   const renderTagModal = () => {
     if (!showTagModal) return null;
 
     const item = selectedItems[showTagModal.itemIndex];
-    const isImageTag = item.type === 'image';
-    const isTableTag = item.type === 'table';
-
-    const currentSearchQuery = isImageTag
-      ? imageTagSearchQuery
-      : isTableTag
-        ? tableTagSearchQuery
-        : tagSearchQuery;
-
-    const setCurrentSearchQuery = isImageTag
-      ? setImageTagSearchQuery
-      : isTableTag
-        ? setTableTagSearchQuery
-        : setTagSearchQuery;
-
-    const currentSuggestedTags = isImageTag
-      ? suggestedImageTags
-      : isTableTag
-        ? suggestedTableTags
-        : suggestedTags;
+    if (!item) return null;
 
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 max-h-[70vh] flex flex-col">
-          <h3 className="text-lg font-semibold mb-4">
-            Add {isImageTag ? 'Image' : isTableTag ? 'Table' : 'Section'} Tags
-          </h3>
-
-          <div className="mb-4">
-            <input
-              type="text"
-              placeholder={`Search ${isImageTag ? 'image' : isTableTag ? 'table' : 'section'} tags...`}
-              value={currentSearchQuery}
-              onChange={(e) => setCurrentSearchQuery(e.target.value)}
-              className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
-              autoFocus
-            />
-          </div>
-
-          <div className="flex-1 overflow-y-auto mb-4">
-            {currentSuggestedTags.length > 0 && (
-              <div className="space-y-1">
-                <p className="text-xs text-gray-500 mb-2">Suggested tags:</p>
-                {currentSuggestedTags.map((tag) => (
-                  <button
-                    key={tag.id}
-                    onClick={() => handleSelectSuggestedTag(tag.name, showTagModal.itemIndex)}
-                    className="w-full text-left p-2 hover:bg-gray-50 rounded-lg flex items-center justify-between"
-                  >
-                    <span>{tag.name}</span>
-                    <span className="text-sm text-gray-500">{tag.usage_count} uses</span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {currentSuggestedTags.length === 0 && currentSearchQuery.trim() === '' && (
-              <div className="text-center text-gray-500 py-4">
-                Start typing to search for {isImageTag ? 'image' : isTableTag ? 'table' : 'section'}{' '}
-                tags
-              </div>
-            )}
-          </div>
-
-          <div className="flex space-x-3">
+        <div className="bg-white rounded-xl max-w-md w-full mx-4 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Add Tags</h3>
             <button
-              onClick={() => setShowTagModal(null)}
-              className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-neutral-700 hover:bg-gray-50 transition-colors"
+              onClick={() => {
+                setShowTagModal(null);
+                setTagSearchQuery('');
+                setNewTagInput('');
+              }}
+              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"
+            >
+              <FiX className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div className="relative">
+              <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Search existing tags..."
+                value={tagSearchQuery}
+                onChange={(e) => setTagSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Create new tag..."
+                value={newTagInput}
+                onChange={(e) => setNewTagInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleAddNewTag()}
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              />
+              <button
+                onClick={handleAddNewTag}
+                disabled={!newTagInput.trim() || item.tags.includes(newTagInput.trim())}
+                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Add
+              </button>
+            </div>
+
+            {item.tags.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Selected Tags</h4>
+                <div className="flex flex-wrap gap-2">
+                  {item.tags.map((tag, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center bg-primary/10 text-primary px-2 py-1 rounded text-sm"
+                    >
+                      <FiTag className="w-3 h-3 mr-1" />
+                      {tag}
+                      <button
+                        onClick={() => {
+                          const newTags = item.tags.filter((_, i) => i !== index);
+                          handleTagChange(showTagModal.itemIndex, newTags);
+                        }}
+                        className="ml-1 text-primary/70 hover:text-primary"
+                      >
+                        <FiX className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Suggested Tags</h4>
+              <div className="max-h-40 overflow-y-auto space-y-1">
+                {suggestedTags.length > 0 ? (
+                  suggestedTags.map((tag) => (
+                    <button
+                      key={tag.id}
+                      onClick={() => {
+                        if (!item.tags.includes(tag.name)) {
+                          handleTagChange(showTagModal.itemIndex, [...item.tags, tag.name]);
+                        }
+                      }}
+                      disabled={item.tags.includes(tag.name)}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                        item.tags.includes(tag.name)
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'hover:bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      <FiTag className="w-3 h-3 mr-2 inline" />
+                      {tag.name} ({tag.usage_count})
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-gray-500 text-sm">No tags found. Create a new one above.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderWorkspaceModal = () => {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl max-w-2xl w-full mx-4 p-6 max-h-[80vh] overflow-y-auto">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Save to Workspace</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Choose a workspace to save {selectedItems.length} selected items
+              </p>
+            </div>
+            <button
+              onClick={() => setShowWorkspaceModal(false)}
+              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"
+            >
+              <FiX className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div className="relative">
+              <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Search workspaces..."
+                value={workspaceSearchQuery}
+                onChange={(e) => setWorkspaceSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              />
+            </div>
+
+            {allWorkspaceTags.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Filter by Tags</h4>
+                <div className="flex flex-wrap gap-2">
+                  {allWorkspaceTags.map((tag) => (
+                    <button
+                      key={tag}
+                      onClick={() => {
+                        setSelectedWorkspaceTags((prev) =>
+                          prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+                        );
+                      }}
+                      className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                        selectedWorkspaceTags.includes(tag)
+                          ? 'bg-primary text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {filteredWorkspaces.map((workspace) => (
+                <div
+                  key={workspace.id}
+                  onClick={() => setSelectedWorkspace(workspace.id)}
+                  className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
+                    selectedWorkspace === workspace.id
+                      ? 'border-primary bg-primary/5'
+                      : 'border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">{workspace.name}</div>
+                    {workspace.clientName && (
+                      <div className="text-sm text-gray-500">{workspace.clientName}</div>
+                    )}
+                    {workspace.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {workspace.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div
+                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                      selectedWorkspace === workspace.id
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-gray-300'
+                    }`}
+                  >
+                    {selectedWorkspace === workspace.id && <FiCheck className="w-3 h-3" />}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
+            <button
+              onClick={() => setShowWorkspaceModal(false)}
+              className="px-4 py-2 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>
-            {currentSearchQuery.trim() && (
-              <button
-                onClick={() => handleAddCustomTag(showTagModal.itemIndex)}
-                className="flex-1 py-2 px-4 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-              >
-                {currentSuggestedTags.some(
-                  (tag) => tag.name.toLowerCase() === currentSearchQuery.toLowerCase(),
-                )
-                  ? `Add "${currentSearchQuery}"`
-                  : `Create "${currentSearchQuery}"`}
-              </button>
+            <button
+              onClick={handleSaveToWorkspace}
+              disabled={!selectedWorkspace || isSaving}
+              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+            >
+              {isSaving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <FiSave className="w-4 h-4" />
+                  <span>Save to Workspace</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderViewModal = () => {
+    if (!viewingItem) return null;
+
+    const { item, sourceName, type } = viewingItem;
+
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl max-w-4xl max-h-[80vh] overflow-y-auto p-6 mx-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                {type === 'chunk'
+                  ? isStructuredChunk(item)
+                    ? item.title
+                    : item.label || 'Content Chunk'
+                  : item.tag}
+              </h3>
+              <p className="text-sm text-gray-500">{sourceName}</p>
+            </div>
+            <button
+              onClick={() => setViewingItem(null)}
+              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"
+            >
+              <FiX className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="prose max-w-none">
+            {type === 'chunk' ? (
+              isStructuredChunk(item) ? (
+                <div className="space-y-6">
+                  {item.content.map((section, index) => (
+                    <div key={index} className="border-l-4 border-primary/20 pl-4">
+                      <h4 className="font-semibold text-gray-900 mb-2">{section.tag}</h4>
+                      <div className="space-y-3">
+                        {section.content.map((content, contentIndex) => (
+                          <div key={contentIndex} className="text-gray-700">
+                            <p className="whitespace-pre-wrap">{content.text}</p>
+                            {content.page_number && (
+                              <span className="text-xs text-gray-500 mt-1 inline-block">
+                                Page {content.page_number}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-gray-700 whitespace-pre-wrap">{item.content}</div>
+              )
+            ) : (
+              <div className="space-y-3">
+                {item.content.map((content: any, index: number) => (
+                  <div key={index} className="text-gray-700">
+                    <p className="whitespace-pre-wrap">{content.text}</p>
+                    {content.page_number && (
+                      <span className="text-xs text-gray-500 mt-1 inline-block">
+                        Page {content.page_number}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
@@ -977,470 +922,158 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
   return (
     <>
       {renderTagModal()}
-      <div className="h-full bg-gray-50">
-        <div className="h-full flex flex-col">
+      {showWorkspaceModal && renderWorkspaceModal()}
+      {renderViewModal()}
+
+      <div className="h-full bg-gray-50 flex">
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col">
           <div className="bg-white border-b border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={onReset}
-                  className="p-2 text-neutral-600 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
-                  title="Upload more files"
-                >
-                  <FiArrowLeft className="w-5 h-5" />
-                </button>
-                <div>
-                  <h2 className="text-2xl font-bold text-black">Extracted Content</h2>
-                  <p className="text-neutral-600">
-                    {extractedResults.length} source(s) processed • {selectedItems.length} items
-                    selected • {totalItems} total items
-                  </p>
-                </div>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Extracted Content</h2>
+                <p className="text-gray-600 mt-1">
+                  Review and select content to save to your workspace
+                </p>
               </div>
               <div className="flex items-center space-x-3">
+                <span className="text-sm text-gray-500">{totalItems} items extracted</span>
                 <button
                   onClick={onReset}
-                  className="px-4 py-2 border border-gray-300 text-neutral-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="px-4 py-2 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                 >
-                  Upload More
+                  Start Over
                 </button>
-                {selectedItems.length > 0 && (
-                  <button
-                    onClick={() => setShowWorkspaceModal(true)}
-                    className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium flex items-center space-x-2"
-                  >
-                    <FiSave className="w-4 h-4" />
-                    <span>Save to Workspace</span>
-                  </button>
-                )}
               </div>
             </div>
+
+            {selectedItems.length > 0 && (
+              <div className="bg-primary/10 rounded-lg p-4 flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-primary">
+                    {selectedItems.length} item{selectedItems.length !== 1 ? 's' : ''} selected
+                  </p>
+                  <p className="text-sm text-primary/80">Ready to save to workspace</p>
+                </div>
+                <button
+                  onClick={() => setShowWorkspaceModal(true)}
+                  className="bg-primary text-white px-6 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors"
+                >
+                  Save to Workspace
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex-1 overflow-hidden">
-            <div className="h-full flex">
-              <div className="flex-1 p-6 overflow-y-auto">
-                <div className="space-y-6">
-                  {extractedResults.map((result, resultIndex) => (
-                    <div key={resultIndex} className="bg-white rounded-xl border border-gray-200">
-                      <div className="p-6 border-b border-gray-200">
-                        <div className="flex items-center space-x-3">
-                          <div className="p-2 bg-primary/10 rounded-lg">
-                            <FiFile className="w-5 h-5 text-primary" />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-black">{getSourceName(result)}</h3>
-                            <div className="flex items-center space-x-4 text-sm text-neutral-600">
-                              <span>{result.chunks?.length || 0} content sections</span>
-                              {result.images && result.images.length > 0 && (
-                                <span>{result.images.length} images</span>
-                              )}
-                              {result.tables && result.tables.length > 0 && (
-                                <span>{result.tables.length} tables</span>
-                              )}
-                            </div>
-                          </div>
-                          {result.type && (
-                            <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded uppercase">
-                              {result.type}
-                            </span>
-                          )}
-                          {!result.success && (
-                            <div className="px-3 py-1 bg-red-100 text-red-700 text-sm rounded-md">
-                              Failed: {result.error}
-                            </div>
-                          )}
-                        </div>
+            <div className="h-full overflow-y-auto p-6 space-y-6">
+              {extractedResults.map((result, resultIndex) => {
+                if (!result.success) {
+                  return (
+                    <div
+                      key={resultIndex}
+                      className="bg-red-50 border border-red-200 rounded-lg p-4"
+                    >
+                      <h3 className="font-medium text-red-900 mb-2">
+                        Failed to process: {getSourceName(result)}
+                      </h3>
+                      <p className="text-red-700">{result.error}</p>
+                    </div>
+                  );
+                }
 
-                        {result.success && (
-                          <div className="flex space-x-1 mt-4">
-                            <button
-                              onClick={() => setActiveTab('content')}
-                              className={`px-3 py-2 text-sm rounded-lg transition-colors ${
-                                activeTab === 'content'
-                                  ? 'bg-primary text-white'
-                                  : 'text-gray-600 hover:bg-gray-100'
-                              }`}
-                            >
-                              <FiFileText className="w-4 h-4 inline mr-1" />
-                              Content ({result.chunks?.length || 0})
-                            </button>
-                            {result.images && result.images.length > 0 && (
-                              <button
-                                onClick={() => setActiveTab('images')}
-                                className={`px-3 py-2 text-sm rounded-lg transition-colors ${
-                                  activeTab === 'images'
-                                    ? 'bg-primary text-white'
-                                    : 'text-gray-600 hover:bg-gray-100'
-                                }`}
-                              >
-                                <FiImage className="w-4 h-4 inline mr-1" />
-                                Images ({result.images.length})
-                              </button>
-                            )}
-                            {result.tables && result.tables.length > 0 && (
-                              <button
-                                onClick={() => setActiveTab('tables')}
-                                className={`px-3 py-2 text-sm rounded-lg transition-colors ${
-                                  activeTab === 'tables'
-                                    ? 'bg-primary text-white'
-                                    : 'text-gray-600 hover:bg-gray-100'
-                                }`}
-                              >
-                                <FiGrid className="w-4 h-4 inline mr-1" />
-                                Tables ({result.tables.length})
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {result.success && (
-                        <div className="p-6">
-                          {activeTab === 'content' && result.chunks && result.chunks.length > 0 && (
-                            <div className="space-y-4">
-                              {result.chunks.map((chunk, chunkIndex) =>
-                                isStructuredChunk(chunk)
-                                  ? renderStructuredChunk(chunk, result, chunkIndex)
-                                  : renderSimpleChunk(chunk as SimpleChunk, result, chunkIndex),
-                              )}
-                            </div>
-                          )}
-
-                          {activeTab === 'images' &&
-                            result.images &&
-                            renderImages(result.images, result)}
-
-                          {activeTab === 'tables' &&
-                            result.tables &&
-                            renderTables(result.tables, result)}
-                        </div>
+                const sourceName = getSourceName(result);
+                return (
+                  <div
+                    key={resultIndex}
+                    className="bg-white rounded-lg border border-gray-200 overflow-hidden"
+                  >
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                      <h3 className="font-semibold text-gray-900">{sourceName}</h3>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {result.chunks?.length || 0} content pieces extracted
+                      </p>
+                    </div>
+                    <div className="p-6 space-y-4">
+                      {result.chunks?.map((chunk, chunkIndex) =>
+                        isStructuredChunk(chunk)
+                          ? renderStructuredChunk(chunk, result, chunkIndex)
+                          : renderSimpleChunk(chunk, result, chunkIndex),
                       )}
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              {selectedItems.length > 0 && (
-                <div className="w-1/3 border-l border-gray-200 bg-white p-6 overflow-y-auto">
-                  <h3 className="text-lg font-semibold text-black mb-4">
-                    Selected Items ({selectedItems.length})
-                  </h3>
-                  <div className="space-y-4">
-                    {selectedItems.map((item, index) => (
-                      <div key={index} className="p-4 border border-gray-200 rounded-lg">
-                        <div className="space-y-3">
-                          <div className="flex items-center space-x-2 mb-2">
-                            {item.type === 'chunk' && (
-                              <FiFileText className="w-4 h-4 text-primary" />
-                            )}
-                            {item.type === 'section' && (
-                              <FiFileText className="w-4 h-4 text-blue-500" />
-                            )}
-                            {item.type === 'image' && (
-                              <FiImage className="w-4 h-4 text-green-500" />
-                            )}
-                            {item.type === 'table' && (
-                              <FiGrid className="w-4 h-4 text-purple-500" />
-                            )}
-                            <span className="text-xs text-gray-500 capitalize">{item.type}</span>
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-neutral-700 mb-1">
-                              Item Name
-                            </label>
-                            <input
-                              type="text"
-                              value={item.name}
-                              onChange={(e) => handleItemNameChange(index, e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
-                              placeholder="Enter item name..."
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-neutral-700 mb-1">
-                              Tags
-                            </label>
-
-                            {item.tags.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mb-2">
-                                {item.tags.map((tag, tagIndex) => (
-                                  <span
-                                    key={tagIndex}
-                                    className="inline-flex items-center px-2 py-1 bg-primary/10 text-primary text-xs rounded-md"
-                                  >
-                                    {tag}
-                                    <button
-                                      onClick={() => handleRemoveTag(index, tagIndex)}
-                                      className="ml-1 text-primary/60 hover:text-primary"
-                                    >
-                                      ×
-                                    </button>
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-
-                            <button
-                              onClick={() => handleShowTagModal(index)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-left text-gray-600 hover:bg-gray-50 transition-colors"
-                            >
-                              + Add tag...
-                            </button>
-                          </div>
-
-                          <p className="text-xs text-neutral-600 line-clamp-2">{item.content}</p>
-                        </div>
-                      </div>
-                    ))}
                   </div>
-                </div>
-              )}
+                );
+              })}
             </div>
           </div>
         </div>
-        {viewingItem && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl w-full max-w-4xl mx-4 max-h-[80vh] flex flex-col">
-              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center space-x-2 mb-1">
-                    {viewingItem.type === 'chunk' && (
-                      <FiFileText className="w-5 h-5 text-primary" />
-                    )}
-                    {viewingItem.type === 'section' && (
-                      <FiFileText className="w-5 h-5 text-blue-500" />
-                    )}
-                    {viewingItem.type === 'image' && <FiImage className="w-5 h-5 text-green-500" />}
-                    {viewingItem.type === 'table' && <FiGrid className="w-5 h-5 text-purple-500" />}
-                    <h3 className="text-xl font-semibold text-black capitalize">
-                      {viewingItem.type} Content
-                    </h3>
-                  </div>
-                  <p className="text-sm text-neutral-600">Source: {viewingItem.sourceName}</p>
-                </div>
-                <button
-                  onClick={() => setViewingItem(null)}
-                  className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  <FiX className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-6">
-                <div className="prose max-w-none">
-                  {viewingItem.type === 'chunk' && isStructuredChunk(viewingItem.item) && (
-                    <div>
-                      <h2>{viewingItem.item.title}</h2>
-                      <p className="text-sm text-gray-600 mb-4">
-                        Pages {viewingItem.item.start_range}-{viewingItem.item.end_range}
-                      </p>
-                      {viewingItem.item.content.map((section, index) => (
-                        <div key={index} className="mb-6">
-                          <h3 className="text-lg font-semibold mb-2">{section.tag}</h3>
-                          {section.content.map((content, contentIndex) => (
-                            <div key={contentIndex} className="mb-3">
-                              <p className="text-sm">{content.text}</p>
-                              <span className="text-xs text-gray-500">
-                                Page {content.page_number}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  )}
 
-                  {viewingItem.type === 'section' && (
-                    <div>
-                      <h2>{viewingItem.item.tag}</h2>
-                      {viewingItem.item.content.map((content: any, index: number) => (
-                        <div key={index} className="mb-3">
-                          <p className="text-sm">{content.text}</p>
-                          <span className="text-xs text-gray-500">Page {content.page_number}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {viewingItem.type === 'chunk' && !isStructuredChunk(viewingItem.item) && (
-                    <div>
-                      <h2>{viewingItem.item.label || 'Content'}</h2>
-                      <pre className="whitespace-pre-wrap text-sm text-neutral-700 font-sans leading-relaxed">
-                        {viewingItem.item.content}
-                      </pre>
-                    </div>
-                  )}
-
-                  {viewingItem.type === 'image' && (
-                    <div>
-                      <h2>{viewingItem.item.caption || 'Image'}</h2>
-                      {viewingItem.item.page_number && (
-                        <p className="text-sm text-gray-600 mb-4">
-                          Page {viewingItem.item.page_number}
-                        </p>
-                      )}
-                      {viewingItem.item.ocr_text && (
-                        <div>
-                          <h3>OCR Text:</h3>
-                          <p className="text-sm">{viewingItem.item.ocr_text}</p>
-                        </div>
-                      )}
-                      <p className="text-sm text-gray-600 mt-4">
-                        Image path: {viewingItem.item.path}
-                      </p>
-                    </div>
-                  )}
-
-                  {viewingItem.type === 'table' && (
-                    <div>
-                      <h2>{viewingItem.item.caption || 'Table'}</h2>
-                      {viewingItem.item.page_number && (
-                        <p className="text-sm text-gray-600 mb-4">
-                          Page {viewingItem.item.page_number}
-                        </p>
-                      )}
-                      {viewingItem.item.data && (
-                        <div className="overflow-x-auto">
-                          <pre className="text-xs bg-gray-50 p-4 rounded">
-                            {JSON.stringify(viewingItem.item.data, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="p-6 border-t border-gray-200">
-                <button
-                  onClick={() => setViewingItem(null)}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                >
-                  Close
-                </button>
+        {/* Selected Items Sidebar */}
+        {selectedItems.length > 0 && (
+          <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
+            <div className="p-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900">Selected Items</h3>
+                <span className="text-sm text-gray-500">{selectedItems.length} selected</span>
               </div>
             </div>
-          </div>
-        )}
 
-        {showWorkspaceModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col">
-              <h3 className="text-xl font-semibold text-black mb-4">Save to Workspace</h3>
-
-              <div className="space-y-4 mb-4">
-                <div className="relative">
-                  <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    value={workspaceSearchQuery}
-                    onChange={(e) => setWorkspaceSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
-                    placeholder="Search workspaces by name or client..."
-                  />
-                </div>
-
-                {getAllWorkspaceTags.length > 0 && (
-                  <div>
-                    <p className="text-sm font-medium text-gray-700 mb-2">Filter by tags:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {getAllWorkspaceTags.map((tag) => (
-                        <button
-                          key={tag}
-                          onClick={() => handleWorkspaceTagToggle(tag)}
-                          className={`px-2 py-1 text-xs rounded-md transition-colors ${
-                            selectedWorkspaceTags.includes(tag)
-                              ? 'bg-primary text-white'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                        >
-                          {tag}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex-1 overflow-y-auto mb-4 border border-gray-200 rounded-lg">
-                {workspaces.length === 0 ? (
-                  <div className="p-6 text-center text-gray-500">
-                    <p>Loading workspaces...</p>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {selectedItems.map((item, index) => (
+                <div
+                  key={item.uniqueId}
+                  className="bg-gray-50 rounded-lg p-3 border border-gray-200"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <h4 className="font-medium text-gray-900 text-sm line-clamp-2">{item.name}</h4>
                     <button
-                      onClick={() => fetchWorkspaces()}
-                      className="mt-2 px-3 py-1 bg-primary text-white text-sm rounded"
+                      onClick={() => {
+                        setSelectedItems((prev) => prev.filter((_, i) => i !== index));
+                      }}
+                      className="text-gray-400 hover:text-gray-600 ml-2 flex-shrink-0"
                     >
-                      Retry
+                      <FiX className="w-4 h-4" />
                     </button>
                   </div>
-                ) : filteredWorkspaces.length > 0 ? (
-                  <div className="divide-y divide-gray-200">
-                    {filteredWorkspaces.map((workspace) => (
-                      <div
-                        key={workspace.id}
-                        className="flex items-center p-3 hover:bg-gray-50 cursor-pointer"
-                        onClick={() => setSelectedWorkspace(workspace.id)}
-                      >
-                        <input
-                          type="radio"
-                          name="workspace"
-                          value={workspace.id}
-                          checked={selectedWorkspace === workspace.id}
-                          onChange={(e) => setSelectedWorkspace(e.target.value)}
-                          className="mr-3"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <div className="flex-1">
-                          <h4 className="font-medium text-black">{workspace.name}</h4>
-                          {workspace.clientName && (
-                            <p className="text-sm text-gray-600">{workspace.clientName}</p>
-                          )}
-                          {workspace.tags.length > 0 && (
-                            <div className="flex gap-1 mt-1">
-                              {workspace.tags.map((tag) => (
-                                <span
-                                  key={tag}
-                                  className="px-1 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"
-                                >
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-6 text-center text-gray-500">
-                    No workspaces found matching your criteria
-                  </div>
-                )}
-              </div>
 
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowWorkspaceModal(false)}
-                  disabled={isSaving}
-                  className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-neutral-700 hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveToWorkspace}
-                  disabled={!selectedWorkspace || isSaving}
-                  className={`flex-1 py-2 px-4 rounded-lg transition-colors ${
-                    selectedWorkspace && !isSaving
-                      ? 'bg-primary text-white hover:bg-primary/90'
-                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                  }`}
-                >
-                  {isSaving
-                    ? 'Saving...'
-                    : `Save${selectedWorkspace ? ` to ${filteredWorkspaces.find((w) => w.id === selectedWorkspace)?.name || selectedWorkspace}` : ''}`}
-                </button>
-              </div>
+                  <p className="text-xs text-gray-500 mb-2">From: {item.sourceName}</p>
+
+                  <p className="text-xs text-gray-600 line-clamp-3 mb-2">
+                    {item.content.substring(0, 150)}
+                    {item.content.length > 150 && '...'}
+                  </p>
+
+                  {item.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {item.tags.map((tag, tagIndex) => (
+                        <span
+                          key={tagIndex}
+                          className="px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full font-medium"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => handleAddTag(index)}
+                    className="text-xs text-primary hover:text-primary/80 font-medium"
+                  >
+                    + Add Tags
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-4 border-t border-gray-200">
+              <button
+                onClick={() => setShowWorkspaceModal(true)}
+                disabled={selectedItems.length === 0}
+                className="w-full bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save to Workspace
+              </button>
             </div>
           </div>
         )}

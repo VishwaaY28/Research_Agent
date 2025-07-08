@@ -1,6 +1,14 @@
 import urllib.parse
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from typing import List, Optional
 from fastapi import HTTPException
 from database.repositories.sections import section_repository
+
+class SectionSearchRequest(BaseModel):
+    content_query: Optional[str] = None
+    name_query: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 async def bulk_create_sections(workspace_id: int, filename: str, chunks: list):
     filename = urllib.parse.unquote(filename)
@@ -11,6 +19,28 @@ async def bulk_create_sections(workspace_id: int, filename: str, chunks: list):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return [{"id": s.id, "name": s.name, "content": s.content, "source": s.source} for s in sections]
+
+async def search_sections(workspace_id: int, data: dict):
+    search_data = SectionSearchRequest(**data)
+    sections = await section_repository.search_sections(
+        workspace_id=workspace_id,
+        content_query=search_data.content_query,
+        name_query=search_data.name_query,
+        tag_names=search_data.tags
+    )
+
+    result = []
+    for section in sections:
+        tags = [st.tag.name for st in await section.tags.all().prefetch_related("tag")]
+        result.append({
+            "id": section.id,
+            "name": section.name,
+            "content": section.content,
+            "content_source": section.content_source.name if section.content_source else section.source,
+            "tags": tags
+        })
+
+    return JSONResponse(result)
 
 async def get_sections(workspace_id: int):
     sections = await section_repository.get_sections_by_workspace(workspace_id)

@@ -14,6 +14,14 @@ async def create_workspace(data: WorkspaceCreateRequest):
 async def get_all_workspaces():
     return await ws_handlers.fetch_all_workspaces()
 
+@router.post("/search")
+async def search_workspaces(data: dict):
+    return await ws_handlers.search_workspaces(data)
+
+@router.post("/filter")
+async def filter_workspaces(data: dict):
+    return await ws_handlers.filter_workspaces(data)
+
 @router.get("/{workspace_id}")
 async def get_workspace_by_id(workspace_id: int):
     return await ws_handlers.fetch_by_id(workspace_id)
@@ -22,8 +30,8 @@ async def get_workspace_by_id(workspace_id: int):
 async def get_workspace_by_name(name: str):
     return await ws_handlers.fetch_by_name(name)
 
-@router.get("/filter")
-async def filter_workspaces(tags: List[str] = Query(...)):
+@router.get("/filter-by-tags")
+async def filter_workspaces_by_tags(tags: List[str] = Query(...)):
     return await ws_handlers.filter_by_tags(tags)
 
 @router.put("/{workspace_id}")

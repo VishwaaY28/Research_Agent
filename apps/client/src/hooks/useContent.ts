@@ -3,8 +3,6 @@ import { API } from '../utils/constants';
 
 export type WorkspaceContent = {
   sections: Section[];
-  images: WorkspaceImage[];
-  tables: WorkspaceTable[];
 };
 
 export type Section = {
@@ -12,27 +10,6 @@ export type Section = {
   name: string;
   content: string;
   source: string;
-  tags: { id: number; name: string }[];
-};
-
-export type WorkspaceImage = {
-  id: number;
-  source_image_id: number;
-  path: string;
-  caption?: string;
-  ocr_text?: string;
-  page_number?: number;
-  tags: { id: number; name: string }[];
-};
-
-export type WorkspaceTable = {
-  id: number;
-  source_table_id: number;
-  path: string;
-  caption?: string;
-  data?: string;
-  page_number?: number;
-  extraction_method?: string;
   tags: { id: number; name: string }[];
 };
 
@@ -64,8 +41,6 @@ export type GeneratedContentDetails = {
   created_at: string;
   tags: { id: number; name: string }[];
   context_sections: { id: number; name: string; content: string }[];
-  context_images: { id: number; path: string; caption?: string; ocr_text?: string }[];
-  context_tables: { id: number; path: string; caption?: string; data?: string }[];
 };
 
 export function useContent() {
@@ -103,8 +78,6 @@ export function useContent() {
       workspaceId: string | number,
       prompt: string,
       sectionIds: number[] = [],
-      imageIds: number[] = [],
-      tableIds: number[] = [],
     ): Promise<string> => {
       setLoading(true);
       try {
@@ -119,8 +92,6 @@ export function useContent() {
             body: JSON.stringify({
               prompt,
               section_ids: sectionIds,
-              image_ids: imageIds,
-              table_ids: tableIds,
             }),
           },
         );
@@ -144,8 +115,6 @@ export function useContent() {
       prompt: string,
       content: string,
       sectionIds: number[] = [],
-      imageIds: number[] = [],
-      tableIds: number[] = [],
       tags: string[] = [],
     ): Promise<{ prompt_id: number; generated_content_id: number }> => {
       setLoading(true);
@@ -162,8 +131,6 @@ export function useContent() {
               prompt,
               content,
               section_ids: sectionIds,
-              image_ids: imageIds,
-              table_ids: tableIds,
               tags,
             }),
           },

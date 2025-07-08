@@ -5,8 +5,6 @@ import {
   FiChevronDown,
   FiCopy,
   FiFileText,
-  FiGrid,
-  FiImage,
   FiLoader,
   FiRefreshCw,
   FiSave,
@@ -33,8 +31,6 @@ const CreateProposal: React.FC = () => {
   const [workspaceContent, setWorkspaceContent] = useState<WorkspaceContent | null>(null);
   const [prompt, setPrompt] = useState('');
   const [selectedSections, setSelectedSections] = useState<number[]>([]);
-  const [selectedImages, setSelectedImages] = useState<number[]>([]);
-  const [selectedTables, setSelectedTables] = useState<number[]>([]);
   const [generatedContent, setGeneratedContent] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -70,18 +66,6 @@ const CreateProposal: React.FC = () => {
     );
   };
 
-  const handleImageToggle = (imageId: number) => {
-    setSelectedImages((prev) =>
-      prev.includes(imageId) ? prev.filter((id) => id !== imageId) : [...prev, imageId],
-    );
-  };
-
-  const handleTableToggle = (tableId: number) => {
-    setSelectedTables((prev) =>
-      prev.includes(tableId) ? prev.filter((id) => id !== tableId) : [...prev, tableId],
-    );
-  };
-
   const handleGenerate = async () => {
     if (!prompt.trim() || !selectedWorkspace) {
       toast.error('Please enter a prompt and select a workspace');
@@ -90,13 +74,7 @@ const CreateProposal: React.FC = () => {
 
     setIsGenerating(true);
     try {
-      const content = await generateContent(
-        selectedWorkspace,
-        prompt,
-        selectedSections,
-        selectedImages,
-        selectedTables,
-      );
+      const content = await generateContent(selectedWorkspace, prompt, selectedSections);
       setGeneratedContent(content);
       toast.success('Content generated successfully!');
     } catch (error) {
@@ -120,8 +98,6 @@ const CreateProposal: React.FC = () => {
         prompt,
         generatedContent,
         selectedSections,
-        selectedImages,
-        selectedTables,
         tags,
       );
       toast.success('Content saved successfully!');
@@ -293,74 +269,6 @@ const CreateProposal: React.FC = () => {
                               </div>
                               <div className="text-xs text-gray-500 truncate">
                                 {section.content.substring(0, 100)}...
-                              </div>
-                            </div>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {workspaceContent.images.length > 0 && (
-                    <div>
-                      <h4 className="font-medium text-gray-800 mb-2 flex items-center gap-2">
-                        <FiImage className="w-4 h-4" />
-                        Images ({selectedImages.length}/{workspaceContent.images.length})
-                      </h4>
-                      <div className="space-y-2 max-h-40 overflow-y-auto">
-                        {workspaceContent.images.map((image) => (
-                          <label
-                            key={image.id}
-                            className="flex items-start gap-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedImages.includes(image.id)}
-                              onChange={() => handleImageToggle(image.id)}
-                              className="mt-1 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-sm text-gray-900 truncate">
-                                {image.caption || 'Untitled Image'}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {typeof image.page_number === 'number'
-                                  ? `Page ${image.page_number}`
-                                  : 'Page N/A'}
-                              </div>
-                            </div>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {workspaceContent.tables.length > 0 && (
-                    <div>
-                      <h4 className="font-medium text-gray-800 mb-2 flex items-center gap-2">
-                        <FiGrid className="w-4 h-4" />
-                        Tables ({selectedTables.length}/{workspaceContent.tables.length})
-                      </h4>
-                      <div className="space-y-2 max-h-40 overflow-y-auto">
-                        {workspaceContent.tables.map((table) => (
-                          <label
-                            key={table.id}
-                            className="flex items-start gap-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedTables.includes(table.id)}
-                              onChange={() => handleTableToggle(table.id)}
-                              className="mt-1 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-sm text-gray-900 truncate">
-                                {table.caption || 'Untitled Table'}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {typeof table.page_number === 'number'
-                                  ? `Page ${table.page_number}`
-                                  : 'Page N/A'}
                               </div>
                             </div>
                           </label>

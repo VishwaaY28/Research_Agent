@@ -17,15 +17,11 @@ class PromptRequest(BaseModel):
 class GenerateContentRequest(BaseModel):
     prompt: str
     section_ids: Optional[List[int]] = []
-    image_ids: Optional[List[int]] = []
-    table_ids: Optional[List[int]] = []
 
 class SaveGeneratedContentRequest(BaseModel):
     prompt: str
     content: str
     section_ids: Optional[List[int]] = []
-    image_ids: Optional[List[int]] = []
-    table_ids: Optional[List[int]] = []
     tags: Optional[List[str]] = []
 
 class TagRequest(BaseModel):
@@ -53,31 +49,6 @@ async def get_workspace_content(workspace_id: int):
                         "tags": [{"id": tag.tag.id, "name": tag.tag.name} for tag in section.tags]
                     }
                     for section in content['sections']
-                ],
-                "images": [
-                    {
-                        "id": image.id,
-                        "source_image_id": image.source_image.id,
-                        "path": image.source_image.path,
-                        "caption": image.source_image.caption,
-                        "ocr_text": image.source_image.ocr_text,
-                        "page_number": image.source_image.page_number,
-                        "tags": [{"id": tag.tag.id, "name": tag.tag.name} for tag in image.tags]
-                    }
-                    for image in content['images']
-                ],
-                "tables": [
-                    {
-                        "id": table.id,
-                        "source_table_id": table.source_table.id,
-                        "path": table.source_table.path,
-                        "caption": table.source_table.caption,
-                        "data": table.source_table.data,
-                        "page_number": table.source_table.page_number,
-                        "extraction_method": table.source_table.extraction_method,
-                        "tags": [{"id": tag.tag.id, "name": tag.tag.name} for tag in table.tags]
-                    }
-                    for table in content['tables']
                 ]
             }
         })
@@ -89,41 +60,15 @@ async def generate_content(workspace_id: int, request: GenerateContentRequest):
     """Generate content using OpenAI"""
     try:
         context_sections = []
-        context_images = []
-        context_tables = []
 
         if request.section_ids:
             content = await content_repository.get_workspace_content(workspace_id)
             sections = {s.id: s for s in content['sections']}
             context_sections = [sections[sid].content for sid in request.section_ids if sid in sections]
 
-        if request.image_ids:
-            content = await content_repository.get_workspace_content(workspace_id)
-            images = {img.id: img for img in content['images']}
-            context_images = [
-                {
-                    "caption": images[iid].source_image.caption,
-                    "ocr_text": images[iid].source_image.ocr_text
-                }
-                for iid in request.image_ids if iid in images
-            ]
-
-        if request.table_ids:
-            content = await content_repository.get_workspace_content(workspace_id)
-            tables = {tbl.id: tbl for tbl in content['tables']}
-            context_tables = [
-                {
-                    "caption": tables[tid].source_table.caption,
-                    "data": tables[tid].source_table.data
-                }
-                for tid in request.table_ids if tid in tables
-            ]
-
         generated_text = await openai_client.generate_content(
             prompt=request.prompt,
-            context_sections=context_sections,
-            context_images=context_images,
-            context_tables=context_tables
+            context_sections=context_sections
         )
 
         return JSONResponse({
@@ -154,8 +99,6 @@ async def save_generated_content(req: Request, workspace_id: int, request: SaveG
             user_id=user.id,
             content=request.content,
             section_ids=request.section_ids,
-            image_ids=request.image_ids,
-            table_ids=request.table_ids,
             tag_names=request.tags
         )
 
@@ -316,24 +259,6 @@ async def get_generated_content_details(workspace_id: int, content_id: int):
                         "content": ctx.section.content
                     }
                     for ctx in content.sections
-                ],
-                "context_images": [
-                    {
-                        "id": ctx.image.id,
-                        "path": ctx.image.source_image.path,
-                        "caption": ctx.image.source_image.caption,
-                        "ocr_text": ctx.image.source_image.ocr_text
-                    }
-                    for ctx in content.images
-                ],
-                "context_tables": [
-                    {
-                        "id": ctx.table.id,
-                        "path": ctx.table.source_table.path,
-                        "caption": ctx.table.source_table.caption,
-                        "data": ctx.table.source_table.data
-                    }
-                    for ctx in content.tables
                 ]
             }
         })

@@ -122,6 +122,21 @@ class SectionRepository:
             )
         )
 
+    async def search_sections(self, workspace_id: int, content_query: str = None, name_query: str = None, tag_names: list[str] = None):
+        query = Section.filter(workspace_id=workspace_id, deleted_at=None)
+
+        if content_query:
+            query = query.filter(content__icontains=content_query)
+
+        if name_query:
+            query = query.filter(name__icontains=name_query)
+
+        if tag_names:
+            query = query.filter(tags__tag__name__in=tag_names).distinct()
+
+        return await query.prefetch_related("tags__tag", "content_source")
+
+
     async def soft_delete_section(self, section_id):
         section = await Section.get(id=section_id)
         section.deleted_at = datetime.utcnow()

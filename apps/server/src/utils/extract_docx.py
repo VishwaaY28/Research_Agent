@@ -15,88 +15,88 @@ from utils.clean import clean_content
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def extract_images_from_docx(filepath: str, output_folder: str = "tmp") -> List[Dict]:
-    """Extract images from DOCX file following pdf.py logic exactly"""
-    os.makedirs(output_folder, exist_ok=True)
-    doc_name = Path(filepath).stem
-    images = []
+# def extract_images_from_docx(filepath: str, output_folder: str = "tmp") -> List[Dict]:
+#     """Extract images from DOCX file following pdf.py logic exactly"""
+#     os.makedirs(output_folder, exist_ok=True)
+#     doc_name = Path(filepath).stem
+#     images = []
 
-    try:
-        with zipfile.ZipFile(filepath, 'r') as docx_zip:
-            image_files = [f for f in docx_zip.namelist() if f.startswith('word/media/')]
+#     try:
+#         with zipfile.ZipFile(filepath, 'r') as docx_zip:
+#             image_files = [f for f in docx_zip.namelist() if f.startswith('word/media/')]
 
-            for i, img_file in enumerate(image_files, start=1):
-                try:
-                    img_data = docx_zip.read(img_file)
-                    ext = os.path.splitext(img_file)[1]
+#             for i, img_file in enumerate(image_files, start=1):
+#                 try:
+#                     img_data = docx_zip.read(img_file)
+#                     ext = os.path.splitext(img_file)[1]
 
-                    if len(img_data) < 1024:
-                        continue
+#                     if len(img_data) < 1024:
+#                         continue
 
-                    img_path = os.path.join(output_folder, f"{doc_name}_img_{i}{ext}")
+#                     img_path = os.path.join(output_folder, f"{doc_name}_img_{i}{ext}")
 
-                    with open(img_path, 'wb') as f:
-                        f.write(img_data)
+#                     with open(img_path, 'wb') as f:
+#                         f.write(img_data)
 
-                    try:
-                        with Image.open(img_path) as im:
-                            if im.width < 10 or im.height < 10:
-                                continue
-                            ocr_text = pytesseract.image_to_string(im).strip()
-                    except Exception:
-                        ocr_text = ""
+#                     try:
+#                         with Image.open(img_path) as im:
+#                             if im.width < 10 or im.height < 10:
+#                                 continue
+#                             ocr_text = pytesseract.image_to_string(im).strip()
+#                     except Exception:
+#                         ocr_text = ""
 
-                    images.append({
-                        "path": img_path,
-                        "page_number": None,
-                        "caption": f"Image {i}",
-                        "ocr_text": ocr_text
-                    })
-                except Exception:
-                    continue
+#                     images.append({
+#                         "path": img_path,
+#                         "page_number": None,
+#                         "caption": f"Image {i}",
+#                         "ocr_text": ocr_text
+#                     })
+#                 except Exception:
+#                     continue
 
-    except Exception as e:
-        print(f"Error extracting images from DOCX: {e}")
+#     except Exception as e:
+#         print(f"Error extracting images from DOCX: {e}")
 
-    return images
+#     return images
 
-def save_table_screenshots_from_docx(elements, output_folder="tmp/tables"):
-    """Save table content from DOCX following pdf.py logic exactly"""
-    tables = [el for el in elements if
-              (getattr(el, "category", None) == "Table" or el.get("category") == "Table" or
-               getattr(el, "type", None) == "Table" or el.get("type") == "Table")]
-    if not tables:
-        return []
+# def save_table_screenshots_from_docx(elements, output_folder="tmp/tables"):
+#     """Save table content from DOCX following pdf.py logic exactly"""
+#     tables = [el for el in elements if
+#               (getattr(el, "category", None) == "Table" or el.get("category") == "Table" or
+#                getattr(el, "type", None) == "Table" or el.get("type") == "Table")]
+#     if not tables:
+#         return []
 
-    os.makedirs(output_folder, exist_ok=True)
-    doc_name = "docx_document"
-    table_results = []
-    table_count = 0
+#     os.makedirs(output_folder, exist_ok=True)
+#     doc_name = "docx_document"
+#     table_results = []
+#     table_count = 0
 
-    for el in elements:
-        category = el.get("category") if isinstance(el, dict) else getattr(el, "category", None)
-        element_type = el.get("type") if isinstance(el, dict) else getattr(el, "type", None)
+#     for el in elements:
+#         category = el.get("category") if isinstance(el, dict) else getattr(el, "category", None)
+#         element_type = el.get("type") if isinstance(el, dict) else getattr(el, "type", None)
 
-        if category == "Table" or element_type == "Table":
-            table_count += 1
-            table_text = el.get("text") if isinstance(el, dict) else getattr(el, "text", "")
+#         if category == "Table" or element_type == "Table":
+#             table_count += 1
+#             table_text = el.get("text") if isinstance(el, dict) else getattr(el, "text", "")
 
-            table_path = os.path.join(output_folder, f"docx_table{table_count}.txt")
-            try:
-                with open(table_path, 'w', encoding='utf-8') as f:
-                    f.write(table_text)
-            except Exception:
-                continue
+#             table_path = os.path.join(output_folder, f"docx_table{table_count}.txt")
+#             try:
+#                 with open(table_path, 'w', encoding='utf-8') as f:
+#                     f.write(table_text)
+#             except Exception:
+#                 continue
 
-            table_results.append({
-                "path": table_path,
-                "page_number": None,
-                "caption": f"Table {table_count}",
-                "data": table_text,
-                "extraction_method": "unstructured"
-            })
+#             table_results.append({
+#                 "path": table_path,
+#                 "page_number": None,
+#                 "caption": f"Table {table_count}",
+#                 "data": table_text,
+#                 "extraction_method": "unstructured"
+#             })
 
-    return table_results
+#     return table_results
 
 def filter_footer_content(elements):
     """Filter out footer content from elements"""
@@ -219,11 +219,11 @@ def parse_toc_content(elements, toc_sections):
 
     return chunks
 
-def extract_docx_sections(filepath: str, figures_dir: str) -> Tuple[List[Dict], List[Dict], List[Dict]]:
-    """Extract sections, images, and tables from DOCX following pdf.py logic exactly"""
+def extract_docx_sections(filepath: str, figures_dir: str) -> List[Dict]:
+    """Extract sections from DOCX - returns only chunks"""
     cached_data = check_extracted_cache(filepath)
-    if cached_data and all(k in cached_data for k in ['chunks', 'images', 'tables']):
-        return cached_data['chunks'], cached_data['images'], cached_data['tables']
+    if cached_data and 'chunks' in cached_data:
+        return cached_data['chunks']
 
     extracts_dir = "extracts"
     os.makedirs(extracts_dir, exist_ok=True)
@@ -240,9 +240,8 @@ def extract_docx_sections(filepath: str, figures_dir: str) -> Tuple[List[Dict], 
 
     sections_dicts = filter_footer_content(sections_dicts)
 
-    images = extract_images_from_docx(filepath, os.path.join(figures_dir, "images"))
-
-    tables = save_table_screenshots_from_docx(sections_dicts, os.path.join(figures_dir, "tables"))
+    # images = extract_images_from_docx(filepath, os.path.join(figures_dir, "images"))
+    # tables = save_table_screenshots_from_docx(sections_dicts, os.path.join(figures_dir, "tables"))
 
     merged_sections = merge_split_titles(sections_dicts)
 
@@ -279,7 +278,7 @@ def extract_docx_sections(filepath: str, figures_dir: str) -> Tuple[List[Dict], 
     for chunk in chunks:
         chunk["file_source"] = filepath
 
-    cache_data = {'chunks': chunks, 'images': images, 'tables': tables}
+    cache_data = {'chunks': chunks}
     save_extracted_cache(filepath, cache_data)
 
-    return chunks, images, tables
+    return chunks

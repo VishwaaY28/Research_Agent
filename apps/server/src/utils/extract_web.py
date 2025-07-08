@@ -20,98 +20,98 @@ USER_AGENTS = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
 ]
 
-def download_web_images(url: str, elements: list, figures_dir: str) -> List[Dict]:
-    images = []
-    base_url = urllib.parse.urljoin(url, '/')
-    doc_name = url.replace("://", "_").replace("/", "_")[:30]
+# def download_web_images(url: str, elements: list, figures_dir: str) -> List[Dict]:
+#     images = []
+#     base_url = urllib.parse.urljoin(url, '/')
+#     doc_name = url.replace("://", "_").replace("/", "_")[:30]
 
-    os.makedirs(figures_dir, exist_ok=True)
+#     os.makedirs(figures_dir, exist_ok=True)
 
-    img_count = 0
-    for element in elements:
-        if hasattr(element, 'metadata') and element.metadata:
-            if hasattr(element.metadata, 'image_path') and element.metadata.image_path:
-                try:
-                    img_url = element.metadata.image_path
-                    if not img_url.startswith('http'):
-                        img_url = urllib.parse.urljoin(base_url, img_url)
+#     img_count = 0
+#     for element in elements:
+#         if hasattr(element, 'metadata') and element.metadata:
+#             if hasattr(element.metadata, 'image_path') and element.metadata.image_path:
+#                 try:
+#                     img_url = element.metadata.image_path
+#                     if not img_url.startswith('http'):
+#                         img_url = urllib.parse.urljoin(base_url, img_url)
 
-                    response = requests.get(img_url, timeout=10)
-                    if response.status_code == 200:
-                        if len(response.content) < 1024:
-                            continue
+#                     response = requests.get(img_url, timeout=10)
+#                     if response.status_code == 200:
+#                         if len(response.content) < 1024:
+#                             continue
 
-                        img_count += 1
-                        ext = '.jpg'
-                        content_type = response.headers.get('content-type', '')
-                        if 'png' in content_type:
-                            ext = '.png'
-                        elif 'gif' in content_type:
-                            ext = '.gif'
+#                         img_count += 1
+#                         ext = '.jpg'
+#                         content_type = response.headers.get('content-type', '')
+#                         if 'png' in content_type:
+#                             ext = '.png'
+#                         elif 'gif' in content_type:
+#                             ext = '.gif'
 
-                        img_path = os.path.join(figures_dir, f"{doc_name}_img_{img_count}{ext}")
+#                         img_path = os.path.join(figures_dir, f"{doc_name}_img_{img_count}{ext}")
 
-                        with open(img_path, 'wb') as f:
-                            f.write(response.content)
+#                         with open(img_path, 'wb') as f:
+#                             f.write(response.content)
 
-                        ocr_text = ""
-                        try:
-                            with Image.open(img_path) as im:
-                                if im.width < 10 or im.height < 10:
-                                    continue
-                                ocr_text = pytesseract.image_to_string(im).strip()
-                        except Exception:
-                            pass
+#                         ocr_text = ""
+#                         try:
+#                             with Image.open(img_path) as im:
+#                                 if im.width < 10 or im.height < 10:
+#                                     continue
+#                                 ocr_text = pytesseract.image_to_string(im).strip()
+#                         except Exception:
+#                             pass
 
-                        images.append({
-                            "path": img_path,
-                            "page_number": None,
-                            "caption": f"Web Image {img_count}",
-                            "ocr_text": ocr_text,
-                            "source_url": img_url
-                        })
+#                         images.append({
+#                             "path": img_path,
+#                             "page_number": None,
+#                             "caption": f"Web Image {img_count}",
+#                             "ocr_text": ocr_text,
+#                             "source_url": img_url
+#                         })
 
-                except Exception:
-                    continue
+#                 except Exception:
+#                     continue
 
-    return images
+#     return images
 
-def save_table_screenshots_from_web(elements, output_folder="tmp/tables"):
-    tables = [el for el in elements if
-              (getattr(el, "category", None) == "Table" or el.get("category") == "Table" or
-               getattr(el, "type", None) == "Table" or el.get("type") == "Table")]
-    if not tables:
-        return []
+# def save_table_screenshots_from_web(elements, output_folder="tmp/tables"):
+#     tables = [el for el in elements if
+#               (getattr(el, "category", None) == "Table" or el.get("category") == "Table" or
+#                getattr(el, "type", None) == "Table" or el.get("type") == "Table")]
+#     if not tables:
+#         return []
 
-    os.makedirs(output_folder, exist_ok=True)
-    doc_name = "web_document"
-    table_results = []
-    table_count = 0
+#     os.makedirs(output_folder, exist_ok=True)
+#     doc_name = "web_document"
+#     table_results = []
+#     table_count = 0
 
-    for el in elements:
-        category = el.get("category") if isinstance(el, dict) else getattr(el, "category", None)
-        element_type = el.get("type") if isinstance(el, dict) else getattr(el, "type", None)
+#     for el in elements:
+#         category = el.get("category") if isinstance(el, dict) else getattr(el, "category", None)
+#         element_type = el.get("type") if isinstance(el, dict) else getattr(el, "type", None)
 
-        if category == "Table" or element_type == "Table":
-            table_count += 1
-            table_text = el.get("text") if isinstance(el, dict) else getattr(el, "text", "")
+#         if category == "Table" or element_type == "Table":
+#             table_count += 1
+#             table_text = el.get("text") if isinstance(el, dict) else getattr(el, "text", "")
 
-            table_path = os.path.join(output_folder, f"{doc_name}_table{table_count}.txt")
-            try:
-                with open(table_path, 'w', encoding='utf-8') as f:
-                    f.write(table_text)
-            except Exception:
-                continue
+#             table_path = os.path.join(output_folder, f"{doc_name}_table{table_count}.txt")
+#             try:
+#                 with open(table_path, 'w', encoding='utf-8') as f:
+#                     f.write(table_text)
+#             except Exception:
+#                 continue
 
-            table_results.append({
-                "path": table_path,
-                "page_number": None,
-                "caption": f"Web Table {table_count}",
-                "data": table_text,
-                "extraction_method": "unstructured"
-            })
+#             table_results.append({
+#                 "path": table_path,
+#                 "page_number": None,
+#                 "caption": f"Web Table {table_count}",
+#                 "data": table_text,
+#                 "extraction_method": "unstructured"
+#             })
 
-    return table_results
+#     return table_results
 
 def filter_footer_content(elements):
     filtered = []
@@ -207,10 +207,11 @@ def parse_toc_content(elements, toc_sections):
 
     return chunks
 
-def extract_web_sections(url: str, figures_dir: str) -> Tuple[List[Dict], List[Dict], List[Dict]]:
+def extract_web_sections(url: str, figures_dir: str) -> List[Dict]:
+    """Extract sections from web page - returns only chunks"""
     cached_data = check_extracted_cache(url)
-    if cached_data and all(k in cached_data for k in ['chunks', 'images', 'tables']):
-        return cached_data['chunks'], cached_data['images'], cached_data['tables']
+    if cached_data and 'chunks' in cached_data:
+        return cached_data['chunks']
 
     extracts_dir = "extracts"
     os.makedirs(extracts_dir, exist_ok=True)
@@ -235,8 +236,10 @@ def extract_web_sections(url: str, figures_dir: str) -> Tuple[List[Dict], List[D
                     json.dump(sections_dicts, f)
 
             sections_dicts = filter_footer_content(sections_dicts)
-            images = download_web_images(url, elements or [], os.path.join(figures_dir, "images"))
-            tables = save_table_screenshots_from_web(sections_dicts, os.path.join(figures_dir, "tables"))
+
+            # images = download_web_images(url, elements or [], os.path.join(figures_dir, "images"))
+            # tables = save_table_screenshots_from_web(sections_dicts, os.path.join(figures_dir, "tables"))
+
             merged_sections = merge_split_titles(sections_dicts)
             toc_sections_raw = extract_toc(merged_sections)
 
@@ -275,10 +278,10 @@ def extract_web_sections(url: str, figures_dir: str) -> Tuple[List[Dict], List[D
             for chunk in chunks:
                 chunk["file_source"] = url
 
-            cache_data = {'chunks': chunks, 'images': images, 'tables': tables}
+            cache_data = {'chunks': chunks}
             save_extracted_cache(url, cache_data)
 
-            return chunks, images, tables
+            return chunks
 
         except Exception as exc:
             last_exc = exc

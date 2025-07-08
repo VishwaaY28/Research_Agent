@@ -6,8 +6,8 @@ from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict
 
 from database.repositories.sources import content_source_repository
-from database.repositories.images import source_image_repository
-from database.repositories.tables import source_table_repository
+# from database.repositories.images import source_image_repository
+# from database.repositories.tables import source_table_repository
 from database.repositories.tags import tag_repository
 from utils.extract_pdf import extract_pdf_sections
 from utils.extract_docx import extract_docx_sections
@@ -61,11 +61,11 @@ async def upload_and_extract(
             try:
                 if ext == "pdf":
                     logger.info("Extracting PDF content...")
-                    chunks, images, tables = extract_pdf_sections(source_path, FIGURES_DIR)
+                    chunks = extract_pdf_sections(source_path, FIGURES_DIR)
                     source_type = "pdf"
                 elif ext == "docx":
                     logger.info("Extracting DOCX content...")
-                    chunks, images, tables = extract_docx_sections(source_path, FIGURES_DIR)
+                    chunks = extract_docx_sections(source_path, FIGURES_DIR)
                     source_type = "docx"
                 else:
                     logger.warning(f"Unsupported file type: {ext}")
@@ -76,7 +76,7 @@ async def upload_and_extract(
                     })
                     continue
 
-                logger.info(f"Extraction results: {len(chunks)} chunks, {len(images)} images, {len(tables)} tables")
+                logger.info(f"Extraction results: {len(chunks)} chunks")
 
                 extract_path = os.path.join(EXTRACTS_DIR, f"content_{filename}.json")
                 content_source = await content_source_repository.upsert(
@@ -87,20 +87,20 @@ async def upload_and_extract(
                 )
                 logger.info(f"Created content source with ID: {content_source.id}")
 
-                if images:
-                    await source_image_repository.create_bulk(content_source.id, images)
-                    logger.info(f"Saved {len(images)} images to database")
+                # if images:
+                #     await source_image_repository.create_bulk(content_source.id, images)
+                #     logger.info(f"Saved {len(images)} images to database")
 
-                if tables:
-                    await source_table_repository.create_bulk(content_source.id, tables)
-                    logger.info(f"Saved {len(tables)} tables to database")
+                # if tables:
+                #     await source_table_repository.create_bulk(content_source.id, tables)
+                #     logger.info(f"Saved {len(tables)} tables to database")
 
                 response_json = {
                     "success": True,
                     "content_source_id": content_source.id,
                     "chunks": chunks,
-                    "images": images,
-                    "tables": tables,
+                    # "images": images,
+                    # "tables": tables,
                     "filename": filename,
                     "type": source_type
                 }
@@ -139,10 +139,10 @@ async def upload_and_extract(
 
             try:
                 logger.info("Extracting web content...")
-                chunks, images, tables = extract_web_sections(url, FIGURES_DIR)
+                chunks = extract_web_sections(url, FIGURES_DIR)
                 source_type = "web"
 
-                logger.info(f"Web extraction results: {len(chunks)} chunks, {len(images)} images, {len(tables)} tables")
+                logger.info(f"Web extraction results: {len(chunks)} chunks")
 
                 extract_path = os.path.join(EXTRACTS_DIR, f"content_web_{url_safe}.json")
                 content_source = await content_source_repository.upsert(
@@ -153,20 +153,20 @@ async def upload_and_extract(
                 )
                 logger.info(f"Created web content source with ID: {content_source.id}")
 
-                if images:
-                    await source_image_repository.create_bulk(content_source.id, images)
-                    logger.info(f"Saved {len(images)} web images to database")
+                # if images:
+                #     await source_image_repository.create_bulk(content_source.id, images)
+                #     logger.info(f"Saved {len(images)} web images to database")
 
-                if tables:
-                    await source_table_repository.create_bulk(content_source.id, tables)
-                    logger.info(f"Saved {len(tables)} web tables to database")
+                # if tables:
+                #     await source_table_repository.create_bulk(content_source.id, tables)
+                #     logger.info(f"Saved {len(tables)} web tables to database")
 
                 response_json = {
                     "success": True,
                     "content_source_id": content_source.id,
                     "chunks": chunks,
-                    "images": images,
-                    "tables": tables,
+                    # "images": images,
+                    # "tables": tables,
                     "url": url,
                     "type": source_type
                 }
@@ -216,8 +216,8 @@ async def get_source_details(content_source_id: int):
         if not content_source:
             raise HTTPException(status_code=404, detail="Content source not found")
 
-        images = await source_image_repository.get_by_source(content_source_id)
-        tables = await source_table_repository.get_by_source(content_source_id)
+        # images = await source_image_repository.get_by_source(content_source_id)
+        # tables = await source_table_repository.get_by_source(content_source_id)
 
         chunks_response = await get_source_chunks(content_source_id)
         chunks_data = chunks_response.body.decode() if hasattr(chunks_response, 'body') else '{"chunks": []}'
@@ -235,25 +235,25 @@ async def get_source_details(content_source_id: int):
                 "created_at": content_source.created_at.isoformat()
             },
             "chunks": chunks,
-            "images": [
-                {
-                    "id": img.id,
-                    "path": img.path,
-                    "page_number": img.page_number,
-                    "caption": img.caption,
-                    "ocr_text": img.ocr_text
-                } for img in images
-            ],
-            "tables": [
-                {
-                    "id": table.id,
-                    "path": table.path,
-                    "page_number": table.page_number,
-                    "caption": table.caption,
-                    "data": table.data,
-                    "extraction_method": table.extraction_method
-                } for table in tables
-            ]
+            # "images": [
+            #     {
+            #         "id": img.id,
+            #         "path": img.path,
+            #         "page_number": img.page_number,
+            #         "caption": img.caption,
+            #         "ocr_text": img.ocr_text
+            #     } for img in images
+            # ],
+            # "tables": [
+            #     {
+            #         "id": table.id,
+            #         "path": table.path,
+            #         "page_number": table.page_number,
+            #         "caption": table.caption,
+            #         "data": table.data,
+            #         "extraction_method": table.extraction_method
+            #     } for table in tables
+            # ]
         })
     except Exception as e:
         logger.error(f"Error getting source details: {e}")
@@ -285,45 +285,45 @@ async def get_source_chunks(content_source_id: int):
         logger.error(f"Error getting source chunks: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-async def add_image_tags(image_id: int, tag_names: List[str]):
-    """Add tags to an image"""
-    try:
-        for tag_name in tag_names:
-            await source_image_repository.add_tag(image_id, tag_name)
+# async def add_image_tags(image_id: int, tag_names: List[str]):
+#     """Add tags to an image"""
+#     try:
+#         for tag_name in tag_names:
+#             await source_image_repository.add_tag(image_id, tag_name)
 
-        return JSONResponse({"success": True})
-    except Exception as e:
-        logger.error(f"Error adding image tags: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+#         return JSONResponse({"success": True})
+#     except Exception as e:
+#         logger.error(f"Error adding image tags: {str(e)}", exc_info=True)
+#         raise HTTPException(status_code=500, detail=str(e))
 
-async def remove_image_tag(image_id: int, tag_id: int):
-    """Remove a tag from an image"""
-    try:
-        await source_image_repository.remove_tag(image_id, tag_id)
-        return JSONResponse({"success": True})
-    except Exception as e:
-        logger.error(f"Error removing image tag: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+# async def remove_image_tag(image_id: int, tag_id: int):
+#     """Remove a tag from an image"""
+#     try:
+#         await source_image_repository.remove_tag(image_id, tag_id)
+#         return JSONResponse({"success": True})
+#     except Exception as e:
+#         logger.error(f"Error removing image tag: {str(e)}", exc_info=True)
+#         raise HTTPException(status_code=500, detail=str(e))
 
-async def add_table_tags(table_id: int, tag_names: List[str]):
-    """Add tags to a table"""
-    try:
-        for tag_name in tag_names:
-            await source_table_repository.add_tag(table_id, tag_name)
+# async def add_table_tags(table_id: int, tag_names: List[str]):
+#     """Add tags to a table"""
+#     try:
+#         for tag_name in tag_names:
+#             await source_table_repository.add_tag(table_id, tag_name)
 
-        return JSONResponse({"success": True})
-    except Exception as e:
-        logger.error(f"Error adding table tags: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+#         return JSONResponse({"success": True})
+#     except Exception as e:
+#         logger.error(f"Error adding table tags: {str(e)}", exc_info=True)
+#         raise HTTPException(status_code=500, detail=str(e))
 
-async def remove_table_tag(table_id: int, tag_id: int):
-    """Remove a tag from a table"""
-    try:
-        await source_table_repository.remove_tag(table_id, tag_id)
-        return JSONResponse({"success": True})
-    except Exception as e:
-        logger.error(f"Error removing table tag: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+# async def remove_table_tag(table_id: int, tag_id: int):
+#     """Remove a tag from a table"""
+#     try:
+#         await source_table_repository.remove_tag(table_id, tag_id)
+#         return JSONResponse({"success": True})
+#     except Exception as e:
+#         logger.error(f"Error removing table tag: {str(e)}", exc_info=True)
+#         raise HTTPException(status_code=500, detail=str(e))
 
 async def soft_delete_content_source(content_source_id: int):
     try:

@@ -1,7 +1,6 @@
 from database.models import (
     Prompt, PromptTag, GeneratedContent, GeneratedContentTag,
-    GeneratedContentSection, GeneratedContentImage, GeneratedContentTable,
-    Tag, Section, WorkspaceImage, WorkspaceTable, Workspace
+    GeneratedContentSection, Tag, Section, Workspace
 )
 from database.repositories.tags import tag_repository
 from tortoise.functions import Count
@@ -68,8 +67,6 @@ class ContentRepository:
         user_id: int,
         content: str,
         section_ids: List[int] = None,
-        image_ids: List[int] = None,
-        table_ids: List[int] = None,
         tag_names: List[str] = None
     ):
         """Create generated content with context"""
@@ -85,20 +82,6 @@ class ContentRepository:
                 await GeneratedContentSection.create(
                     generated_content=generated_content,
                     section_id=section_id
-                )
-
-        if image_ids:
-            for image_id in image_ids:
-                await GeneratedContentImage.create(
-                    generated_content=generated_content,
-                    image_id=image_id
-                )
-
-        if table_ids:
-            for table_id in table_ids:
-                await GeneratedContentTable.create(
-                    generated_content=generated_content,
-                    table_id=table_id
                 )
 
         if tag_names:
@@ -123,9 +106,7 @@ class ContentRepository:
         ).prefetch_related(
             'prompt',
             'tags__tag',
-            'sections__section',
-            'images__image__source_image',
-            'tables__table__source_table'
+            'sections__section'
         )
 
     async def filter_generated_content_by_tags(self, workspace_id: int, tag_names: List[str]):
@@ -151,7 +132,7 @@ class ContentRepository:
         await GeneratedContent.filter(id=content_id).update(deleted_at=datetime.now())
 
     async def get_workspace_content(self, workspace_id: int):
-        """Get all content for a workspace (sections, images, tables)"""
+        """Get all content for a workspace (sections only)"""
         workspace = await Workspace.get_or_none(id=workspace_id)
         if not workspace:
             return None
@@ -161,20 +142,8 @@ class ContentRepository:
             deleted_at__isnull=True
         ).prefetch_related('tags__tag')
 
-        images = await WorkspaceImage.filter(
-            workspace_id=workspace_id,
-            deleted_at__isnull=True
-        ).prefetch_related('source_image', 'tags__tag')
-
-        tables = await WorkspaceTable.filter(
-            workspace_id=workspace_id,
-            deleted_at__isnull=True
-        ).prefetch_related('source_table', 'tags__tag')
-
         return {
-            'sections': sections,
-            'images': images,
-            'tables': tables
+            'sections': sections
         }
 
 content_repository = ContentRepository()

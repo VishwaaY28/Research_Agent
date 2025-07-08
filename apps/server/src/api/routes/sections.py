@@ -13,6 +13,10 @@ async def bulk_create_sections(
 ):
     return await section_handlers.bulk_create_sections(workspace_id, filename, chunks)
 
+@router.post("/search/{workspace_id}")
+async def search_sections(workspace_id: int, data: dict):
+    return await section_handlers.search_sections(workspace_id, data)
+
 @router.get("/list/{workspace_id}")
 async def get_sections(workspace_id: int):
     return await section_handlers.get_sections(workspace_id)

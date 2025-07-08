@@ -13,29 +13,6 @@ async def upgrade(db: BaseDBAsyncClient) -> str:
     "extracted_url" VARCHAR(1024) NOT NULL UNIQUE,
     "type" VARCHAR(50) NOT NULL /* WEB: web\nPDF: pdf\nDOCX: docx */
 );
-CREATE TABLE IF NOT EXISTS "sourceimage" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "deleted_at" TIMESTAMP,
-    "path" VARCHAR(1024) NOT NULL,
-    "page_number" INT,
-    "caption" TEXT,
-    "ocr_text" TEXT,
-    "content_source_id" INT NOT NULL REFERENCES "contentsources" ("id") ON DELETE CASCADE
-);
-CREATE TABLE IF NOT EXISTS "sourcetable" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "deleted_at" TIMESTAMP,
-    "path" VARCHAR(1024) NOT NULL,
-    "page_number" INT,
-    "caption" TEXT,
-    "data" TEXT,
-    "extraction_method" VARCHAR(50),
-    "content_source_id" INT NOT NULL REFERENCES "contentsources" ("id") ON DELETE CASCADE
-);
 CREATE TABLE IF NOT EXISTS "tag" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -129,61 +106,14 @@ CREATE TABLE IF NOT EXISTS "sectiontag" (
     "section_id" INT NOT NULL REFERENCES "section" ("id") ON DELETE CASCADE,
     "tag_id" INT NOT NULL REFERENCES "tag" ("id") ON DELETE CASCADE
 );
-CREATE TABLE IF NOT EXISTS "workspaceimage" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "deleted_at" TIMESTAMP,
-    "source_image_id" INT NOT NULL REFERENCES "sourceimage" ("id") ON DELETE CASCADE,
-    "workspace_id" INT NOT NULL REFERENCES "workspace" ("id") ON DELETE CASCADE
-);
-CREATE TABLE IF NOT EXISTS "generatedcontentimage" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "deleted_at" TIMESTAMP,
-    "generated_content_id" INT NOT NULL REFERENCES "generatedcontent" ("id") ON DELETE CASCADE,
-    "image_id" INT NOT NULL REFERENCES "workspaceimage" ("id") ON DELETE CASCADE
-);
-CREATE TABLE IF NOT EXISTS "workspaceimagetag" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "deleted_at" TIMESTAMP,
-    "tag_id" INT NOT NULL REFERENCES "tag" ("id") ON DELETE CASCADE,
-    "workspace_image_id" INT NOT NULL REFERENCES "workspaceimage" ("id") ON DELETE CASCADE
-);
-CREATE TABLE IF NOT EXISTS "workspacetable" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "deleted_at" TIMESTAMP,
-    "source_table_id" INT NOT NULL REFERENCES "sourcetable" ("id") ON DELETE CASCADE,
-    "workspace_id" INT NOT NULL REFERENCES "workspace" ("id") ON DELETE CASCADE
-);
-CREATE TABLE IF NOT EXISTS "generatedcontenttable" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "deleted_at" TIMESTAMP,
-    "generated_content_id" INT NOT NULL REFERENCES "generatedcontent" ("id") ON DELETE CASCADE,
-    "table_id" INT NOT NULL REFERENCES "workspacetable" ("id") ON DELETE CASCADE
-);
-CREATE TABLE IF NOT EXISTS "workspacetabletag" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "deleted_at" TIMESTAMP,
-    "tag_id" INT NOT NULL REFERENCES "tag" ("id") ON DELETE CASCADE,
-    "workspace_table_id" INT NOT NULL REFERENCES "workspacetable" ("id") ON DELETE CASCADE
-);
 CREATE TABLE IF NOT EXISTS "workspacetag" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deleted_at" TIMESTAMP,
     "tag_id" INT NOT NULL REFERENCES "tag" ("id") ON DELETE CASCADE,
-    "workspace_id" INT NOT NULL REFERENCES "workspace" ("id") ON DELETE CASCADE
+    "workspace_id" INT NOT NULL REFERENCES "workspace" ("id") ON DELETE CASCADE,
+    CONSTRAINT "uid_workspaceta_workspa_4ae752" UNIQUE ("workspace_id", "tag_id")
 );
 CREATE TABLE IF NOT EXISTS "aerich" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,

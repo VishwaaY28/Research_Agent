@@ -42,6 +42,64 @@ export function useWorkspace() {
     }
   }
 
+  async function filterWorkspaces(nameQuery?: string, tags?: string[]) {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        API.BASE_URL() + API.ENDPOINTS.WORKSPACES.BASE_URL() + API.ENDPOINTS.WORKSPACES.FILTER(),
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: localStorage.getItem('token')
+              ? `Bearer ${localStorage.getItem('token')}`
+              : '',
+          },
+          body: JSON.stringify({
+            name_query: nameQuery,
+            tags: tags,
+          }),
+        },
+      );
+      if (!res.ok) throw new Error('Failed to filter workspaces');
+      const data = await res.json();
+      setWorkspaces(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      toast.error(err.message || 'Could not filter workspaces');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function searchWorkspaces(nameQuery?: string, tags?: string[]) {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        API.BASE_URL() + API.ENDPOINTS.WORKSPACES.BASE_URL() + API.ENDPOINTS.WORKSPACES.SEARCH(),
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: localStorage.getItem('token')
+              ? `Bearer ${localStorage.getItem('token')}`
+              : '',
+          },
+          body: JSON.stringify({
+            name_query: nameQuery,
+            tags: tags,
+          }),
+        },
+      );
+      if (!res.ok) throw new Error('Failed to search workspaces');
+      const data = await res.json();
+      setWorkspaces(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      toast.error(err.message || 'Could not search workspaces');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function fetchWorkspace(id: string) {
     setLoading(true);
     try {
@@ -66,31 +124,7 @@ export function useWorkspace() {
   }
 
   async function filterWorkspacesByTags(tags: string[]) {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      tags.forEach((tag) => params.append('tags', tag));
-      const res = await fetch(
-        API.BASE_URL() +
-          API.ENDPOINTS.WORKSPACES.BASE_URL() +
-          API.ENDPOINTS.WORKSPACES.FILTER() +
-          params.toString(),
-        {
-          headers: {
-            Authorization: localStorage.getItem('token')
-              ? `Bearer ${localStorage.getItem('token')}`
-              : '',
-          },
-        },
-      );
-      if (!res.ok) throw new Error('Failed to filter workspaces');
-      const data = await res.json();
-      setWorkspaces(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      toast.error(err.message || 'Could not filter workspaces');
-    } finally {
-      setLoading(false);
-    }
+    return await filterWorkspaces(undefined, tags);
   }
 
   function getAllTags() {
@@ -141,7 +175,9 @@ export function useWorkspace() {
     workspaces,
     loading,
     fetchWorkspaces,
+    searchWorkspaces,
     fetchWorkspace,
+    filterWorkspaces,
     filterWorkspacesByTags,
     getAllTags,
     createWorkspace,
