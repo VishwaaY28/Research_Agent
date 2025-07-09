@@ -7,6 +7,10 @@ export const API = {
       LOGIN: () => '/login',
       SESSION: () => '/session',
     },
+    DATA: {
+      BASE_URL: () => '/api/data',
+      DASHBOARD: () => '/dashboard',
+    },
     WORKSPACES: {
       BASE_URL: () => '/api/workspaces',
       CREATE: () => '',

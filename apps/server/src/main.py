@@ -9,6 +9,7 @@ from api.routes.sections import router as sections_router
 from api.routes.sources import router as sources_router
 from api.routes.tags import router as tags_router
 from api.routes.prompts import router as prompts_router
+from api.routes.data import router as data_router
 # from api.routes.images import router as images_router
 # from api.routes.tables import router as tables_router
 from config.env import env
@@ -50,6 +51,7 @@ app.include_router(sections_router)
 app.include_router(sources_router)
 app.include_router(tags_router)
 app.include_router(prompts_router)
+app.include_router(data_router)
 # app.include_router(images_router)
 # app.include_router(tables_router)
 

@@ -1,91 +1,103 @@
-import React from 'react';
-import { FiFolder, FiFileText, FiEdit, FiTag, FiTrendingUp, FiClock, FiArrowRight, FiPlus, FiStar } from 'react-icons/fi';
+import React, { useEffect } from 'react';
+import {
+  FiArrowRight,
+  FiClock,
+  FiEdit,
+  FiFileText,
+  FiFolder,
+  FiPlus,
+  FiTag,
+  FiUser,
+} from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
+import { useDashboard } from '../../hooks/useDashboard';
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
+  const { dashboardData, loading, error, fetchDashboardData } = useDashboard();
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  if (loading) {
+    return (
+      <div className="h-full overflow-y-auto bg-gray-50">
+        <div className="p-8">
+          <div className="text-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            <p className="text-gray-600 mt-4">Loading dashboard...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-full overflow-y-auto bg-gray-50">
+        <div className="p-8">
+          <div className="text-center py-20">
+            <p className="text-red-600">Error loading dashboard: {error}</p>
+            <button
+              onClick={fetchDashboardData}
+              className="mt-4 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const stats = [
-    { 
-      label: 'Workspaces', 
-      value: '12', 
-      icon: FiFolder, 
+    {
+      label: 'Workspaces',
+      value: dashboardData?.stats.total_workspaces?.toString() || '0',
+      icon: FiFolder,
       color: 'text-blue-600',
-      bgColor: 'bg-blue-50'
+      bgColor: 'bg-blue-50',
     },
-    { 
-      label: 'Active Proposals', 
-      value: '8', 
-      icon: FiFileText, 
+    {
+      label: 'Content Chunks',
+      value: dashboardData?.stats.total_sections?.toString() || '0',
+      icon: FiFileText,
       color: 'text-emerald-600',
-      bgColor: 'bg-emerald-50'
+      bgColor: 'bg-emerald-50',
     },
-    { 
-      label: 'Draft Sections', 
-      value: '24', 
-      icon: FiEdit, 
+    {
+      label: 'Saved Prompts',
+      value: dashboardData?.stats.total_prompts?.toString() || '0',
+      icon: FiEdit,
       color: 'text-amber-600',
-      bgColor: 'bg-amber-50'
+      bgColor: 'bg-amber-50',
     },
-    { 
-      label: 'Popular Tags', 
-      value: '15', 
-      icon: FiTag, 
+    {
+      label: 'Generated Content',
+      value: dashboardData?.stats.total_generated_content?.toString() || '0',
+      icon: FiTag,
       color: 'text-purple-600',
-      bgColor: 'bg-purple-50'
+      bgColor: 'bg-purple-50',
     },
   ];
 
-  const recentProposals = [
-    {
-      id: '1',
-      title: 'Marketing Campaign Proposal Q2',
-      status: 'In Progress',
-      lastModified: '2 hours ago',
-      progress: 75,
-      priority: 'high'
-    },
-    {
-      id: '2',
-      title: 'Technical Architecture Document',
-      status: 'Draft',
-      lastModified: '1 day ago',
-      progress: 45,
-      priority: 'medium'
-    },
-    {
-      id: '3',
-      title: 'Client Onboarding Process',
-      status: 'Review',
-      lastModified: '3 days ago',
-      progress: 90,
-      priority: 'low'
-    },
-    {
-      id: '4',
-      title: 'Budget Allocation Proposal 2025',
-      status: 'Draft',
-      lastModified: '1 week ago',
-      progress: 30,
-      priority: 'medium'
-    }
-  ];
+  const formatTimeAgo = (dateString: string) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInMilliseconds = now.getTime() - date.getTime();
+    const diffInHours = Math.floor(diffInMilliseconds / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInHours / 24);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'In Progress': return 'bg-blue-100 text-blue-700';
-      case 'Draft': return 'bg-gray-100 text-gray-700';
-      case 'Review': return 'bg-amber-100 text-amber-700';
-      default: return 'bg-gray-100 text-gray-700';
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'text-red-500';
-      case 'medium': return 'text-amber-500';
-      case 'low': return 'text-green-500';
-      default: return 'text-gray-400';
+    if (diffInHours < 1) {
+      return 'Just now';
+    } else if (diffInHours < 24) {
+      return `${diffInHours} hours ago`;
+    } else if (diffInDays < 7) {
+      return `${diffInDays} days ago`;
+    } else {
+      const diffInWeeks = Math.floor(diffInDays / 7);
+      return `${diffInWeeks} weeks ago`;
     }
   };
 
@@ -93,9 +105,7 @@ const Home: React.FC = () => {
     <div className="h-full overflow-y-auto bg-gray-50">
       <div className="p-8">
         <div className="mb-10">
-          <h1 className="text-3xl font-bold text-black mb-2">
-            Welcome back.
-          </h1>
+          <h1 className="text-3xl font-bold text-black mb-2">Welcome back.</h1>
           <p className="text-neutral-600 text-lg">
             Here's your workspace overview and recent activity.
           </p>
@@ -110,10 +120,6 @@ const Home: React.FC = () => {
                     {stat.label}
                   </p>
                   <p className="text-3xl font-bold text-black mt-2">{stat.value}</p>
-                  <div className="flex items-center mt-2 text-green-600">
-                    <FiTrendingUp className="w-4 h-4 mr-1" />
-                    <span className="text-sm font-medium">+12%</span>
-                  </div>
                 </div>
                 <div className={`${stat.bgColor} p-3 rounded-lg`}>
                   <stat.icon className={`w-6 h-6 ${stat.color}`} />
@@ -129,11 +135,13 @@ const Home: React.FC = () => {
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-xl font-semibold text-black">Recent Proposals</h2>
-                    <p className="text-neutral-600 text-sm mt-1">Track your latest work and progress</p>
+                    <h2 className="text-xl font-semibold text-black">Recently Generated</h2>
+                    <p className="text-neutral-600 text-sm mt-1">
+                      Your latest AI-generated content
+                    </p>
                   </div>
-                  <button 
-                    onClick={() => navigate('/dashboard/proposal-authoring')}
+                  <button
+                    onClick={() => navigate('/dashboard/workspaces')}
                     className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
                   >
                     View all
@@ -141,47 +149,59 @@ const Home: React.FC = () => {
                 </div>
               </div>
               <div className="p-6">
-                <div className="space-y-4">
-                  {recentProposals.map((proposal) => (
-                    <div
-                      key={proposal.id}
-                      onClick={() => navigate(`/dashboard/proposal-authoring/${proposal.id}`)}
-                      className="p-4 border border-gray-200 rounded-lg hover:border-primary cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <div className="flex items-center mb-2">
-                            <FiStar className={`w-4 h-4 mr-2 ${getPriorityColor(proposal.priority)}`} />
-                            <h3 className="font-medium text-black">{proposal.title}</h3>
-                          </div>
-                          <div className="flex items-center space-x-4">
-                            <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusColor(proposal.status)}`}>
-                              {proposal.status}
-                            </span>
-                            <div className="flex items-center text-sm text-neutral-500">
-                              <FiClock className="w-4 h-4 mr-1" />
-                              {proposal.lastModified}
+                {dashboardData?.recent_generated_content &&
+                dashboardData.recent_generated_content.length > 0 ? (
+                  <div className="space-y-4">
+                    {dashboardData.recent_generated_content.map((content) => (
+                      <div
+                        key={content.id}
+                        onClick={() => navigate(`/dashboard/workspaces/${content.workspace_id}`)}
+                        className="p-4 border border-gray-200 rounded-lg hover:border-primary cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <div className="flex items-center mb-2">
+                              <h3 className="font-medium text-black">{content.title}</h3>
+                            </div>
+                            <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                              {content.content_preview}
+                            </p>
+                            <div className="flex items-center space-x-4">
+                              <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-xs font-medium">
+                                {content.workspace_name}
+                              </span>
+                              <div className="flex items-center text-sm text-neutral-500">
+                                <FiUser className="w-4 h-4 mr-1" />
+                                {content.user_name}
+                              </div>
+                              <div className="flex items-center text-sm text-neutral-500">
+                                <FiClock className="w-4 h-4 mr-1" />
+                                {formatTimeAgo(content.created_at)}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <FiArrowRight className="w-4 h-4 text-gray-400 mt-1" />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-neutral-600">Progress</span>
-                          <span className="text-black font-medium">{proposal.progress}%</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-primary h-2 rounded-full transition-all"
-                            style={{ width: `${proposal.progress}%` }}
-                          ></div>
+                          <FiArrowRight className="w-4 h-4 text-gray-400 mt-1" />
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <FiFileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      No generated content yet
+                    </h3>
+                    <p className="text-gray-500 mb-6">
+                      Start creating proposals to see your recent work here
+                    </p>
+                    <button
+                      onClick={() => navigate('/dashboard/workspaces')}
+                      className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+                    >
+                      Browse Workspaces
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -194,14 +214,14 @@ const Home: React.FC = () => {
               </div>
               <div className="p-6 space-y-3">
                 <button
-                  onClick={() => navigate('/dashboard/proposal-authoring/create-proposal')}
+                  onClick={() => navigate('/dashboard/workspaces/create')}
                   className="w-full p-4 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
                 >
                   <div className="flex items-center">
                     <FiPlus className="w-5 h-5 mr-3" />
                     <div className="text-left">
-                      <span className="font-medium block">New Proposal</span>
-                      <span className="text-white/80 text-sm">Start fresh</span>
+                      <span className="font-medium block">New Workspace</span>
+                      <span className="text-white/80 text-sm">Start organizing content</span>
                     </div>
                   </div>
                 </button>
@@ -217,36 +237,6 @@ const Home: React.FC = () => {
                     </div>
                   </div>
                 </button>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl border border-gray-200">
-              <div className="p-6 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-black">This Week</h3>
-                <p className="text-sm text-neutral-600 mt-1">Your productivity insights</p>
-              </div>
-              <div className="p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
-                    <span className="text-neutral-600">Proposals Created</span>
-                  </div>
-                  <span className="font-semibold text-black">3</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-emerald-500 rounded-full mr-3"></div>
-                    <span className="text-neutral-600">Content Processed</span>
-                  </div>
-                  <span className="font-semibold text-black">12</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-purple-500 rounded-full mr-3"></div>
-                    <span className="text-neutral-600">Collaborators</span>
-                  </div>
-                  <span className="font-semibold text-black">5</span>
-                </div>
               </div>
             </div>
           </div>
