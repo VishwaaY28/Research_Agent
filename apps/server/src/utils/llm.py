@@ -1,5 +1,5 @@
 import logging
-from openai import AzureOpenAI
+from openai import AzureOpenAI, OpenAI
 from azure.identity import DefaultAzureCredential
 from azure.keyvault.secrets import SecretClient
 from typing import List, Dict, Any, Optional
@@ -143,20 +143,77 @@ Your response must follow these principles:
             logger.error(f"Error generating content with Azure OpenAI: {str(e)}")
             raise Exception(f"Content generation failed: {str(e)}")
 
-    def author_proposal_section(
+
+class OllamaClient:
+    def __init__(self):
+        self._config = None
+        self._client = None
+
+    def _load_config(self):
+        """Load Ollama configuration"""
+        if self._config is None:
+            self._config = {
+                "base_url": env.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+                "api_key": "ollama",
+                "model": env.get("OLLAMA_MODEL", "llama3.2:1b"),
+            }
+
+            logger.info(f"Loaded Ollama config - Base URL: {self._config['base_url']}")
+            logger.info(f"Model: {self._config['model']}")
+
+        return self._config
+
+    def _get_client(self):
+        """Get or create Ollama client"""
+        if self._client is None:
+            config = self._load_config()
+
+            self._client = OpenAI(
+                base_url=config["base_url"],
+                api_key=config["api_key"],
+            )
+
+        return self._client
+
+    async def generate_content(
         self,
-        section_name: str,
-        workspace_content: str,
-        additional_prompt: str = ""
+        prompt: str,
+        context_sections: List[str] = None,
+        context_images: List[Dict[str, Any]] = None,
+        context_tables: List[Dict[str, Any]] = None,
+        section_name: str = "Generated Content"
     ) -> str:
         """
-        Legacy method for backward compatibility - generates proposal section content
+        Generate proposal content based on prompt and context using Ollama
         """
         try:
-            config = self._load_config_from_vault()
+            config = self._load_config()
             client = self._get_client()
 
-            prompt = f"""
+            workspace_content = ""
+
+            if context_sections:
+                workspace_content += "\n=== CONTENT SECTIONS ===\n"
+                for i, section in enumerate(context_sections, 1):
+                    workspace_content += f"\n{i}. {section}\n"
+
+            if context_images:
+                workspace_content += "\n=== IMAGES ===\n"
+                for i, image in enumerate(context_images, 1):
+                    workspace_content += f"\n{i}. Image: {image.get('caption', 'No caption')}"
+                    if image.get('ocr_text'):
+                        workspace_content += f"\n   OCR Text: {image['ocr_text']}"
+                    workspace_content += "\n"
+
+            if context_tables:
+                workspace_content += "\n=== TABLES ===\n"
+                for i, table in enumerate(context_tables, 1):
+                    workspace_content += f"\n{i}. Table: {table.get('caption', 'No caption')}"
+                    if table.get('data'):
+                        workspace_content += f"\n   Data: {table['data']}"
+                    workspace_content += "\n"
+
+            system_prompt = f"""
 You are a professional proposal writer for a reputed IT Services enterprise.
 You will help draft a specific section of a business proposal based strictly on the content provided below from a Workspace.
 
@@ -182,26 +239,28 @@ Your response must follow these principles:
 - Do not repeat raw content or include citations/attributions. The output should be ready to copy-paste into a client-facing proposal.
 """
 
-            user_message = "Please generate the section content now."
-            if additional_prompt:
-                user_message = f"Please generate the section content now. Additional guidance: {additional_prompt}"
+            user_message = f"Please generate the section content for '{section_name}' using the following user prompt as additional guidance: {prompt}"
 
             response = client.chat.completions.create(
-                model=config["deployment"],
+                model=config["model"],
                 temperature=0.3,
                 max_tokens=1200,
                 messages=[
-                    {"role": "system", "content": prompt},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message}
                 ]
             )
 
-            return response.choices[0].message.content.strip()
+            generated_content = response.choices[0].message.content.strip()
+            logger.info(f"Successfully generated content using Ollama for section: {section_name}")
+            return generated_content
 
         except Exception as e:
-            logger.error(f"❌ Unexpected error during Azure OpenAI API call: {str(e)}")
-            return f"❌ API call failed: {str(e)}"
+            logger.error(f"Error generating content with Ollama: {str(e)}")
+            raise Exception(f"Content generation failed: {str(e)}")
 
-openai_client = AzureOpenAIClient()
 
-azure_openai_client = openai_client
+azure_openai_client = AzureOpenAIClient()
+ollama_client = OllamaClient()
+
+openai_client = azure_openai_client

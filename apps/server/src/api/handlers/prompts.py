@@ -5,9 +5,11 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from database.repositories.content import content_repository
-from utils.llm import azure_openai_client
+from utils.llm import azure_openai_client, ollama_client
 
 logger = logging.getLogger(__name__)
+
+USE_AZURE_OPENAI = False
 
 class PromptRequest(BaseModel):
     title: str
@@ -58,7 +60,7 @@ async def get_workspace_content(workspace_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 async def generate_content(workspace_id: int, request: GenerateContentRequest):
-    """Generate content using Azure OpenAI"""
+    """Generate content using either Azure OpenAI or Ollama based on configuration"""
     try:
         context_sections = []
 
@@ -67,7 +69,16 @@ async def generate_content(workspace_id: int, request: GenerateContentRequest):
             sections = {s.id: s for s in content['sections']}
             context_sections = [sections[sid].content for sid in request.section_ids if sid in sections]
 
-        generated_text = await azure_openai_client.generate_content(
+        if USE_AZURE_OPENAI:
+            logger.info("Using Azure OpenAI for content generation")
+            client = azure_openai_client
+            provider = "Azure OpenAI"
+        else:
+            logger.info("Using Ollama for content generation")
+            client = ollama_client
+            provider = "Ollama"
+
+        generated_text = await client.generate_content(
             prompt=request.prompt,
             context_sections=context_sections,
             section_name=request.section_name or "Generated Content"
@@ -75,10 +86,12 @@ async def generate_content(workspace_id: int, request: GenerateContentRequest):
 
         return JSONResponse({
             "success": True,
-            "generated_content": generated_text
+            "generated_content": generated_text,
+            "provider": provider
         })
     except Exception as e:
-        logger.error(f"Error generating content with Azure OpenAI: {str(e)}")
+        provider = "Azure OpenAI" if USE_AZURE_OPENAI else "Ollama"
+        logger.error(f"Error generating content with {provider}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Content generation failed: {str(e)}")
 
 async def save_generated_content(req: Request, workspace_id: int, request: SaveGeneratedContentRequest):
