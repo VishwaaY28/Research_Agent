@@ -1,16 +1,63 @@
-import openai
 import logging
+from openai import AzureOpenAI
+from azure.identity import DefaultAzureCredential
+from azure.keyvault.secrets import SecretClient
 from typing import List, Dict, Any, Optional
 from config.env import env
 
 logger = logging.getLogger(__name__)
 
-class OpenAIClient:
+class AzureOpenAIClient:
     def __init__(self):
-        self.client = openai.OpenAI(
-            api_key=env.get("OPENAI_API_KEY", "ollama"),
-            base_url=env.get("OPENAI_API_BASE_URL", "http://localhost:11434/v1"),
-        )
+        self.key_vault_url = env.get("KEY_VAULT_URL")
+        self._config = None
+        self._client = None
+
+    def _load_config_from_vault(self):
+        """Load configuration from Azure Key Vault"""
+        if self._config is None:
+            try:
+                credential = DefaultAzureCredential()
+                client = SecretClient(vault_url=self.key_vault_url, credential=credential)
+
+                self._config = {
+                    "api_key": client.get_secret("AzureLLMKey").value,
+                    "api_base": client.get_secret("AzureOpenAiBase").value,
+                    "model_version": client.get_secret("AzureOpenAiVersion").value,
+                    "deployment": client.get_secret("AzureOpenAiDeployment").value,
+                }
+
+                logger.info(f"Loaded Azure OpenAI config - Base: {self._config['api_base']}")
+                logger.info(f"Model version: {self._config['model_version']}")
+                logger.info(f"Deployment: {self._config['deployment']}")
+                logger.info(f"API Key starts with: {self._config['api_key'][:5]}...")
+
+            except Exception as e:
+                logger.error(f"Failed to load config from Azure Key Vault: {str(e)}")
+                self._config = {
+                    "api_key": env.get("AZURE_OPENAI_API_KEY"),
+                    "api_base": env.get("AZURE_OPENAI_ENDPOINT"),
+                    "model_version": env.get("AZURE_OPENAI_API_VERSION", "2024-02-01"),
+                    "deployment": env.get("AZURE_OPENAI_DEPLOYMENT"),
+                }
+
+        return self._config
+
+    def _get_client(self):
+        """Get or create Azure OpenAI client"""
+        if self._client is None:
+            config = self._load_config_from_vault()
+
+            if not all([config["api_key"], config["api_base"], config["deployment"]]):
+                raise ValueError("Missing required Azure OpenAI configuration")
+
+            self._client = AzureOpenAI(
+                azure_endpoint=config["api_base"],
+                api_key=config["api_key"],
+                api_version=config["model_version"],
+            )
+
+        return self._client
 
     async def generate_content(
         self,
@@ -18,57 +65,143 @@ class OpenAIClient:
         context_sections: List[str] = None,
         context_images: List[Dict[str, Any]] = None,
         context_tables: List[Dict[str, Any]] = None,
-        model: str = "llama3.2:1b"
+        section_name: str = "Generated Content"
     ) -> str:
         """
-        Generate content based on prompt and context
+        Generate proposal content based on prompt and context using Azure OpenAI
         """
         try:
-            system_prompt = """You are a professional proposal writer. Your task is to generate high-quality proposal content based on the user's prompt and provided context materials.
+            config = self._load_config_from_vault()
+            client = self._get_client()
 
-Guidelines:
-1. Use the provided context sections, images, and tables as reference material
-2. Generate content that is professional, coherent, and well-structured
-3. Maintain consistency with the style and tone of the provided context
-4. Include specific details and data from the context when relevant
-5. Format the output using proper markdown structure
-6. Ensure the content is tailored to the specific prompt requirements
-
-Context Materials:"""
+            workspace_content = ""
 
             if context_sections:
-                system_prompt += f"\n\nCONTEXT SECTIONS:\n"
+                workspace_content += "\n=== CONTENT SECTIONS ===\n"
                 for i, section in enumerate(context_sections, 1):
-                    system_prompt += f"\n{i}. {section}\n"
+                    workspace_content += f"\n{i}. {section}\n"
 
             if context_images:
-                system_prompt += f"\n\nCONTEXT IMAGES:\n"
+                workspace_content += "\n=== IMAGES ===\n"
                 for i, image in enumerate(context_images, 1):
-                    system_prompt += f"\n{i}. Image: {image.get('caption', 'No caption')}"
+                    workspace_content += f"\n{i}. Image: {image.get('caption', 'No caption')}"
                     if image.get('ocr_text'):
-                        system_prompt += f"\n   OCR Text: {image['ocr_text']}"
+                        workspace_content += f"\n   OCR Text: {image['ocr_text']}"
+                    workspace_content += "\n"
 
             if context_tables:
-                system_prompt += f"\n\nCONTEXT TABLES:\n"
+                workspace_content += "\n=== TABLES ===\n"
                 for i, table in enumerate(context_tables, 1):
-                    system_prompt += f"\n{i}. Table: {table.get('caption', 'No caption')}"
+                    workspace_content += f"\n{i}. Table: {table.get('caption', 'No caption')}"
                     if table.get('data'):
-                        system_prompt += f"\n   Data: {table['data']}"
+                        workspace_content += f"\n   Data: {table['data']}"
+                    workspace_content += "\n"
 
-            response = self.client.chat.completions.create(
-                model=model,
+            system_prompt = f"""
+You are a professional proposal writer for a reputed IT Services enterprise.
+You will help draft a specific section of a business proposal based strictly on the content provided below from a Workspace.
+
+Your response must follow these principles:
+- Use only the information provided in the Workspace. Do not assume or invent additional content.
+- Maintain an enterprise-grade, business-professional tone.
+- Ensure that the writing reflects the company's credibility, experience, and strategic value.
+- Use clear, confident, and well-structured language suitable for external stakeholders such as clients, procurement teams, and decision-makers.
+
+---
+### ✏️ Section to be Written:
+{section_name}
+
+### 🗂 Workspace Content:
+\"\"\"
+{workspace_content}
+\"\"\"
+
+---
+✅ Instructions:
+- Synthesize and summarize the workspace content into a coherent, well-written section.
+- If the content spans multiple ideas, organize them into logical paragraphs or bullet points as appropriate.
+- Do not repeat raw content or include citations/attributions. The output should be ready to copy-paste into a client-facing proposal.
+"""
+
+            user_message = f"Please generate the section content for '{section_name}' using the following user prompt as additional guidance: {prompt}"
+
+            response = client.chat.completions.create(
+                model=config["deployment"],
+                temperature=0.3,
+                max_tokens=1200,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                max_tokens=4000
+                    {"role": "user", "content": user_message}
+                ]
             )
 
-            return response.choices[0].message.content
+            generated_content = response.choices[0].message.content.strip()
+            logger.info(f"Successfully generated content for section: {section_name}")
+            return generated_content
 
         except Exception as e:
-            logger.error(f"Error generating content with OpenAI: {str(e)}")
+            logger.error(f"Error generating content with Azure OpenAI: {str(e)}")
             raise Exception(f"Content generation failed: {str(e)}")
 
-openai_client = OpenAIClient()
+    def author_proposal_section(
+        self,
+        section_name: str,
+        workspace_content: str,
+        additional_prompt: str = ""
+    ) -> str:
+        """
+        Legacy method for backward compatibility - generates proposal section content
+        """
+        try:
+            config = self._load_config_from_vault()
+            client = self._get_client()
+
+            prompt = f"""
+You are a professional proposal writer for a reputed IT Services enterprise.
+You will help draft a specific section of a business proposal based strictly on the content provided below from a Workspace.
+
+Your response must follow these principles:
+- Use only the information provided in the Workspace. Do not assume or invent additional content.
+- Maintain an enterprise-grade, business-professional tone.
+- Ensure that the writing reflects the company's credibility, experience, and strategic value.
+- Use clear, confident, and well-structured language suitable for external stakeholders such as clients, procurement teams, and decision-makers.
+
+---
+### ✏️ Section to be Written:
+{section_name}
+
+### 🗂 Workspace Content:
+\"\"\"
+{workspace_content}
+\"\"\"
+
+---
+✅ Instructions:
+- Synthesize and summarize the workspace content into a coherent, well-written section.
+- If the content spans multiple ideas, organize them into logical paragraphs or bullet points as appropriate.
+- Do not repeat raw content or include citations/attributions. The output should be ready to copy-paste into a client-facing proposal.
+"""
+
+            user_message = "Please generate the section content now."
+            if additional_prompt:
+                user_message = f"Please generate the section content now. Additional guidance: {additional_prompt}"
+
+            response = client.chat.completions.create(
+                model=config["deployment"],
+                temperature=0.3,
+                max_tokens=1200,
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": user_message}
+                ]
+            )
+
+            return response.choices[0].message.content.strip()
+
+        except Exception as e:
+            logger.error(f"❌ Unexpected error during Azure OpenAI API call: {str(e)}")
+            return f"❌ API call failed: {str(e)}"
+
+openai_client = AzureOpenAIClient()
+
+azure_openai_client = openai_client

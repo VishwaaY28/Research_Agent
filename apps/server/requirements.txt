@@ -18,3 +18,5 @@ camelot-py[cv]
 pdfplumber
 tabula-py
 openai
+azure-identity
+azure-keyvault-secrets

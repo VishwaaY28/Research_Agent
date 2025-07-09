@@ -53,7 +53,6 @@ class SectionRepository:
                 source=filename
             )
 
-            # Add tags to section
             if tags:
                 await self.add_tags_to_section(section.id, tags)
 

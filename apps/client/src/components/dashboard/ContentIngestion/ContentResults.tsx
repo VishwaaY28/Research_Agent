@@ -926,7 +926,6 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
       {renderViewModal()}
 
       <div className="h-full bg-gray-50 flex">
-        {/* Main Content */}
         <div className="flex-1 flex flex-col">
           <div className="bg-white border-b border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
@@ -1008,7 +1007,6 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
           </div>
         </div>
 
-        {/* Selected Items Sidebar */}
         {selectedItems.length > 0 && (
           <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
             <div className="p-4 border-b border-gray-200">

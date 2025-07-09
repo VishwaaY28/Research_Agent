@@ -68,7 +68,6 @@ const ContentViewModal: React.FC<ContentViewModalProps> = ({
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="fixed inset-0 bg-black bg-opacity-50" onClick={onClose} />
         <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
-          {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
             <div className="flex-1 min-w-0">
               <h2 className="text-xl font-semibold text-gray-900 truncate">{title}</h2>
@@ -95,7 +94,6 @@ const ContentViewModal: React.FC<ContentViewModalProps> = ({
             </div>
           </div>
 
-          {/* Tags */}
           {tags.length > 0 && (
             <div className="px-6 py-3 border-b border-gray-100">
               <div className="flex flex-wrap gap-2">
@@ -112,7 +110,6 @@ const ContentViewModal: React.FC<ContentViewModalProps> = ({
             </div>
           )}
 
-          {/* Content */}
           <div className="p-6 overflow-y-auto max-h-[60vh]">
             {type === 'generated' ? (
               <div className="prose prose-gray max-w-none">
@@ -703,7 +700,6 @@ const ProposalAuthoring: React.FC = () => {
         </div>
       </div>
 
-      {/* Content View Modal */}
       <ContentViewModal
         isOpen={viewModal.isOpen}
         onClose={closeViewModal}

@@ -9,4 +9,5 @@ env = {
     "LOG_LEVEL": os.getenv("LOG_LEVEL", "INFO"),
     "DB_URL": os.getenv("DB_URL", "sqlite://db.sqlite3"),
     "SECRET_KEY": os.getenv("SECRET_KEY", "your-secret-key"),
+    "KEY_VAULT_URL": os.getenv("KEY_VAULT_URL", ""),
 }
