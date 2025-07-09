@@ -4,6 +4,7 @@ import {
   FiArrowLeft,
   FiChevronDown,
   FiCopy,
+  FiEye,
   FiFileText,
   FiLoader,
   FiRefreshCw,
@@ -37,6 +38,7 @@ const CreateProposal: React.FC = () => {
   const [showWorkspaceDropdown, setShowWorkspaceDropdown] = useState(false);
   const [tags, setTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState('');
+  const [viewingSection, setViewingSection] = useState<Section | null>(null);
 
   useEffect(() => {
     fetchWorkspaces();
@@ -136,7 +138,86 @@ const CreateProposal: React.FC = () => {
     }
   };
 
+  const handleViewSection = (section: Section) => {
+    setViewingSection(section);
+  };
+
   const selectedWorkspaceData = workspaces.find((w) => w.id === selectedWorkspace);
+
+  const SectionViewModal = () => {
+    if (!viewingSection) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-xl max-w-4xl w-full max-h-[80vh] flex flex-col">
+          <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">{viewingSection.name}</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Source: {viewingSection.source || 'Unknown'}
+              </p>
+            </div>
+            <button
+              onClick={() => setViewingSection(null)}
+              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+            >
+              <FiX className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="prose prose-gray max-w-none">
+              <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
+                {viewingSection.content}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
+            <div className="flex items-center gap-2">
+              {viewingSection.tags && viewingSection.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {viewingSection.tags.map((tag) => (
+                    <span
+                      key={tag.id}
+                      className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs"
+                    >
+                      <FiTag className="w-3 h-3 mr-1" />
+                      {tag.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => copyToClipboard(viewingSection.content)}
+                className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-primary hover:bg-white rounded-lg transition-colors"
+              >
+                <FiCopy className="w-4 h-4" />
+                Copy Content
+              </button>
+              <button
+                onClick={() => {
+                  handleSectionToggle(viewingSection.id);
+                  setViewingSection(null);
+                }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  selectedSections.includes(viewingSection.id)
+                    ? 'bg-red-600 text-white hover:bg-red-700'
+                    : 'bg-primary text-white hover:bg-primary/90'
+                }`}
+              >
+                {selectedSections.includes(viewingSection.id)
+                  ? 'Remove from Context'
+                  : 'Add to Context'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-full bg-gradient-to-br from-gray-50 to-gray-100/50">
@@ -253,9 +334,9 @@ const CreateProposal: React.FC = () => {
                       </h4>
                       <div className="space-y-2 max-h-40 overflow-y-auto">
                         {workspaceContent.sections.map((section: Section) => (
-                          <label
+                          <div
                             key={section.id}
-                            className="flex items-start gap-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
+                            className="flex items-start gap-3 p-2 hover:bg-gray-50 rounded-lg group"
                           >
                             <input
                               type="checkbox"
@@ -263,7 +344,10 @@ const CreateProposal: React.FC = () => {
                               onChange={() => handleSectionToggle(section.id)}
                               className="mt-1 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
                             />
-                            <div className="flex-1 min-w-0">
+                            <div
+                              className="flex-1 min-w-0 cursor-pointer"
+                              onClick={() => handleSectionToggle(section.id)}
+                            >
                               <div className="font-medium text-sm text-gray-900 truncate">
                                 {section.name}
                               </div>
@@ -271,7 +355,17 @@ const CreateProposal: React.FC = () => {
                                 {section.content.substring(0, 100)}...
                               </div>
                             </div>
-                          </label>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewSection(section);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-primary rounded transition-all"
+                              title="View full content"
+                            >
+                              <FiEye className="w-4 h-4" />
+                            </button>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -371,6 +465,8 @@ const CreateProposal: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <SectionViewModal />
     </div>
   );
 };
