@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
   FiCalendar,
+  FiChevronLeft,
   FiChevronRight,
   FiCopy,
   FiEdit3,
@@ -147,6 +148,7 @@ const ProposalAuthoring: React.FC = () => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [tagSuggestions, setTagSuggestions] = useState<Array<{ id: number; name: string }>>([]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const [viewModal, setViewModal] = useState<{
     isOpen: boolean;
@@ -319,64 +321,79 @@ const ProposalAuthoring: React.FC = () => {
       </div>
 
       <div className="flex h-[calc(100vh-140px)]">
-        <div className="w-80 bg-white border-r border-gray-200 shadow-sm">
-          <div className="p-6 border-b border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Workspaces</h2>
-            <div className="space-y-2">
-              {workspacesLoading ? (
-                <div className="space-y-2">
-                  {[...Array(3)].map((_, i) => (
-                    <div key={i} className="animate-pulse">
-                      <div className="h-12 bg-gray-200 rounded-lg"></div>
-                    </div>
-                  ))}
-                </div>
-              ) : workspaces.length === 0 ? (
-                <div className="text-center py-8">
-                  <FiFolder className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500 text-sm">No workspaces found</p>
-                </div>
-              ) : (
-                <div className="max-h-96 overflow-y-auto space-y-2">
-                  {workspaces.map((workspace) => (
-                    <button
-                      key={workspace.id}
-                      onClick={() => setSelectedWorkspace(workspace.id)}
-                      className={`w-full text-left p-3 rounded-lg transition-all duration-200 ${
-                        selectedWorkspace === workspace.id
-                          ? 'bg-gradient-to-r from-primary/10 to-primary/20 border-primary/30 border text-primary'
-                          : 'hover:bg-gray-50 border border-transparent'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium truncate">{workspace.name}</h3>
-                          <p className="text-sm text-gray-500 truncate">{workspace.clientName}</p>
-                        </div>
-                        {selectedWorkspace === workspace.id && (
-                          <FiChevronRight className="w-4 h-4 text-primary" />
-                        )}
+        {!sidebarCollapsed && (
+          <div className="w-80 bg-white border-r border-gray-200 shadow-sm">
+            <div className="p-6 border-b border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Workspaces</h2>
+              <div className="space-y-2">
+                {workspacesLoading ? (
+                  <div className="space-y-2">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="animate-pulse">
+                        <div className="h-12 bg-gray-200 rounded-lg"></div>
                       </div>
-                    </button>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                ) : workspaces.length === 0 ? (
+                  <div className="text-center py-8">
+                    <FiFolder className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500 text-sm">No workspaces found</p>
+                  </div>
+                ) : (
+                  <div className="max-h-96 overflow-y-auto space-y-2">
+                    {workspaces.map((workspace) => (
+                      <button
+                        key={workspace.id}
+                        onClick={() => {
+                          setSelectedWorkspace(workspace.id);
+                          setSidebarCollapsed(true);
+                        }}
+                        className={`w-full text-left p-3 rounded-lg transition-all duration-200 ${
+                          selectedWorkspace === workspace.id
+                            ? 'bg-gradient-to-r from-primary/10 to-primary/20 border-primary/30 border text-primary'
+                            : 'hover:bg-gray-50 border border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium truncate">{workspace.name}</h3>
+                            <p className="text-sm text-gray-500 truncate">{workspace.clientName}</p>
+                          </div>
+                          {selectedWorkspace === workspace.id && (
+                            <FiChevronRight className="w-4 h-4 text-primary" />
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <div className="flex-1 flex flex-col">
           {selectedWorkspace ? (
             <>
               <div className="bg-white border-b border-gray-200 px-8 py-6">
                 <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">
-                      {selectedWorkspaceData?.name}
-                    </h2>
-                    <p className="text-gray-600 text-sm">{selectedWorkspaceData?.clientName}</p>
+                  <div className="flex items-center gap-2">
+                    {sidebarCollapsed && (
+                      <button
+                        className="bg-white border rounded-full p-2 shadow"
+                        onClick={() => setSidebarCollapsed(false)}
+                        title="Show workspaces"
+                      >
+                        <FiChevronLeft className="w-5 h-5" />
+                      </button>
+                    )}
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900">
+                        {selectedWorkspaceData?.name}
+                      </h2>
+                      <p className="text-gray-600 text-sm">{selectedWorkspaceData?.clientName}</p>
+                    </div>
                   </div>
-
                   <button
                     onClick={() => setShowFilters(!showFilters)}
                     className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
