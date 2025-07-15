@@ -2,7 +2,7 @@ from fastapi.responses import JSONResponse
 from database.repositories.tags import tag_repository
 
 async def get_all_section_tags():
-    tags = await tag_repository.get_all_section_tags()
+    tags = await tag_repositories.get_all_section_tags()
     return JSONResponse([{
         "id": tag.id,
         "name": tag.name,
