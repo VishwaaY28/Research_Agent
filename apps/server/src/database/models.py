@@ -16,6 +16,7 @@ class Workspace(TimestampMixin):
   id = fields.IntField(pk=True)
   name = fields.CharField(max_length=255)
   client = fields.CharField(max_length=255)
+  workspace_type = fields.CharField(max_length=50, null=True)
 
 class Tag(TimestampMixin):
   id = fields.IntField(pk=True)

@@ -4,9 +4,9 @@ from tortoise.transactions import in_transaction
 
 class WorkspaceRepository:
     @staticmethod
-    async def create_workspace(name: str, client: str, tag_names: list[str]):
+    async def create_workspace(name: str, client: str, tag_names: list[str], workspace_type: str = None):
         async with in_transaction():
-            workspace = await Workspace.create(name=name, client=client)
+            workspace = await Workspace.create(name=name, client=client, workspace_type=workspace_type)
 
             for tag_name in tag_names:
                 if tag_name.strip():

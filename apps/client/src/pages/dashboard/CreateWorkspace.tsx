@@ -18,6 +18,7 @@ const CreateWorkspace: React.FC = () => {
   const [currentTag, setCurrentTag] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedVertical, setSelectedVertical] = useState('');
+  const [workspaceType, setWorkspaceType] = useState('');
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({
@@ -69,8 +70,9 @@ const CreateWorkspace: React.FC = () => {
       const workspaceName = `${selectedVertical} - ${formData.name}`;
       const newWorkspace = await createWorkspace({
         name: workspaceName,
-        clientName: formData.clientName.trim(),
+        client: formData.clientName.trim(),
         tags: formData.tags,
+        workspace_type: workspaceType,
       });
 
       toast.success('Workspace created successfully!');
@@ -130,7 +132,8 @@ const CreateWorkspace: React.FC = () => {
                     <select
                       value={selectedVertical}
                       onChange={e => setSelectedVertical(e.target.value)}
-                      className="px-3 py-3 border border-gray-200 rounded-lg bg-white"
+                      className="w-40 px-4 py-3 border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-200 custom-select appearance-none"
+                      style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg fill=\'none\' stroke=\'%236B7280\' stroke-width=\'2\' viewBox=\'0 0 24 24\' width=\'16\' height=\'16\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1.25rem center', backgroundSize: '16px 16px' }}
                       required
                     >
                       <option value="">Select Vertical</option>
@@ -158,6 +161,33 @@ const CreateWorkspace: React.FC = () => {
                     Choose a descriptive name for your workspace
                   </p>
                 </div>
+                {/* Workspace Type Dropdown */}
+                <div>
+                  <label htmlFor="workspaceType" className="block text-sm font-medium text-gray-700 mb-2">
+                    Workspace Type
+                  </label>
+                  <select
+                    id="workspaceType"
+                    name="workspaceType"
+                    value={workspaceType}
+                    onChange={e => setWorkspaceType(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-200 custom-select appearance-none"
+                    style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg fill=\'none\' stroke=\'%236B7280\' stroke-width=\'2\' viewBox=\'0 0 24 24\' width=\'16\' height=\'16\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1.25rem center', backgroundSize: '16px 16px' }}
+                    required
+                  >
+                    <option value="">Select Type</option>
+                    <option value="Proposal">Proposal</option>
+                    <option value="Blog">Blog</option>
+                    <option value="Service Agreement">Service Agreement</option>
+                    <option value="Template">Template</option>
+                    <option value="Report">Report</option>
+                    <option value="Research">Research</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Choose the type of workspace you are creating
+                  </p>
+                </div>
 
                 <div>
                   <label
@@ -173,7 +203,8 @@ const CreateWorkspace: React.FC = () => {
                     list="client-suggestions"
                     value={formData.clientName}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-200"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-200 custom-select appearance-none"
+                    style={{ backgroundImage: 'none' }}
                     placeholder="Who is this workspace being prepared for?"
                     required
                   />

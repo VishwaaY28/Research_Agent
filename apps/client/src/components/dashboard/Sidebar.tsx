@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FiChevronLeft, FiChevronRight, FiEdit3, FiLayers, FiLogOut, FiUpload } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiDatabase, FiEdit3, FiFolder, FiLayers, FiLogOut, FiUpload } from 'react-icons/fi';
 import { NavLink, useNavigate } from 'react-router-dom';
 import logo from '../../assets/logo.png';
 import { useAuth } from '../../hooks/useAuth';
@@ -12,9 +12,9 @@ const Sidebar: React.FC = () => {
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: FiLayers },
     { path: '/dashboard/content-ingestion', label: 'Content Ingestion', icon: FiUpload },
-    { path: '/dashboard/workspaces', label: 'Workspaces', icon: FiLayers },
+    { path: '/dashboard/workspaces', label: 'Workspaces', icon: FiFolder },
     { path: '/dashboard/proposal-authoring', label: 'Proposal Authoring', icon: FiEdit3 },
-    { path: '/dashboard/content-sources', label: 'Content Sources', icon: FiLayers },
+    { path: '/dashboard/content-sources', label: 'Content Sources', icon: FiDatabase },
   ];
 
   const handleLogout = () => {
@@ -29,13 +29,11 @@ const Sidebar: React.FC = () => {
       <div className={`flex items-center justify-between p-6 border-b border-gray-200 ${collapsed ? 'justify-center p-2' : ''}`}>
         {!collapsed && (
           <div className="flex items-center space-x-2">
-            <img src={logo} alt="Logo" className="h-10 w-auto" />
+            <img src={logo} alt="Logo" className="h-10 w-auto transition-all duration-200" />
             <span className="text-lg font-bold text-primary">Proposal Authoring</span>
           </div>
         )}
-        {collapsed && (
-          <img src={logo} alt="Logo" className="h-8 w-auto" />
-        )}
+        {/* No logo when collapsed */}
         <button
           onClick={() => setCollapsed((prev) => !prev)}
           className={`p-1 rounded hover:bg-gray-100 transition-colors ${collapsed ? '' : 'ml-2'}`}
