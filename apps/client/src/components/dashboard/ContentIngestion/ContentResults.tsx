@@ -2,15 +2,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-  FiCheck,
-  FiChevronDown,
-  FiChevronRight,
-  FiEye,
-  FiPlus,
-  FiSave,
-  FiSearch,
-  FiTag,
-  FiX,
+    FiCheck,
+    FiChevronDown,
+    FiChevronRight,
+    FiEye,
+    FiPlus,
+    FiSave,
+    FiSearch,
+    FiTag,
+    FiX,
 } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '../../../hooks/useDebounce';
@@ -18,7 +18,7 @@ import { useSections } from '../../../hooks/useSections';
 import { type Tag, useTags } from '../../../hooks/useTags';
 import { useWorkspace } from '../../../hooks/useWorkspace';
 
-type ContentSection = {
+type MinorChunk = {
   tag: string;
   content: Array<{
     text: string;
@@ -30,7 +30,8 @@ type StructuredChunk = {
   title: string;
   start_range: string;
   end_range: string;
-  content: ContentSection[];
+  content: MinorChunk[];
+  file_source?: string;
 };
 
 type SimpleChunk = {
@@ -221,7 +222,7 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
               <div className="flex-1">
                 <h4 className="font-medium text-gray-900">{chunk.title}</h4>
                 <p className="text-sm text-gray-500">
-                  {chunk.content.length} sections • {chunk.start_range} - {chunk.end_range}
+                  {chunk.content.length} minor chunks • {chunk.start_range} - {chunk.end_range}
                 </p>
                 {selectedItem && selectedItem.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
@@ -280,12 +281,11 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
             </div>
           </div>
         </div>
-
         {isExpanded && (
           <div className="border-t border-gray-200 bg-white">
-            {chunk.content.map((section, sectionIndex) => {
+            {chunk.content.map((minor, sectionIndex) => {
               const sectionIsSelected = isItemSelected(
-                section,
+                minor,
                 result.content_source_id,
                 'section',
                 sectionIndex,
@@ -293,9 +293,8 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
               const selectedSectionItem = selectedItems.find(
                 (item) =>
                   item.uniqueId ===
-                  generateItemId(section, result.content_source_id, 'section', sectionIndex),
+                  generateItemId(minor, result.content_source_id, 'section', sectionIndex),
               );
-
               return (
                 <div
                   key={sectionIndex}
@@ -305,7 +304,7 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
                   onClick={(e) => {
                     e.stopPropagation();
                     handleItemToggle(
-                      section,
+                      minor,
                       result.content_source_id,
                       sourceName,
                       'section',
@@ -324,7 +323,7 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
                       {sectionIsSelected && <FiCheck className="w-2.5 h-2.5" />}
                     </div>
                     <div className="flex-1">
-                      <h5 className="font-medium text-gray-800 mb-2">{section.tag}</h5>
+                      <h5 className="font-medium text-gray-800 mb-2">{minor.tag}</h5>
                       {selectedSectionItem && selectedSectionItem.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-2">
                           {selectedSectionItem.tags.map((tag, tagIndex) => (
@@ -339,15 +338,15 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
                         </div>
                       )}
                       <div className="text-sm text-gray-600 space-y-1">
-                        {section.content.slice(0, 2).map((content, contentIndex) => (
+                        {minor.content.slice(0, 2).map((content, contentIndex) => (
                           <p key={contentIndex} className="line-clamp-2">
                             {content.text.substring(0, 200)}
                             {content.text.length > 200 && '...'}
                           </p>
                         ))}
-                        {section.content.length > 2 && (
+                        {minor.content.length > 2 && (
                           <p className="text-gray-500 italic">
-                            +{section.content.length - 2} more items
+                            +{minor.content.length - 2} more items
                           </p>
                         )}
                       </div>
@@ -361,7 +360,7 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
                               (item) =>
                                 item.uniqueId ===
                                 generateItemId(
-                                  section,
+                                  minor,
                                   result.content_source_id,
                                   'section',
                                   sectionIndex,
@@ -377,12 +376,6 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
                           <FiPlus className="w-3 h-3" />
                         </button>
                       )}
-                      <button
-                        onClick={(e) => handleViewItem(section, sourceName, 'section', e)}
-                        className="p-1 text-gray-400 hover:text-gray-600 rounded transition-colors"
-                      >
-                        <FiEye className="w-3 h-3" />
-                      </button>
                     </div>
                   </div>
                 </div>
