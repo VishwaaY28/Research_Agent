@@ -243,27 +243,12 @@ def extract_toc(elements):
 
     return toc_sections
 
-def clean_toc_title(text):
-    """Remove trailing dot-leader page numbers from TOC titles."""
-    # Remove trailing dot-leader and page number, e.g., 'Section Name .......... 3' -> 'Section Name'
-    return re.sub(r"\s*\.{2,}\s*\d+$", "", text).strip()
-
 def clean_toc_sections(toc_sections):
-    """Clean and format TOC sections, filtering out non-section entries (e.g., page numbers only, empty, or too short)."""
+    """Clean and format TOC sections"""
     cleaned = []
     for section in toc_sections:
         text = section.get("text", "").strip()
-        # Remove trailing dot-leader page numbers
-        text = clean_toc_title(text)
-        # Filter out lines that are just numbers, empty, too short, or just dots
-        if (
-            text
-            and len(text) > 5
-            and not text.isdigit()
-            and not re.match(r"^\d+\s*$", text)
-            and not re.match(r"^\.{2,}$", text)
-            and not re.match(r"^\s*$", text)
-        ):
+        if text and len(text) > 5:
             cleaned.append({
                 "title": text,
                 "level": 1
@@ -310,48 +295,21 @@ def filter_out_table_pages_from_extracted(chunks, table_pages):
     """Filter content that appears on pages with tables"""
     return chunks
 
-# Patch parse_toc_with_pages to only keep entries with both title and page number, and filter out duplicates
-
 def parse_toc_with_pages(toc_sections):
-    """Parse TOC entries and extract their titles and page numbers using regex. Only keep entries with both title and page number, and filter out duplicates."""
+    """Parse TOC entries and extract their titles and page numbers using regex."""
     toc_entries = []
-    page_num_pattern = re.compile(r"(.*?)\s+\.{2,}\s*(\d+)$")
-    seen_titles = set()
+    page_num_pattern = re.compile(r"(.*?)\s+(\d+)$")
     for section in toc_sections:
         text = section.get("text", "").strip()
-        match = page_num_pattern.match(section.get("text", "").strip())
+        match = page_num_pattern.match(text)
         if match:
             title = match.group(1).strip()
             page = int(match.group(2))
-            # Clean the title
-            title = clean_toc_title(title)
-            # Filter out empty or duplicate titles
-            if title and title not in seen_titles:
-                toc_entries.append({"title": title, "page": page})
-                seen_titles.add(title)
-    return toc_entries
-
-
-def extract_major_toc_chunks(toc_sections, total_pages=None):
-    """Return only major TOC headings as chunks with title and page range."""
-    toc_entries = parse_toc_with_pages(toc_sections)
-    if not toc_entries:
-        return []
-    toc_entries.sort(key=lambda x: x["page"])
-    chunks = []
-    for idx, entry in enumerate(toc_entries):
-        start_page = entry["page"]
-        if idx < len(toc_entries) - 1:
-            end_page = toc_entries[idx + 1]["page"] - 1
+            toc_entries.append({"title": title, "page": page})
         else:
-            end_page = total_pages if total_pages is not None else None
-        chunk = {
-            "title": clean_toc_title(entry["title"]),
-            "start_page": start_page,
-            "end_page": end_page
-        }
-        chunks.append(chunk)
-    return chunks
+            # If no page number, just use the text
+            toc_entries.append({"title": text, "page": None})
+    return toc_entries
 
 
 def parse_toc_hierarchical(elements, toc_sections):
@@ -396,7 +354,7 @@ def parse_toc_hierarchical(elements, toc_sections):
                 if current_minor:
                     minor_chunks.append(current_minor)
                 current_minor = {
-                    "tag": clean_toc_title(text),
+                    "tag": text,
                     "content": []
                 }
             elif text:
@@ -410,10 +368,8 @@ def parse_toc_hierarchical(elements, toc_sections):
             minor_chunks.append(current_minor)
         start_range = f"Page {entry['page']}"
         end_range = f"Page {entry['end_page']}" if entry['end_page'] else "End"
-        # Clean the chunk title
-        chunk_title = clean_toc_title(entry["title"])
         chunks.append({
-            "title": chunk_title,
+            "title": entry["title"],
             "start_range": start_range,
             "end_range": end_range,
             "content": minor_chunks
@@ -473,7 +429,7 @@ def parse_toc_hierarchical_old(elements, toc_sections):
 
 
 def extract_pdf_sections(filepath: str, figures_dir: str) -> List[Dict]:
-    """Extract sections from PDF - returns only major TOC headings as chunks if TOC is found."""
+    """Extract sections from PDF - returns hierarchical TOC chunks with minor chunks inside each TOC section."""
     logger.info(f"Starting PDF extraction for: {filepath}")
 
     cached_data = check_extracted_cache(filepath)
@@ -502,20 +458,9 @@ def extract_pdf_sections(filepath: str, figures_dir: str) -> List[Dict]:
     toc_sections_raw = extract_toc(merged_sections)
 
     if toc_sections_raw:
-        logger.info("Using TOC-based major heading extraction (no sub-chunks)")
+        logger.info("Using TOC-based hierarchical extraction")
         toc_sections = clean_toc_sections(toc_sections_raw)
-        logger.info(f"TOC entries after cleaning: {len(toc_sections)}")
-        for idx, toc in enumerate(toc_sections):
-            logger.info(f"TOC {idx+1}: {toc['title']}")
-        # Try to get total pages from merged_sections metadata
-        total_pages = None
-        for el in reversed(merged_sections):
-            page = el.get("metadata", {}).get("page_number")
-            if page is not None:
-                total_pages = page
-                break
-        chunks = extract_major_toc_chunks(toc_sections, total_pages=total_pages)
-        logger.info(f"Major chunk titles: {[chunk['title'] for chunk in chunks]}")
+        chunks = parse_toc_hierarchical(merged_sections, toc_sections)
     else:
         logger.info("Using fallback chunking (flat)")
         chunks = []
