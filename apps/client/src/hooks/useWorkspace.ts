@@ -8,7 +8,8 @@ export type Workspace = {
   name: string;
   clientName?: string;
   tags: string[];
-  createdAt: string;
+  workspaceType?: string;
+  createdAt?: string;
 };
 
 export type ContentChunk = {
@@ -115,7 +116,11 @@ export function useWorkspace() {
       );
       if (!res.ok) throw new Error('Failed to fetch workspace');
       const data = await res.json();
-      return data;
+      return {
+        ...data,
+        clientName: data.client,
+        workspaceType: data.workspace_type,
+      };
     } catch (err: any) {
       toast.error(err.message || 'Could not load workspace');
     } finally {
@@ -133,12 +138,13 @@ export function useWorkspace() {
     return Array.from(tags);
   }
 
-  async function createWorkspace(data: { name: string; clientName: string; tags: string[] }) {
-    const payload = {
+  async function createWorkspace(data: { name: string; client: string; tags: string[]; workspace_type?: string }) {
+    const payload: any = {
       name: data.name,
-      client: data.clientName,
+      client: data.client,
       tags: data.tags,
     };
+    if (data.workspace_type) payload.workspace_type = data.workspace_type;
     const res = await fetch(API.BASE_URL() + API.ENDPOINTS.WORKSPACES.BASE_URL(), {
       method: 'POST',
       headers: {

@@ -12,6 +12,7 @@ class WorkspaceCreateRequest(BaseModel):
     name: str
     client: str
     tags: List[str]
+    workspace_type: Optional[str] = None
 
 class WorkspaceUpdateRequest(BaseModel):
     name: Optional[str] = None
@@ -28,12 +29,13 @@ class WorkspaceFilterRequest(BaseModel):
 
 async def create_workspace(data: WorkspaceCreateRequest):
     try:
-        logger.info(f"Creating workspace with data: name={data.name}, client={data.client}, tags={data.tags}")
+        logger.info(f"Creating workspace with data: name={data.name}, client={data.client}, tags={data.tags}, workspace_type={data.workspace_type}")
 
         workspace = await workspace_repository.create_workspace(
             name=data.name,
             client=data.client,
-            tag_names=data.tags
+            tag_names=data.tags,
+            workspace_type=data.workspace_type
         )
 
         logger.info(f"Workspace created with ID: {workspace.id}")
@@ -52,7 +54,8 @@ async def create_workspace(data: WorkspaceCreateRequest):
             "id": workspace.id,
             "name": workspace.name,
             "client": workspace.client,
-            "tags": tags
+            "tags": tags,
+            "workspace_type": workspace.workspace_type
         }
 
         logger.info(f"Returning workspace data: {result}")
@@ -105,7 +108,13 @@ async def fetch_by_id(workspace_id: int):
         raise HTTPException(status_code=404, detail="Workspace not found")
     tag_relations = await workspace.tags.all().prefetch_related("tag")
     tags = [wt.tag.name for wt in tag_relations]
-    return JSONResponse({"id": workspace.id, "name": workspace.name, "client": workspace.client, "tags": tags})
+    return JSONResponse({
+        "id": workspace.id,
+        "name": workspace.name,
+        "client": workspace.client,
+        "tags": tags,
+        "workspace_type": workspace.workspace_type
+    })
 
 async def fetch_by_name(name: str):
     workspace = await workspace_repository.fetch_by_name(name)
@@ -113,7 +122,13 @@ async def fetch_by_name(name: str):
         raise HTTPException(status_code=404, detail="Workspace not found")
     tag_relations = await workspace.tags.all().prefetch_related("tag")
     tags = [wt.tag.name for wt in tag_relations]
-    return JSONResponse({"id": workspace.id, "name": workspace.name, "client": workspace.client, "tags": tags})
+    return JSONResponse({
+        "id": workspace.id,
+        "name": workspace.name,
+        "client": workspace.client,
+        "tags": tags,
+        "workspace_type": workspace.workspace_type
+    })
 
 async def filter_by_tags(tags: List[str]):
     workspaces = await workspace_repository.filter_by_tags(tags)

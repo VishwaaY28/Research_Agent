@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import {
-  FiArrowLeft,
-  FiEdit3,
-  FiEye,
-  FiFileText,
-  FiPlus,
-  FiSearch,
-  FiTag,
-  FiX,
+    FiArrowLeft,
+    FiEdit3,
+    FiEye,
+    FiFileText,
+    FiPlus,
+    FiSearch,
+    FiTag,
+    FiX,
 } from 'react-icons/fi';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -22,6 +22,7 @@ type Workspace = {
   name: string;
   clientName?: string;
   tags: string[];
+  workspaceType?: string;
 };
 
 const WorkspaceView: React.FC = () => {
@@ -75,6 +76,7 @@ const WorkspaceView: React.FC = () => {
           name: workspaceData.name,
           clientName: workspaceData.client,
           tags: workspaceData.tags || [],
+          workspaceType: workspaceData.workspaceType,
         });
 
         const sectionsData = await fetchSections(id);
@@ -208,7 +210,12 @@ const WorkspaceView: React.FC = () => {
                   <h1 className="text-2xl font-bold text-gray-900">{workspace.name}</h1>
                 </div>
                 {workspace.clientName && (
-                  <p className="text-gray-600 ml-8">Client: {workspace.clientName}</p>
+                  <p className="text-gray-600 ml-8">
+                    Client: {workspace.clientName}
+                    {workspace.workspaceType && (
+                      <span className="ml-4">| Type: <span className="font-semibold">{workspace.workspaceType}</span></span>
+                    )}
+                  </p>
                 )}
               </div>
               <div className="flex items-center space-x-3">
