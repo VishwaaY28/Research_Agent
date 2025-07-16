@@ -1,13 +1,12 @@
 import React, { useEffect } from 'react';
 import {
-  FiArrowRight,
-  FiClock,
-  FiEdit,
-  FiFileText,
-  FiFolder,
-  FiPlus,
-  FiTag,
-  FiUser,
+    FiArrowRight,
+    FiClock,
+    FiEdit,
+    FiFileText,
+    FiFolder,
+    FiPlus,
+    FiTag
 } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { useDashboard } from '../../hooks/useDashboard';
@@ -135,13 +134,13 @@ const Home: React.FC = () => {
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-xl font-semibold text-black">Recently Generated</h2>
+                    <h2 className="text-xl font-semibold text-black">Recently Used Workspaces</h2>
                     <p className="text-neutral-600 text-sm mt-1">
-                      Your latest AI-generated content
+                      Your most recently accessed workspaces
                     </p>
                   </div>
                   <button
-                    onClick={() => navigate('/dashboard/proposal-authoring')}
+                    onClick={() => navigate('/dashboard/workspaces')}
                     className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
                   >
                     View all
@@ -149,34 +148,26 @@ const Home: React.FC = () => {
                 </div>
               </div>
               <div className="p-6">
-                {dashboardData?.recent_generated_content &&
-                dashboardData.recent_generated_content.length > 0 ? (
+                {dashboardData?.recent_workspaces && dashboardData.recent_workspaces.length > 0 ? (
                   <div className="space-y-4">
-                    {dashboardData.recent_generated_content.map((content) => (
+                    {dashboardData.recent_workspaces.map((ws) => (
                       <div
-                        key={content.id}
-                        onClick={() => navigate(`/dashboard/workspaces/${content.workspace_id}`)}
+                        key={ws.id}
+                        onClick={() => navigate(`/dashboard/workspaces/${ws.id}`)}
                         className="p-4 border border-gray-200 rounded-lg hover:border-primary cursor-pointer transition-colors"
                       >
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">
                             <div className="flex items-center mb-2">
-                              <h3 className="font-medium text-black">{content.title}</h3>
+                              <h3 className="font-medium text-black">{ws.name}</h3>
                             </div>
-                            <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                              {content.content_preview}
+                            <p className="text-sm text-gray-600 mb-2">
+                              Client: {ws.client}
                             </p>
                             <div className="flex items-center space-x-4">
-                              <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-xs font-medium">
-                                {content.workspace_name}
-                              </span>
-                              <div className="flex items-center text-sm text-neutral-500">
-                                <FiUser className="w-4 h-4 mr-1" />
-                                {content.user_name}
-                              </div>
                               <div className="flex items-center text-sm text-neutral-500">
                                 <FiClock className="w-4 h-4 mr-1" />
-                                {formatTimeAgo(content.created_at)}
+                                {ws.last_used_at ? formatTimeAgo(ws.last_used_at) : 'Never used'}
                               </div>
                             </div>
                           </div>
@@ -187,18 +178,18 @@ const Home: React.FC = () => {
                   </div>
                 ) : (
                   <div className="text-center py-12">
-                    <FiFileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                    <FiFolder className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-900 mb-2">
-                      No generated content yet
+                      No recently used workspaces
                     </h3>
                     <p className="text-gray-500 mb-6">
-                      Start creating proposals to see your recent work here
+                      Open a workspace to see it appear here
                     </p>
                     <button
-                      onClick={() => navigate('/dashboard/workspaces')}
+                      onClick={() => navigate('/dashboard/workspaces/create')}
                       className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
                     >
-                      Browse Workspaces
+                      Create Workspace
                     </button>
                   </div>
                 )}

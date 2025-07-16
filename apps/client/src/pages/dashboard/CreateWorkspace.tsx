@@ -60,8 +60,8 @@ const CreateWorkspace: React.FC = () => {
     }
 
     if (!formData.clientName.trim()) {
-      toast.error('Client name is required');
-      return;
+toast.error('Client name is required');
+return;
     }
 
     setIsSubmitting(true);
@@ -128,7 +128,7 @@ const CreateWorkspace: React.FC = () => {
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
                     Workspace Name <span className="text-red-500">*</span>
                   </label>
-                  <div className="flex gap-2">
+                   <div className="flex gap-2">
                     <select
                       value={selectedVertical}
                       onChange={e => setSelectedVertical(e.target.value)}
@@ -208,7 +208,7 @@ const CreateWorkspace: React.FC = () => {
                     placeholder="Who is this workspace being prepared for?"
                     required
                   />
-                  <datalist id="client-suggestions">
+                   <datalist id="client-suggestions">
                     <option value="NYSE" />
                     <option value="BSE" />
                     <option value="UHG" />
@@ -218,8 +218,7 @@ const CreateWorkspace: React.FC = () => {
                     <option value="MetLife" />
                   </datalist>
                   <p className="text-xs text-gray-500 mt-1">
-                    Specify the client name this workspace is associated with
-                  </p>
+Specify the client name this workspace is associated with                  </p>
                 </div>
 
                 <div>

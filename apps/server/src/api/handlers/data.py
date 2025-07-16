@@ -14,24 +14,20 @@ async def get_dashboard_data(req: Request):
 
         data = await dashboard_data_repository.get_dashboard_data(user_id)
 
-        recent_content = []
-        for content in data['recent_generated_content']:
-            recent_content.append({
-                'id': content.id,
-                'title': content.prompt.title,
-                'content_preview': content.content[:150] + '...' if len(content.content) > 150 else content.content,
-                'workspace_name': content.workspace.name,
-                'created_at': content.created_at.isoformat(),
-                'user_name': content.user.name if content.user else 'Unknown',
-                'prompt_id': content.prompt.id,
-                'workspace_id': content.workspace.id
+        recent_workspaces = []
+        for ws in data['recent_workspaces']:
+            recent_workspaces.append({
+                'id': ws.id,
+                'name': ws.name,
+                'client': ws.client,
+                'last_used_at': ws.last_used_at.isoformat() if ws.last_used_at else None
             })
 
         return JSONResponse({
             'success': True,
             'data': {
                 'stats': data['stats'],
-                'recent_generated_content': recent_content
+                'recent_workspaces': recent_workspaces
             }
         })
 
