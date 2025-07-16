@@ -569,10 +569,56 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
     fetchSuggestedTags();
   }, [debouncedTagSearch, tags, searchTags]);
 
-  const totalItems = extractedResults.reduce((acc, result) => {
-    if (!result.success) return acc;
-    return acc + (result.chunks?.length || 0);
-  }, 0);
+  // Helper logic for select all
+  const allSelectableItems = useMemo(() => {
+    const items: SelectedItem[] = [];
+    extractedResults.forEach((result) => {
+      if (!result.success) return;
+      const sourceName = getSourceName(result);
+      result.chunks.forEach((chunk, chunkIndex) => {
+        // Chunk
+        let content = '';
+        let name = '';
+        if (isStructuredChunk(chunk)) {
+          content = chunk.content
+            .map((section) => `${section.tag}\n${section.content.map((c) => c.text).join('\n')}`)
+            .join('\n\n');
+          name = chunk.title;
+        } else {
+          content = chunk.content;
+          name = chunk.label || chunk.content.substring(0, 50) + '...';
+        }
+        items.push({
+          type: 'chunk',
+          sourceId: result.content_source_id,
+          sourceName,
+          name,
+          content,
+          tags: [],
+          uniqueId: generateItemId(chunk, result.content_source_id, 'chunk', chunkIndex),
+          originalData: chunk,
+        });
+        // Structured sections
+        if (isStructuredChunk(chunk)) {
+          chunk.content.forEach((minor, sectionIndex) => {
+            items.push({
+              type: 'section',
+              sourceId: result.content_source_id,
+              sourceName,
+              name: minor.tag,
+              content: minor.content.map((c) => c.text).join('\n'),
+              tags: [],
+              uniqueId: generateItemId(minor, result.content_source_id, 'section', sectionIndex),
+              originalData: minor,
+            });
+          });
+        }
+      });
+    });
+    return items;
+  }, [extractedResults]);
+  const allItemsSelected = selectedItems.length > 0 && selectedItems.length === allSelectableItems.length;
+  const totalItems = allSelectableItems.length;
 
   const filteredWorkspaces = useMemo(() => {
     if (!workspaceSearchQuery.trim()) {
@@ -912,6 +958,59 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
     );
   };
 
+  // Helper functions for per-document select all
+  function getAllSelectableItemsForDoc(result: ExtractedContent) {
+    const items: SelectedItem[] = [];
+    const sourceName = getSourceName(result);
+    result.chunks.forEach((chunk, chunkIndex) => {
+      // Chunk
+      let content = '';
+      let name = '';
+      if (isStructuredChunk(chunk)) {
+        content = chunk.content
+          .map((section) => `${section.tag}\n${section.content.map((c) => c.text).join('\n')}`)
+          .join('\n\n');
+        name = chunk.title;
+      } else {
+        content = chunk.content;
+        name = chunk.label || chunk.content.substring(0, 50) + '...';
+      }
+      items.push({
+        type: 'chunk',
+        sourceId: result.content_source_id,
+        sourceName,
+        name,
+        content,
+        tags: [],
+        uniqueId: generateItemId(chunk, result.content_source_id, 'chunk', chunkIndex),
+        originalData: chunk,
+      });
+      // Structured sections
+      if (isStructuredChunk(chunk)) {
+        chunk.content.forEach((minor, sectionIndex) => {
+          items.push({
+            type: 'section',
+            sourceId: result.content_source_id,
+            sourceName,
+            name: minor.tag,
+            content: minor.content.map((c) => c.text).join('\n'),
+            tags: [],
+            uniqueId: generateItemId(minor, result.content_source_id, 'section', sectionIndex),
+            originalData: minor,
+          });
+        });
+      }
+    });
+    return items;
+  }
+  function getAllSelectableIdsForDoc(result: ExtractedContent) {
+    return getAllSelectableItemsForDoc(result).map(item => item.uniqueId);
+  }
+  function allItemsSelectedForDoc(result: ExtractedContent) {
+    const docIds = getAllSelectableIdsForDoc(result);
+    return docIds.length > 0 && docIds.every(id => selectedItems.some(item => item.uniqueId === id));
+  }
+
   return (
     <>
       {renderTagModal()}
@@ -980,11 +1079,42 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
                     key={resultIndex}
                     className="bg-white rounded-lg border border-gray-200 overflow-hidden"
                   >
-                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                      <h3 className="font-semibold text-gray-900">{sourceName}</h3>
-                      <p className="text-sm text-gray-500 mt-1">
-                        {result.chunks?.length || 0} content pieces extracted
-                      </p>
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                      <div>
+                        <h3 className="font-semibold text-gray-900">{sourceName}</h3>
+                        <p className="text-sm text-gray-500 mt-1">
+                          {result.chunks?.length || 0} content pieces extracted
+                        </p>
+                      </div>
+                      {/* Select All for this document */}
+                      {result.chunks && result.chunks.length > 0 && (
+                        <div className="flex items-center ml-4">
+                          <label htmlFor={`select-all-content-${resultIndex}`} className="text-sm text-gray-700 cursor-pointer mr-2">
+                            Select All
+                          </label>
+                          <input
+                            type="checkbox"
+                            id={`select-all-content-${resultIndex}`}
+                            checked={allItemsSelectedForDoc(result)}
+                            onChange={e => {
+                              if (e.target.checked) {
+                                setSelectedItems(prev => {
+                                  // Remove any previous selections for this doc, then add all for this doc
+                                  const docIds = getAllSelectableIdsForDoc(result);
+                                  const filtered = prev.filter(item => !docIds.includes(item.uniqueId));
+                                  return [...filtered, ...getAllSelectableItemsForDoc(result)];
+                                });
+                              } else {
+                                setSelectedItems(prev => {
+                                  // Remove all selections for this doc
+                                  const docIds = getAllSelectableIdsForDoc(result);
+                                  return prev.filter(item => !docIds.includes(item.uniqueId));
+                                });
+                              }
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
                     <div className="p-6 space-y-4">
                       {result.chunks?.map((chunk, chunkIndex) =>

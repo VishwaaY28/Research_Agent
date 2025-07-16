@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { API } from '../utils/constants';
 
 export type DashboardStats = {
@@ -9,20 +9,16 @@ export type DashboardStats = {
   total_generated_content: number;
 };
 
-export type RecentGeneratedContent = {
+export type RecentWorkspace = {
   id: number;
-  title: string;
-  content_preview: string;
-  workspace_name: string;
-  created_at: string;
-  user_name: string;
-  prompt_id: number;
-  workspace_id: number;
+  name: string;
+  client: string;
+  last_used_at: string | null;
 };
 
 export type DashboardData = {
   stats: DashboardStats;
-  recent_generated_content: RecentGeneratedContent[];
+  recent_workspaces: RecentWorkspace[];
 };
 
 export function useDashboard() {
