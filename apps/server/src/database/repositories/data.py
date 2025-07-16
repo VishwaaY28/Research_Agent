@@ -15,11 +15,7 @@ class DashboardDataRepository:
 
             total_generated_content = await GeneratedContent.filter(deleted_at=None).count()
 
-            recent_generated_content = await GeneratedContent.filter(
-                deleted_at=None
-            ).prefetch_related(
-                'prompt', 'user', 'workspace'
-            ).order_by('-created_at').limit(3)
+            recent_workspaces = await Workspace.filter(deleted_at=None).order_by('-last_used_at').limit(3)
 
             return {
                 'stats': {
@@ -28,7 +24,7 @@ class DashboardDataRepository:
                     'total_prompts': total_prompts,
                     'total_generated_content': total_generated_content
                 },
-                'recent_generated_content': recent_generated_content
+                'recent_workspaces': recent_workspaces
             }
 
 dashboard_data_repository = DashboardDataRepository()

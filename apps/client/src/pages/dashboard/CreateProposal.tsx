@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-  FiArrowLeft,
-  FiChevronDown,
-  FiCopy,
-  FiEye,
-  FiFileText,
-  FiLoader,
-  FiRefreshCw,
-  FiSave,
-  FiTag,
-  FiX,
-  FiZap,
+    FiArrowLeft,
+    FiChevronDown,
+    FiCopy,
+    FiEye,
+    FiFileText,
+    FiLoader,
+    FiRefreshCw,
+    FiSave,
+    FiTag,
+    FiX,
+    FiZap,
 } from 'react-icons/fi';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
@@ -322,7 +322,29 @@ const CreateProposal: React.FC = () => {
 
             {workspaceContent && (
               <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Select Context</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Select Context</h3>
+                  {/* Select All Checkbox */}
+                  {workspaceContent.sections.length > 0 && (
+                    <div className="flex items-center">
+                      <label htmlFor="select-all-sections" className="text-sm text-gray-700 cursor-pointer mr-2">
+                        Select All
+                      </label>
+                      <input
+                        type="checkbox"
+                        id="select-all-sections"
+                        checked={selectedSections.length === workspaceContent.sections.length}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            setSelectedSections(workspaceContent.sections.map(section => section.id));
+                          } else {
+                            setSelectedSections([]);
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
 
                 <div className="space-y-4">
                   {workspaceContent.sections.length > 0 && (

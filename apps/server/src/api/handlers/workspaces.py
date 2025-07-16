@@ -101,6 +101,8 @@ async def fetch_all_workspaces():
     return JSONResponse(result, status_code=200)
 
 async def fetch_by_id(workspace_id: int):
+    # Update last_used_at whenever a workspace is accessed
+    await workspace_repository.update_last_used(workspace_id)
     workspace = await workspace_repository.fetch_by_id(workspace_id)
     if not workspace:
         raise HTTPException(status_code=404, detail="Workspace not found")
