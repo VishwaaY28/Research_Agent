@@ -17,7 +17,6 @@ const CreateWorkspace: React.FC = () => {
 
   const [currentTag, setCurrentTag] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedVertical, setSelectedVertical] = useState('');
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({
@@ -59,16 +58,15 @@ const CreateWorkspace: React.FC = () => {
     }
 
     if (!formData.clientName.trim()) {
-      toast.error('Client name is required');
+      toast.error('Client/Opportunity name is required');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      const workspaceName = `${selectedVertical} - ${formData.name}`;
       const newWorkspace = await createWorkspace({
-        name: workspaceName,
+        name: formData.name.trim(),
         clientName: formData.clientName.trim(),
         tags: formData.tags,
       });
@@ -126,34 +124,16 @@ const CreateWorkspace: React.FC = () => {
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
                     Workspace Name <span className="text-red-500">*</span>
                   </label>
-                  <div className="flex gap-2">
-                    <select
-                      value={selectedVertical}
-                      onChange={e => setSelectedVertical(e.target.value)}
-                      className="px-3 py-3 border border-gray-200 rounded-lg bg-white"
-                      required
-                    >
-                      <option value="">Select Vertical</option>
-                      <option value="FS">FS</option>
-                      <option value="GEN-AI">GEN-AI</option>
-                      <option value="H&I">H&I</option>
-                      <option value="TT">TT</option>
-                      <option value="M&C">M&C</option>
-                      <option value="RE">RE</option>
-                      <option value="STG">STG</option>
-                      <option value="OTHERS">OTHERS</option>
-                    </select>
-                    <input
-                      type="text"
-                      id="name"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      className="flex-1 px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-200"
-                      placeholder="Enter workspace name or title"
-                      required
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-200"
+                    placeholder="Enter workspace name or title"
+                    required
+                  />
                   <p className="text-xs text-gray-500 mt-1">
                     Choose a descriptive name for your workspace
                   </p>
@@ -164,30 +144,20 @@ const CreateWorkspace: React.FC = () => {
                     htmlFor="clientName"
                     className="block text-sm font-medium text-gray-700 mb-2"
                   >
-                    Client Name <span className="text-red-500">*</span>
+                    Client / Opportunity Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     id="clientName"
                     name="clientName"
-                    list="client-suggestions"
                     value={formData.clientName}
                     onChange={handleInputChange}
                     className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-200"
                     placeholder="Who is this workspace being prepared for?"
                     required
                   />
-                  <datalist id="client-suggestions">
-                    <option value="NYSE" />
-                    <option value="BSE" />
-                    <option value="UHG" />
-                    <option value="Coca-Cola" />
-                    <option value="Walmart" />
-                    <option value="Delta Air Lines" />
-                    <option value="MetLife" />
-                  </datalist>
                   <p className="text-xs text-gray-500 mt-1">
-                    Specify the client name this workspace is associated with
+                    Specify the client or opportunity this workspace is associated with
                   </p>
                 </div>
 

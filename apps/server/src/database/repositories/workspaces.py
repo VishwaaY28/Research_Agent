@@ -85,6 +85,15 @@ class WorkspaceRepository:
             return workspace
 
     @staticmethod
+    async def update_last_used(workspace_id: int):
+        workspace = await Workspace.get_or_none(id=workspace_id, deleted_at=None)
+        if workspace:
+            from datetime import datetime
+            workspace.last_used_at = datetime.utcnow()
+            await workspace.save()
+        return workspace
+
+    @staticmethod
     async def soft_delete(workspace_id: int):
         workspace = await Workspace.get_or_none(id=workspace_id)
         if not workspace:

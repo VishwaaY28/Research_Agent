@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FiX, FiFile, FiCheck } from 'react-icons/fi';
+import { FiCheck, FiFile, FiX } from 'react-icons/fi';
 
 type ContentChunk = {
   id: string;
@@ -82,6 +82,25 @@ const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
         </div>
 
         <div className="p-6 overflow-y-auto max-h-96">
+          {/* Select All Checkbox */}
+          <div className="mb-4 flex items-center">
+            <input
+              type="checkbox"
+              id="select-all-chunks"
+              checked={selectedChunks.length === mockContentChunks.length}
+              onChange={e => {
+                if (e.target.checked) {
+                  setSelectedChunks(mockContentChunks.map(chunk => chunk.id));
+                } else {
+                  setSelectedChunks([]);
+                }
+              }}
+              className="mr-2"
+            />
+            <label htmlFor="select-all-chunks" className="text-sm text-gray-700 cursor-pointer">
+              Select All
+            </label>
+          </div>
           <div className="space-y-4">
             {mockContentChunks.map((chunk) => (
               <div
