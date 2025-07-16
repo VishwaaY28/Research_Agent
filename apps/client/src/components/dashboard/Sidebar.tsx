@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FiChevronLeft, FiChevronRight, FiEdit3, FiLayers, FiLogOut, FiUpload } from 'react-icons/fi';
 import { NavLink, useNavigate } from 'react-router-dom';
+import logo from '../../assets/logo.png';
 import { useAuth } from '../../hooks/useAuth';
 
 const Sidebar: React.FC = () => {
@@ -27,7 +28,13 @@ const Sidebar: React.FC = () => {
     >
       <div className={`flex items-center justify-between p-6 border-b border-gray-200 ${collapsed ? 'justify-center p-2' : ''}`}>
         {!collapsed && (
-          <h2 className="text-xl font-bold text-primary">ProposalCraft</h2>
+          <div className="flex items-center space-x-2">
+            <img src={logo} alt="Logo" className="h-10 w-auto" />
+            <span className="text-lg font-bold text-primary">Proposal Authoring</span>
+          </div>
+        )}
+        {collapsed && (
+          <img src={logo} alt="Logo" className="h-8 w-auto" />
         )}
         <button
           onClick={() => setCollapsed((prev) => !prev)}
