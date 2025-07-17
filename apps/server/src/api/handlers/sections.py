@@ -4,11 +4,25 @@ from pydantic import BaseModel
 from typing import List, Optional
 from fastapi import HTTPException
 from database.repositories.sections import section_repository
+from database.models import SectionType
 
 class SectionSearchRequest(BaseModel):
     content_query: Optional[str] = None
     name_query: Optional[str] = None
     tags: Optional[List[str]] = None
+
+class SectionTypeUpdateRequest(BaseModel):
+    name: str
+    prompt: str = None
+    workspace_type_id: int = None
+
+class SavePromptRequest(BaseModel):
+    prompt: str
+
+class SectionTypeCreateRequest(BaseModel):
+    name: str
+    prompt: str = None
+    workspace_type_id: int
 
 async def bulk_create_sections(workspace_id: int, filename: str, chunks: list):
     filename = urllib.parse.unquote(filename)
@@ -81,3 +95,49 @@ async def soft_delete_section(section_id: int):
 async def hard_delete_section(section_id: int):
     await section_repository.hard_delete_section(section_id)
     return {"success": True}
+
+async def get_prompt_by_sectionType(section_type_id: int):
+    section_type = await SectionType.get_or_none(id=section_type_id)
+    if not section_type:
+        raise HTTPException(status_code=404, detail="SectionType not found")
+    return JSONResponse({"id": section_type.id, "prompt": section_type.prompt})
+
+async def update_sectionType(section_type_id: int, data: SectionTypeUpdateRequest):
+    section_type = await SectionType.get_or_none(id=section_type_id)
+    if not section_type:
+        raise HTTPException(status_code=404, detail="SectionType not found")
+    section_type.name = data.name
+    if data.prompt is not None:
+        section_type.prompt = data.prompt
+    if data.workspace_type_id is not None:
+        section_type.workspace_type_id = data.workspace_type_id
+    await section_type.save()
+    return JSONResponse({"id": section_type.id, "name": section_type.name, "prompt": section_type.prompt, "workspace_type_id": section_type.workspace_type_id})
+
+async def delete_sectionType(section_type_id: int):
+    section_type = await SectionType.get_or_none(id=section_type_id)
+    if not section_type:
+        raise HTTPException(status_code=404, detail="SectionType not found")
+    await section_type.delete()
+    return JSONResponse({"success": True})
+
+async def save_prompt(section_type_id: int, data: SavePromptRequest):
+    section_type = await SectionType.get_or_none(id=section_type_id)
+    if not section_type:
+        raise HTTPException(status_code=404, detail="SectionType not found")
+    section_type.prompt = data.prompt
+    await section_type.save()
+    return JSONResponse({"id": section_type.id, "prompt": section_type.prompt})
+
+async def create_sectionType(data: SectionTypeCreateRequest):
+    section_type = await SectionType.create(
+        name=data.name,
+        prompt=data.prompt,
+        workspace_type_id=data.workspace_type_id
+    )
+    return JSONResponse({
+        "id": section_type.id,
+        "name": section_type.name,
+        "prompt": section_type.prompt,
+        "workspace_type_id": section_type.workspace_type_id
+    })
