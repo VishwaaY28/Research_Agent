@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 from database.repositories.workspaces import workspace_repository
+from database.models import WorkspaceType
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,12 @@ class WorkspaceSearchRequest(BaseModel):
 class WorkspaceFilterRequest(BaseModel):
     name_query: Optional[str] = None
     tags: Optional[List[str]] = None
+
+class WorkspaceTypeCreateRequest(BaseModel):
+    name: str
+
+class WorkspaceTypeUpdateRequest(BaseModel):
+    name: str
 
 async def create_workspace(data: WorkspaceCreateRequest):
     try:
@@ -166,4 +173,26 @@ async def hard_delete(workspace_id: int):
     success = await workspace_repository.hard_delete(workspace_id)
     if not success:
         raise HTTPException(status_code=404, detail="Workspace not found")
+    return JSONResponse({"success": True})
+
+async def create_workspace_type(data: WorkspaceTypeCreateRequest):
+    try:
+        ws_type = await WorkspaceType.create(name=data.name)
+        return JSONResponse({"id": ws_type.id, "name": ws_type.name})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to create workspace type: {str(e)}")
+
+async def update_workspace_type(type_id: int, data: WorkspaceTypeUpdateRequest):
+    ws_type = await WorkspaceType.get_or_none(id=type_id)
+    if not ws_type:
+        raise HTTPException(status_code=404, detail="WorkspaceType not found")
+    ws_type.name = data.name
+    await ws_type.save()
+    return JSONResponse({"id": ws_type.id, "name": ws_type.name})
+
+async def delete_workspace_type(type_id: int):
+    ws_type = await WorkspaceType.get_or_none(id=type_id)
+    if not ws_type:
+        raise HTTPException(status_code=404, detail="WorkspaceType not found")
+    await ws_type.delete()
     return JSONResponse({"success": True})

@@ -12,11 +12,15 @@ class User(TimestampMixin):
   email = fields.CharField(max_length=100, unique=True)
   password_hash = fields.CharField(max_length=128)
 
+class WorkspaceType(TimestampMixin):
+    id = fields.IntField(pk=True)
+    name = fields.CharField(max_length=50, unique=True)
+
 class Workspace(TimestampMixin):
   id = fields.IntField(pk=True)
   name = fields.CharField(max_length=255)
   client = fields.CharField(max_length=255)
-  workspace_type = fields.CharField(max_length=50, null=True
+  workspace_type = fields.ForeignKeyField('models.WorkspaceType', related_name='workspaces', null=False)
   last_used_at = fields.DatetimeField(null=True)
 
 class Tag(TimestampMixin):

@@ -2,7 +2,11 @@ from fastapi import APIRouter, Query
 from typing import List
 
 from api.handlers import workspaces as ws_handlers
-from api.handlers.workspaces import WorkspaceCreateRequest, WorkspaceUpdateRequest
+from api.handlers.workspaces import (
+    WorkspaceCreateRequest, WorkspaceUpdateRequest,
+    create_workspace_type, update_workspace_type, delete_workspace_type,
+    WorkspaceTypeCreateRequest, WorkspaceTypeUpdateRequest
+)
 
 router = APIRouter(prefix="/api/workspaces")
 
@@ -45,3 +49,21 @@ async def soft_delete_workspace(workspace_id: int):
 @router.delete("/hard/{workspace_id}")
 async def hard_delete_workspace(workspace_id: int):
     return await ws_handlers.hard_delete(workspace_id)
+
+# WorkspaceType routes
+from fastapi import APIRouter
+workspace_type_router = APIRouter(prefix="/api/workspace-types")
+
+@workspace_type_router.post("")
+async def workspace_type_create(data: WorkspaceTypeCreateRequest):
+    return await ws_handlers.create_workspace_type(data)
+
+@workspace_type_router.put("/{type_id}")
+async def workspace_type_update(type_id: int, data: WorkspaceTypeUpdateRequest):
+    return await ws_handlers.update_workspace_type(type_id, data)
+
+@workspace_type_router.delete("/{type_id}")
+async def workspace_type_delete(type_id: int):
+    return await ws_handlers.delete_workspace_type(type_id)
+
+
