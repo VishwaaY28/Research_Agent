@@ -243,11 +243,15 @@ def extract_toc(elements):
 
     return toc_sections
 
+def clean_toc_title(text):
+  return re.sub(r"\s*\.{2,}\s*\d+$","",text).strip()
+
 def clean_toc_sections(toc_sections):
     """Clean and format TOC sections"""
     cleaned = []
     for section in toc_sections:
         text = section.get("text", "").strip()
+        text = clean_toc_title(text)
         if text and len(text) > 5:
             cleaned.append({
                 "title": text,
@@ -298,13 +302,14 @@ def filter_out_table_pages_from_extracted(chunks, table_pages):
 def parse_toc_with_pages(toc_sections):
     """Parse TOC entries and extract their titles and page numbers using regex."""
     toc_entries = []
-    page_num_pattern = re.compile(r"(.*?)\s+(\d+)$")
+    page_num_pattern = re.compile(r"(.*?)\s+\.{2,}\s*(\d+)$")
     for section in toc_sections:
         text = section.get("text", "").strip()
-        match = page_num_pattern.match(text)
+        match = page_num_pattern.match(section.get("text", "").strip())
         if match:
             title = match.group(1).strip()
             page = int(match.group(2))
+            title = clean_toc_title(title)
             toc_entries.append({"title": title, "page": page})
         else:
             # If no page number, just use the text
@@ -354,7 +359,7 @@ def parse_toc_hierarchical(elements, toc_sections):
                 if current_minor:
                     minor_chunks.append(current_minor)
                 current_minor = {
-                    "tag": text,
+                    "tag": clean_toc_title(text),
                     "content": []
                 }
             elif text:
@@ -368,8 +373,9 @@ def parse_toc_hierarchical(elements, toc_sections):
             minor_chunks.append(current_minor)
         start_range = f"Page {entry['page']}"
         end_range = f"Page {entry['end_page']}" if entry['end_page'] else "End"
+        chunk_title = clean_toc_title(entry["title"])
         chunks.append({
-            "title": entry["title"],
+            "title": chunk_title,
             "start_range": start_range,
             "end_range": end_range,
             "content": minor_chunks
