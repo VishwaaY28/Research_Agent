@@ -11,7 +11,7 @@ import CreateProposal from './pages/dashboard/CreateProposal';
 import CreateWorkspace from './pages/dashboard/CreateWorkspace';
 import DashHome from './pages/dashboard/Home';
 import ProposalAuthoring from './pages/dashboard/ProposalAuthoring';
-import ProposalView from './pages/dashboard/ProposalView';
+// import ProposalView from './pages/dashboard/ProposalView';
 import Workspaces from './pages/dashboard/Workspaces';
 import WorkspaceView from './pages/dashboard/WorkspaceView';
 import Error from './pages/Error';
@@ -79,9 +79,9 @@ const router = createBrowserRouter([
         errorElement: <Error />,
       },
       {
-        path: 'proposal-authoring/:id',
-        element: <ProposalView />,
-        errorElement: <Error />,
+        // path: 'proposal-authoring/:id',
+        // element: <ProposalView />,
+        // errorElement: <Error />,
       },
     ],
   },
