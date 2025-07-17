@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-    FiArrowLeft,
-    FiChevronDown,
-    FiCopy,
-    FiEye,
-    FiFileText,
-    FiLoader,
-    FiRefreshCw,
-    FiSave,
-    FiTag,
-    FiX,
-    FiZap,
+  FiArrowLeft,
+  FiChevronDown,
+  FiCopy,
+  FiEye,
+  FiFileText,
+  FiLoader,
+  FiRefreshCw,
+  FiSave,
+  FiTag,
+  FiX,
+  FiZap,
 } from 'react-icons/fi';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
@@ -327,16 +327,21 @@ const CreateProposal: React.FC = () => {
                   {/* Select All Checkbox */}
                   {workspaceContent.sections.length > 0 && (
                     <div className="flex items-center">
-                      <label htmlFor="select-all-sections" className="text-sm text-gray-700 cursor-pointer mr-2">
+                      <label
+                        htmlFor="select-all-sections"
+                        className="text-sm text-gray-700 cursor-pointer mr-2"
+                      >
                         Select All
                       </label>
                       <input
                         type="checkbox"
                         id="select-all-sections"
                         checked={selectedSections.length === workspaceContent.sections.length}
-                        onChange={e => {
+                        onChange={(e) => {
                           if (e.target.checked) {
-                            setSelectedSections(workspaceContent.sections.map(section => section.id));
+                            setSelectedSections(
+                              workspaceContent.sections.map((section) => section.id),
+                            );
                           } else {
                             setSelectedSections([]);
                           }
@@ -452,7 +457,7 @@ const CreateProposal: React.FC = () => {
           </div>
 
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm min-h-[600px]">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm h-[655px] overflow-y-auto">
               <div className="p-6 border-b border-gray-200">
                 <h3 className="text-lg font-semibold text-gray-900">Generated Content</h3>
               </div>
