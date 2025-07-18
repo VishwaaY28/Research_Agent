@@ -61,13 +61,6 @@ class SectionTag(TimestampMixin):
     section = fields.ForeignKeyField('models.Section', related_name='tags')
     tag = fields.ForeignKeyField('models.Tag', related_name='sections')
 
-class SectionType(TimestampMixin):
-  id = fields.IntField(pk=True)
-  name = fields.CharField(max_length=50, unique=True)
-  prompt = fields.TextField(null=True)
-  workspace_type = fields.ForeignKeyField('models.WorkspaceType', related_name='section_type', null=False)
-
-
 class Prompt(TimestampMixin):
     id = fields.IntField(pk=True)
     workspace = fields.ForeignKeyField('models.Workspace', related_name='prompts')
