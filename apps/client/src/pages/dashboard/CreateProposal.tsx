@@ -14,12 +14,13 @@ import {
   FiZap,
 } from 'react-icons/fi';
 import ReactMarkdown from 'react-markdown';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useContent, type Section, type WorkspaceContent } from '../../hooks/useContent';
 import { useWorkspace } from '../../hooks/useWorkspace';
 
 const CreateProposal: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { workspaces, fetchWorkspaces } = useWorkspace();
   const {
     getWorkspaceContent,
@@ -43,6 +44,23 @@ const CreateProposal: React.FC = () => {
   useEffect(() => {
     fetchWorkspaces();
   }, []);
+
+  // Pre-fill from navigation state (prompt template)
+  useEffect(() => {
+    if (
+      location.state &&
+      (location.state.type || location.state.section || location.state.prompt)
+    ) {
+      // Try to auto-select a workspace of the given type
+      if (location.state.type && workspaces.length > 0) {
+        const ws = workspaces.find((w) => w.workspaceType === location.state.type);
+        if (ws) setSelectedWorkspace(ws.id);
+      }
+      if (location.state.prompt) setPrompt(location.state.prompt);
+      // Optionally, if you have section selection UI, pre-select section here
+      // (Assuming you have a section dropdown or similar)
+    }
+  }, [location.state, workspaces]);
 
   useEffect(() => {
     if (selectedWorkspace) {
