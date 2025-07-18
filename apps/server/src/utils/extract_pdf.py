@@ -243,11 +243,15 @@ def extract_toc(elements):
 
     return toc_sections
 
+def clean_toc_title(text):
+  return re.sub(r"\s*\.{2,}\s*\d+$","",text).strip()
+
 def clean_toc_sections(toc_sections):
     """Clean and format TOC sections"""
     cleaned = []
     for section in toc_sections:
         text = section.get("text", "").strip()
+        text = clean_toc_title(text)
         if text and len(text) > 5:
             cleaned.append({
                 "title": text,
@@ -298,13 +302,14 @@ def filter_out_table_pages_from_extracted(chunks, table_pages):
 def parse_toc_with_pages(toc_sections):
     """Parse TOC entries and extract their titles and page numbers using regex."""
     toc_entries = []
-    page_num_pattern = re.compile(r"(.*?)\s+(\d+)$")
+    page_num_pattern = re.compile(r"(.*?)\s+\.{2,}\s*(\d+)$")
     for section in toc_sections:
         text = section.get("text", "").strip()
-        match = page_num_pattern.match(text)
+        match = page_num_pattern.match(section.get("text", "").strip())
         if match:
             title = match.group(1).strip()
             page = int(match.group(2))
+            title = clean_toc_title(title)
             toc_entries.append({"title": title, "page": page})
         else:
             # If no page number, just use the text
@@ -313,72 +318,81 @@ def parse_toc_with_pages(toc_sections):
 
 
 def parse_toc_hierarchical(elements, toc_sections):
-    """Parse content into hierarchical TOC structure using TOC page numbers for grouping.
-    Only TOC headings are major chunks. All other Titles/paragraphs are minor chunks under the correct TOC heading.
-    """
-    chunks = []
-    if not toc_sections:
-        return chunks
-
-    toc_entries = parse_toc_with_pages(toc_sections)
-    toc_headings = set(e["title"].strip() for e in toc_entries if e["title"])
-    toc_entries_with_pages = [e for e in toc_entries if e["page"] is not None]
-    if not toc_entries_with_pages:
-        return parse_toc_hierarchical_old(elements, toc_sections)
-
-    toc_entries_with_pages.sort(key=lambda x: x["page"])
-    for idx, entry in enumerate(toc_entries_with_pages):
-        if idx < len(toc_entries_with_pages) - 1:
-            entry["end_page"] = toc_entries_with_pages[idx + 1]["page"] - 1
-        else:
-            entry["end_page"] = None
-
-    for entry in toc_entries_with_pages:
-        section_elements = []
-        for el in elements:
-            page_number = el.get("metadata", {}).get("page_number")
-            if page_number is not None:
-                if page_number >= entry["page"] and (entry["end_page"] is None or page_number <= entry["end_page"]):
-                    section_elements.append(el)
-        # Group by subheadings (titles) as minor chunks, but skip TOC headings
-        minor_chunks = []
-        current_minor = None
-        for el in section_elements:
-            text = el.get("text", "").strip()
-            el_type = el.get("type", "")
-            page_number = el.get("metadata", {}).get("page_number")
-            # Skip TOC headings as minor chunks
-            if el_type == "Title" and text and text in toc_headings:
-                continue
-            if el_type == "Title" and text:
-                if current_minor:
-                    minor_chunks.append(current_minor)
-                current_minor = {
-                    "tag": text,
-                    "content": []
-                }
-            elif text:
-                if not current_minor:
-                    current_minor = {"tag": "Untitled Section", "content": []}
-                current_minor["content"].append({
-                    "text": text,
-                    "page_number": page_number
-                })
-        if current_minor:
-            minor_chunks.append(current_minor)
-        start_range = f"Page {entry['page']}"
-        end_range = f"Page {entry['end_page']}" if entry['end_page'] else "End"
-        chunks.append({
-            "title": entry["title"],
-            "start_range": start_range,
-            "end_range": end_range,
-            "content": minor_chunks
-        })
+  """Parse content into hierarchical TOC structure using TOC page numbers for grouping.
+  Only TOC headings are major chunks. All other Titles/paragraphs are minor chunks under the correct TOC heading.
+  """
+  chunks = []
+  if not toc_sections:
     return chunks
+
+  toc_entries = parse_toc_with_pages(toc_sections)
+  toc_headings = set(e["title"].strip() for e in toc_entries if e["title"])
+  toc_entries_with_pages = [e for e in toc_entries if e["page"] is not None]
+
+  if not toc_entries_with_pages:
+    return parse_toc_hierarchical_old(elements, toc_sections)
+
+  toc_entries_with_pages.sort(key=lambda x: x["page"])
+
+  for idx, entry in enumerate(toc_entries_with_pages):
+    entry["end_page"] = (
+      toc_entries_with_pages[idx + 1]["page"] - 1
+      if idx + 1 < len(toc_entries_with_pages)
+      else None
+    )
+
+  for entry in toc_entries_with_pages:
+    section_elements = []
+    for el in elements:
+      page_number = el.get("metadata", {}).get("page_number")
+      if page_number is not None and page_number >= entry["page"]:
+        if entry["end_page"] is None or page_number <= entry["end_page"]:
+          section_elements.append(el)
+
+    # Now create minor chunks by grouping under each 'Title' in the section
+    minor_chunks = []
+    current_minor = None
+
+    for el in section_elements:
+      text = el.get("text", "").strip()
+      el_type = el.get("type", "")
+      page_number = el.get("metadata", {}).get("page_number")
+
+      if el_type == "Title" and text and text not in toc_headings:
+        if current_minor:
+          minor_chunks.append(current_minor)
+        current_minor = {
+          "tag": clean_toc_title(text),
+          "content": []
+        }
+      elif text:
+        if not current_minor:
+          current_minor = {
+            "tag": "Untitled Section",
+            "content": []
+          }
+        current_minor["content"].append({
+          "text": text,
+          "page_number": page_number
+        })
+
+    if current_minor:
+      minor_chunks.append(current_minor)
+
+    start_range = f"Page {entry['page']}"
+    end_range = f"Page {entry['end_page']}" if entry['end_page'] else "End"
+
+    chunks.append({
+      "title": clean_toc_title(entry["title"]),
+      "start_range": start_range,
+      "end_range": end_range,
+      "content": minor_chunks
+    })
+
+  return chunks
 
 
 def parse_toc_hierarchical_old(elements, toc_sections):
-    # Old logic for fallback if no page numbers in TOC
     chunks = []
     toc_titles = [toc['title'] for toc in toc_sections]
     toc_indices = []
@@ -427,9 +441,148 @@ def parse_toc_hierarchical_old(elements, toc_sections):
         })
     return chunks
 
+def extract_toc_entries_from_elements(elements):
+    """Extract TOC entries (title, page) from elements, robustly."""
+    toc_start = None
+    texts = [e.get("text", "") for e in elements if e.get("text") and e.get("text").strip()]
+    for i, block in enumerate(texts):
+        if re.search(r"(table of contents|contents)", block, re.IGNORECASE):
+            toc_start = i
+            break
+    if toc_start is None:
+        return []
+    toc_lines = []
+    for line in texts[toc_start:]:
+        line = line.strip()
+        if not line:
+            continue
+        if re.search(r"\.{2,}\s*\d+\s*$", line) or re.search(r"\s{2,}\d+\s*$", line):
+            toc_lines.append(line)
+    entries = []
+    for line in toc_lines:
+        line = re.sub(r"\s{2,}", " ", line).strip()
+        match = re.match(r"^(.*?)(?:\.{2,}|\s{2,}|\s+)\s*(\d+)$", line)
+        if match:
+            title = match.group(1).strip(":- ").strip()
+            page = int(match.group(2))
+            entries.append({"title": title, "page": page})
+    return entries
+
+def group_elements_by_page(elements):
+    """Group text elements by page, skipping footers."""
+    page_map = {}
+    footer_patterns = [
+        r"©\s*hexaware technologies limited.*",
+        r"www\.hexaware\.com",
+        r"\[proprietary and confidential\]",
+        r"^page\s*\d+$",
+        r"^\d{1,3}$"
+    ]
+    for e in elements:
+        metadata = e.get("metadata", {})
+        page_num = metadata.get("page_number")
+        text = e.get("text", "").strip()
+        if not text or page_num is None:
+            continue
+        text_lower = text.lower().strip()
+        is_footer = any(re.match(pat, text_lower) for pat in footer_patterns)
+        if is_footer:
+            continue
+        page_map.setdefault(page_num, []).append(text)
+    return page_map
+
+def chunk_by_toc(entries, page_map):
+    """Chunk text by TOC page ranges."""
+    if not entries or not page_map:
+        return []
+    sorted_pages = sorted(page_map.keys())
+    last_page = max(sorted_pages)
+    chunks = []
+    for i, entry in enumerate(entries):
+        title = entry["title"]
+        start_page = entry["page"]
+        end_page = entries[i + 1]["page"] if i + 1 < len(entries) else last_page + 1
+        chunk_texts = []
+        for page in range(start_page, end_page):
+            if page in page_map:
+                chunk_texts.extend(page_map[page])
+        if chunk_texts:
+            chunks.append({
+                "file_source": "",
+                "label": title,
+                "content": clean_content("\n".join(chunk_texts))
+            })
+        else:
+            chunks.append({
+                "file_source": "",
+                "label": title,
+                "content": f"[No content found between page {start_page} and {end_page - 1}]"
+            })
+    return chunks
+
+def chunk_by_toc_with_minors(entries, elements):
+    """
+    For each TOC entry (major chunk), collect all elements in its page range,
+    then subdivide into minor chunks using 'Title' elements as boundaries.
+    """
+    if not entries or not elements:
+        return []
+    # Build a map of page_number -> [elements]
+    page_map = {}
+    for el in elements:
+        metadata = el.get("metadata", {})
+        page_num = metadata.get("page_number")
+        if page_num is not None:
+            page_map.setdefault(page_num, []).append(el)
+    sorted_pages = sorted(page_map.keys())
+    last_page = max(sorted_pages) if sorted_pages else 0
+    chunks = []
+    for i, entry in enumerate(entries):
+        title = entry["title"]
+        start_page = entry["page"]
+        end_page = entries[i + 1]["page"] if i + 1 < len(entries) else last_page + 1
+        # Gather all elements in this TOC section's page range
+        section_elements = []
+        for page in range(start_page, end_page):
+            section_elements.extend(page_map.get(page, []))
+        # Minor chunking: group by 'Title' elements
+        minor_chunks = []
+        current_minor = None
+        for el in section_elements:
+            text = el.get("text", "").strip()
+            el_type = el.get("type", "")
+            page_number = el.get("metadata", {}).get("page_number")
+            # Start a new minor chunk at each Title (not the TOC section title itself)
+            if el_type == "Title" and text and text != title:
+                if current_minor:
+                    minor_chunks.append(current_minor)
+                current_minor = {
+                    "tag": text,
+                    "content": []
+                }
+            elif text:
+                if not current_minor:
+                    current_minor = {
+                        "tag": "Untitled Section",
+                        "content": []
+                    }
+                current_minor["content"].append({
+                    "text": text,
+                    "page_number": page_number
+                })
+        if current_minor:
+            minor_chunks.append(current_minor)
+        chunks.append({
+            "title": title,
+            "start_page": start_page,
+            "end_page": end_page - 1,
+            "content": minor_chunks
+        })
+    return chunks
+
 
 def extract_pdf_sections(filepath: str, figures_dir: str) -> List[Dict]:
-    """Extract sections from PDF - returns hierarchical TOC chunks with minor chunks inside each TOC section."""
+    """Extract sections from PDF - returns TOC-based chunks with minor chunking if possible, else fallback."""
     logger.info(f"Starting PDF extraction for: {filepath}")
 
     cached_data = check_extracted_cache(filepath)
@@ -453,14 +606,12 @@ def extract_pdf_sections(filepath: str, figures_dir: str) -> List[Dict]:
             json.dump(sections_dicts, f)
         logger.info(f"Saved sections to {output_json_name}")
 
-    sections_dicts = filter_footer_content(sections_dicts)
-    merged_sections = merge_split_titles(sections_dicts)
-    toc_sections_raw = extract_toc(merged_sections)
-
-    if toc_sections_raw:
-        logger.info("Using TOC-based hierarchical extraction")
-        toc_sections = clean_toc_sections(toc_sections_raw)
-        chunks = parse_toc_hierarchical(merged_sections, toc_sections)
+    toc_entries = extract_toc_entries_from_elements(sections_dicts)
+    if toc_entries:
+        logger.info("Using robust TOC-based chunking with minor chunks")
+        chunks = chunk_by_toc_with_minors(toc_entries, sections_dicts)
+        for chunk in chunks:
+            chunk["file_source"] = filepath
     else:
         logger.info("Using fallback chunking (flat)")
         chunks = []
@@ -483,8 +634,6 @@ def extract_pdf_sections(filepath: str, figures_dir: str) -> List[Dict]:
                 "label": f"Section {section_num}",
                 "content": clean_content(buffer)
             })
-    for chunk in chunks:
-        chunk["file_source"] = filepath
     cache_data = {'chunks': chunks}
     save_extracted_cache(filepath, cache_data)
     logger.info(f"Extraction complete: {len(chunks)} chunks")
