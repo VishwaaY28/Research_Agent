@@ -564,24 +564,29 @@ const ProposalAuthoring: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Auto-generated Prompt
                 </label>
-                <div className="bg-gray-50 rounded-lg p-4 text-gray-800 whitespace-pre-line">
+                <div
+                  className="bg-gray-50 rounded-lg p-4 text-gray-800 whitespace-pre-line select-none cursor-not-allowed border border-gray-200"
+                  tabIndex={-1}
+                  style={{ userSelect: 'none', pointerEvents: 'none' }}
+                >
                   {selectedChunks.length === 1
-                    ? autoPrompt
+                    ? `${SECTION_PROMPTS[selectedSection]}
+\nContext: Chunk ${selectedChunks[0]}`
                     : selectedChunks.length > 1
-                      ? `Summarize the following sections: ${selectedChunks.map((i) => `Chunk ${i}`).join(', ')}.\n${autoPrompt}`
+                      ? `Summarize the following chunks: ${selectedChunks.map((i) => `Chunk ${i}`).join(', ')}.\n\n${SECTION_PROMPTS[selectedSection]}`
                       : 'Select a chunk to see the prompt.'}
                 </div>
               </div>
-              {/* User-editable prompt */}
-              <div className="mt-6">
+              <div className="my-6" />
+              <div className="mt-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Your Prompt (editable)
+                  Add your own prompt
                 </label>
                 <textarea
                   value={userPrompt}
                   onChange={(e) => setUserPrompt(e.target.value)}
-                  className="w-full min-h-[80px] border border-gray-300 rounded-lg px-3 py-2"
-                  placeholder="Add your custom prompt here..."
+                  className="w-full min-h-[60px] border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  placeholder="Type your custom prompt here..."
                 />
               </div>
               {/* Tag area for user prompt */}

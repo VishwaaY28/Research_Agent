@@ -32,6 +32,7 @@ const CreateProposal: React.FC = () => {
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>('');
   const [workspaceContent, setWorkspaceContent] = useState<WorkspaceContent | null>(null);
   const [prompt, setPrompt] = useState('');
+  const [userPrompt, setUserPrompt] = useState('');
   const [selectedSections, setSelectedSections] = useState<number[]>([]);
   const [generatedContent, setGeneratedContent] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -330,11 +331,18 @@ const CreateProposal: React.FC = () => {
 
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Prompt</h3>
+              <div
+                className="bg-gray-50 rounded-lg p-4 text-gray-800 whitespace-pre-line select-none cursor-not-allowed border border-gray-200 mb-4"
+                tabIndex={-1}
+                style={{ userSelect: 'none', pointerEvents: 'none' }}
+              >
+                {prompt}
+              </div>
               <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Describe what you want to generate... (e.g., 'Create an executive summary for a software development proposal')"
-                className="w-full h-32 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                value={userPrompt}
+                onChange={(e) => setUserPrompt(e.target.value)}
+                placeholder="Add your own prompt or instructions..."
+                className="w-full min-h-[60px] border border-gray-300 rounded-lg px-3 py-2 text-sm"
               />
             </div>
 

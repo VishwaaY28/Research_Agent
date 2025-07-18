@@ -13,13 +13,11 @@ import {
 import { NavLink, useNavigate } from 'react-router-dom';
 import logo from '../../assets/logo.png';
 import { useAuth } from '../../hooks/useAuth';
-import PromptTemplateModal from './PromptTemplateModal';
 
 const Sidebar: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
-  const [showPromptTemplateModal, setShowPromptTemplateModal] = useState(false);
 
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: FiLayers },
@@ -27,8 +25,7 @@ const Sidebar: React.FC = () => {
     { path: '/dashboard/workspaces', label: 'Workspaces', icon: FiFolder },
     { path: '/dashboard/proposal-authoring', label: 'Proposal Authoring', icon: FiEdit3 },
     { path: '/dashboard/content-sources', label: 'Content Sources', icon: FiDatabase },
-    // Add Prompt Templates as a nav item (not a route, but opens modal)
-    { label: 'Prompt Templates', icon: FiSettings, isPromptTemplate: true },
+    { path: '/dashboard/prompt-templates', label: 'Prompt Templates', icon: FiSettings },
   ];
 
   const handleLogout = () => {
@@ -64,19 +61,6 @@ const Sidebar: React.FC = () => {
           <ul className="space-y-1">
             {navItems.map((item) => {
               const IconComponent = item.icon;
-              if (item.isPromptTemplate) {
-                return (
-                  <li key={item.label}>
-                    <button
-                      onClick={() => setShowPromptTemplateModal(true)}
-                      className={`flex items-center ${collapsed ? 'justify-center px-0' : 'space-x-3 px-4'} py-3 rounded-lg transition-colors text-neutral-700 hover:bg-gray-100 w-full`}
-                    >
-                      <IconComponent className={`w-5 h-5 ${collapsed ? 'mx-auto' : ''}`} />
-                      {!collapsed && <span className="font-medium">{item.label}</span>}
-                    </button>
-                  </li>
-                );
-              }
               return (
                 <li key={item.path}>
                   <NavLink
@@ -129,11 +113,6 @@ const Sidebar: React.FC = () => {
             </button>
           </div>
         )}
-        {/* Prompt Template Modal */}
-        <PromptTemplateModal
-          isOpen={showPromptTemplateModal}
-          onClose={() => setShowPromptTemplateModal(false)}
-        />
       </aside>
     </>
   );
