@@ -11,7 +11,7 @@ import {
   FiUpload,
 } from 'react-icons/fi';
 import { NavLink, useNavigate } from 'react-router-dom';
-import logo from '../../assets/logo.png';
+import logo from '../../assets/HexawareBlueLogo 2.png';
 import { useAuth } from '../../hooks/useAuth';
 
 const Sidebar: React.FC = () => {
@@ -35,11 +35,21 @@ const Sidebar: React.FC = () => {
 
   return (
     <>
-      <aside
-        className={`${collapsed ? 'w-16' : 'w-64'} h-full bg-white border-r border-gray-200 flex flex-col shadow-sm transition-all duration-200`}
-      >
-        <div
-          className={`flex items-center justify-between p-6 border-b border-gray-200 ${collapsed ? 'justify-center p-2' : ''}`}
+    <aside
+      className={`${collapsed ? 'w-16' : 'w-64'} h-full bg-white border-r border-gray-200 flex flex-col shadow-sm transition-all duration-200`}
+    >
+      <div className={`flex items-center justify-between p-6 border-b border-gray-200 ${collapsed ? 'justify-center p-2' : ''}`}>
+        {!collapsed && (
+          <div className="flex flex-col items-center space-y-1 w-full">
+            <img src={logo} alt="Logo" className="h-5 w-auto transition-all duration-200" />
+            <span className="text-base font-semibold mt-1">Proposal Authoring</span>
+          </div>
+        )}
+        {/* No logo when collapsed */}
+        <button
+          onClick={() => setCollapsed((prev) => !prev)}
+          className={`p-1 rounded hover:bg-gray-100 transition-colors ${collapsed ? '' : 'ml-2'}`}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {!collapsed && (
             <div className="flex items-center space-x-2">
