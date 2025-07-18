@@ -45,18 +45,6 @@ const Sidebar: React.FC = () => {
             <span className="text-base font-semibold mt-1">Proposal Authoring</span>
           </div>
         )}
-        {/* No logo when collapsed */}
-        <button
-          onClick={() => setCollapsed((prev) => !prev)}
-          className={`p-1 rounded hover:bg-gray-100 transition-colors ${collapsed ? '' : 'ml-2'}`}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {!collapsed && (
-            <div className="flex items-center space-x-2">
-              <img src={logo} alt="Logo" className="h-10 w-auto transition-all duration-200" />
-              <span className="text-lg font-bold text-primary">Proposal Authoring</span>
-            </div>
-          )}
           {/* No logo when collapsed */}
           <button
             onClick={() => setCollapsed((prev) => !prev)}
