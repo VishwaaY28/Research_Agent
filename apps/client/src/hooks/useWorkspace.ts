@@ -10,6 +10,7 @@ export type Workspace = {
   tags: string[];
   workspaceType?: string;
   createdAt?: string;
+  contentCount?: number;
 };
 
 export type ContentChunk = {
@@ -35,7 +36,10 @@ export function useWorkspace() {
       });
       if (!res.ok) throw new Error('Failed to fetch workspaces');
       const data = await res.json();
-      setWorkspaces(Array.isArray(data) ? data : []);
+      setWorkspaces(Array.isArray(data) ? data.map((ws: any) => ({
+        ...ws,
+        contentCount: ws.content_count ?? 0,
+      })) : []);
     } catch (err: any) {
       toast.error(err.message || 'Could not load workspaces');
     } finally {
@@ -64,7 +68,10 @@ export function useWorkspace() {
       );
       if (!res.ok) throw new Error('Failed to filter workspaces');
       const data = await res.json();
-      setWorkspaces(Array.isArray(data) ? data : []);
+      setWorkspaces(Array.isArray(data) ? data.map((ws: any) => ({
+        ...ws,
+        contentCount: ws.content_count ?? 0,
+      })) : []);
     } catch (err: any) {
       toast.error(err.message || 'Could not filter workspaces');
     } finally {
@@ -93,7 +100,10 @@ export function useWorkspace() {
       );
       if (!res.ok) throw new Error('Failed to search workspaces');
       const data = await res.json();
-      setWorkspaces(Array.isArray(data) ? data : []);
+      setWorkspaces(Array.isArray(data) ? data.map((ws: any) => ({
+        ...ws,
+        contentCount: ws.content_count ?? 0,
+      })) : []);
     } catch (err: any) {
       toast.error(err.message || 'Could not search workspaces');
     } finally {
@@ -157,6 +167,9 @@ export function useWorkspace() {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
+      if (res.status === 400 && err.detail && err.detail.includes('already exists')) {
+        throw new Error('A workspace with this name already exists. Please choose a different name.');
+      }
       throw new Error(err.detail || 'Failed to create workspace');
     }
     const ws = await res.json();
@@ -177,6 +190,35 @@ export function useWorkspace() {
     );
   }
 
+  async function deleteWorkspace(id: string) {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        API.BASE_URL() + API.ENDPOINTS.WORKSPACES.BASE_URL() + API.ENDPOINTS.WORKSPACES.DELETE_HARD(id),
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: localStorage.getItem('token')
+              ? `Bearer ${localStorage.getItem('token')}`
+              : '',
+          },
+        },
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to delete workspace');
+      }
+      setWorkspaces((prev) => prev.filter((ws) => ws.id !== id));
+      toast.success('Workspace deleted successfully');
+      return true;
+    } catch (err: any) {
+      toast.error(err.message || 'Could not delete workspace');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return {
     workspaces,
     loading,
@@ -188,5 +230,6 @@ export function useWorkspace() {
     getAllTags,
     createWorkspace,
     updateWorkspace,
+    deleteWorkspace,
   };
 }
