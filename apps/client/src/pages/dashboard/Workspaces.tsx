@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { FiFolder, FiPlus, FiSearch, FiTag } from 'react-icons/fi';
+import { FiFolder, FiPlus, FiSearch, FiTag, FiTrash2, FiX } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useWorkspace } from '../../hooks/useWorkspace';
 
 const Workspaces: React.FC = () => {
   const navigate = useNavigate();
-  const { workspaces, getAllTags, filterWorkspaces, fetchWorkspaces, loading } = useWorkspace();
+  const { workspaces, getAllTags, filterWorkspaces, fetchWorkspaces, loading, deleteWorkspace } = useWorkspace();
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [workspaceToDelete, setWorkspaceToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const debouncedSearch = useDebounce(search, 500);
 
@@ -18,6 +20,24 @@ const Workspaces: React.FC = () => {
     setSelectedTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
     );
+  }
+
+  async function handleDelete(e: React.MouseEvent, id: string, name: string) {
+    e.stopPropagation();
+    setWorkspaceToDelete({ id, name });
+    setModalOpen(true);
+  }
+
+  function closeModal() {
+    setModalOpen(false);
+    setWorkspaceToDelete(null);
+  }
+
+  async function confirmDelete() {
+    if (workspaceToDelete) {
+      await deleteWorkspace(workspaceToDelete.id);
+      closeModal();
+    }
   }
 
   useEffect(() => {
@@ -37,6 +57,39 @@ const Workspaces: React.FC = () => {
 
   return (
     <div className="min-h-full bg-white">
+      {/* Delete Confirmation Modal */}
+      {modalOpen && workspaceToDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-black">Delete Workspace</h3>
+              <button
+                onClick={closeModal}
+                className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="mb-6 text-gray-700">
+              Are you sure you want to permanently delete workspace <span className="font-semibold">{workspaceToDelete.name}</span>? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={closeModal}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="bg-white border-b border-gray-200">
         <div className="px-8 py-6">
           <div className="max-w-7xl mx-auto flex justify-between items-center">
@@ -123,6 +176,13 @@ const Workspaces: React.FC = () => {
                         Content library for reusable proposal components
                       </p>
                     </div>
+                    <button
+                      className="ml-2 p-2 rounded hover:bg-red-50 text-red-500 hover:text-red-700 transition-colors"
+                      title="Delete workspace"
+                      onClick={(e) => handleDelete(e, workspace.id, workspace.name)}
+                    >
+                      <FiTrash2 className="w-5 h-5" />
+                    </button>
                   </div>
 
                   <div className="space-y-3">
@@ -146,7 +206,7 @@ const Workspaces: React.FC = () => {
                     )}
 
                     <div className="flex items-center justify-between text-sm text-gray-500">
-                      <span>Content pieces: 0</span>
+                      <span>Content pieces: {workspace.contentCount ?? 0}</span>
                       <span>Last updated: Today</span>
                     </div>
                   </div>

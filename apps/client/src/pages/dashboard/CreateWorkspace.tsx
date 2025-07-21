@@ -19,12 +19,16 @@ const CreateWorkspace: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedVertical, setSelectedVertical] = useState('');
   const [workspaceType, setWorkspaceType] = useState('');
+  const [nameError, setNameError] = useState<string | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
     }));
+    if (e.target.name === 'name') {
+      setNameError(null); // Clear name error on change
+    }
   };
 
   const addTag = () => {
@@ -55,13 +59,14 @@ const CreateWorkspace: React.FC = () => {
     e.preventDefault();
 
     if (!formData.name.trim()) {
+      setNameError('Workspace name is required');
       toast.error('Workspace name is required');
       return;
     }
 
     if (!formData.clientName.trim()) {
-toast.error('Client name is required');
-return;
+      toast.error('Client name is required');
+      return;
     }
 
     setIsSubmitting(true);
@@ -76,8 +81,12 @@ return;
       });
 
       toast.success('Workspace created successfully!');
+      setNameError(null); // Clear error on success
       navigate(`/dashboard/workspaces/${newWorkspace.id}`);
     } catch (error: any) {
+      if (error.message && error.message.includes('already exists')) {
+        setNameError(error.message);
+      }
       toast.error(error.message || 'Failed to create workspace. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -128,7 +137,7 @@ return;
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
                     Workspace Name <span className="text-red-500">*</span>
                   </label>
-                   <div className="flex gap-2">
+                  <div className="flex gap-2">
                     <select
                       value={selectedVertical}
                       onChange={e => setSelectedVertical(e.target.value)}
@@ -152,11 +161,14 @@ return;
                       name="name"
                       value={formData.name}
                       onChange={handleInputChange}
-                      className="flex-1 px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-200"
+                      className={`flex-1 px-4 py-3 border ${nameError ? 'border-red-500' : 'border-gray-200'} rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-200`}
                       placeholder="Enter workspace name or title"
                       required
                     />
                   </div>
+                  {nameError && (
+                    <p className="text-xs text-red-500 mt-1">{nameError}</p>
+                  )}
                   <p className="text-xs text-gray-500 mt-1">
                     Choose a descriptive name for your workspace
                   </p>

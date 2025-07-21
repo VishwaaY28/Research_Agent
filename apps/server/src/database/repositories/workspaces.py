@@ -34,6 +34,13 @@ class WorkspaceRepository:
             return None
 
     @staticmethod
+    async def fetch_by_name_case_insensitive(name: str):
+        try:
+            return await Workspace.get(name__iexact=name, deleted_at=None).prefetch_related("tags__tag")
+        except DoesNotExist:
+            return None
+
+    @staticmethod
     async def filter_workspaces(name_query: str = None, tag_names: list[str] = None):
         query = Workspace.filter(deleted_at=None)
 
