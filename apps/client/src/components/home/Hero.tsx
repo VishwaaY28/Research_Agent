@@ -2,12 +2,12 @@ import React from 'react';
 import { FiArrowRight, FiCheckCircle, FiFileText } from 'react-icons/fi';
 
 const Hero: React.FC<{ onGetStarted?: () => void }> = ({ onGetStarted }) => (
-  <section className="relative py-24 md:py-32 overflow-hidden">
+  <section className="relative pt-2 pb-6 md:pt-4 md:pb-8 overflow-hidden">
     <div className="absolute top-1/3 left-0 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[120px] opacity-60 -z-10" />
     <div className="absolute bottom-0 right-1/3 w-[400px] h-[400px] bg-primary/15 rounded-full blur-[80px] opacity-70 -z-10" />
 
     <div className="max-w-7xl mx-auto px-6 lg:px-8">
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-12 lg:gap-20 items-center">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-16 items-center">
         <div className="md:col-span-6 max-w-2xl">
           <div className="inline-flex items-center px-3 py-1.5 mb-6 rounded-full bg-primary/10 text-primary font-medium text-sm">
             <span className="flex h-2 w-2 rounded-full bg-primary mr-2"></span>
@@ -22,7 +22,7 @@ const Hero: React.FC<{ onGetStarted?: () => void }> = ({ onGetStarted }) => (
             </span>
           </h1>
 
-          <p className="text-lg text-gray-600 leading-relaxed mb-8">
+          <p className="text-lg text-gray-600 leading-relaxed mb-6">
             Supercharge your proposal process with intelligent content reuse, AI-powered drafting,
             and seamless team collaboration—all in one platform.
           </p>
@@ -55,7 +55,7 @@ const Hero: React.FC<{ onGetStarted?: () => void }> = ({ onGetStarted }) => (
             </div>
 
             <div className="p-6">
-              <div className="mb-8">
+              <div className="mb-4">
                 <h3 className="text-xl font-semibold mb-3 text-gray-800">Executive Summary</h3>
                 <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
                   <p className="text-gray-600 text-sm leading-relaxed">
@@ -66,7 +66,7 @@ const Hero: React.FC<{ onGetStarted?: () => void }> = ({ onGetStarted }) => (
                 </div>
               </div>
 
-              <div className="mb-8">
+              <div className="mb-6">
                 <h3 className="text-xl font-semibold mb-3 text-gray-800">Proposed Approach</h3>
                 <div className="space-y-3">
                   {['Discovery & Analysis', 'Solution Design', 'Implementation'].map((phase) => (

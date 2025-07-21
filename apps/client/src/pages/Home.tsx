@@ -10,7 +10,7 @@ const Home: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      <div className="flex pt-10 pb-4">
+      <div className="flex pt-10 pb-2">
         <img src={logo} alt="Logo" className="h-10 w-auto pl-10" />
       </div>
       <Hero onGetStarted={() => navigate('/auth')} />
