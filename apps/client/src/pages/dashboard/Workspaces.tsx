@@ -3,12 +3,14 @@ import { FiFolder, FiPlus, FiSearch, FiTag } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useWorkspace } from '../../hooks/useWorkspace';
+import CreateWorkspaceModal from './CreateWorkspace';
 
 const Workspaces: React.FC = () => {
   const navigate = useNavigate();
   const { workspaces, getAllTags, filterWorkspaces, fetchWorkspaces, loading } = useWorkspace();
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const debouncedSearch = useDebounce(search, 500);
 
@@ -35,6 +37,11 @@ const Workspaces: React.FC = () => {
     performFilter();
   }, [debouncedSearch, selectedTags]);
 
+  // Refresh workspaces after creating a new one
+  const handleWorkspaceCreated = async () => {
+    await fetchWorkspaces();
+  };
+
   return (
     <div className="min-h-full bg-white">
       <div className="bg-white border-b border-gray-200">
@@ -47,7 +54,7 @@ const Workspaces: React.FC = () => {
               </p>
             </div>
             <button
-              onClick={() => navigate('/dashboard/workspaces/create')}
+              onClick={() => setShowCreateModal(true)}
               className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-2"
             >
               <FiPlus className="w-4 h-4" />
@@ -169,7 +176,7 @@ const Workspaces: React.FC = () => {
                 </p>
                 {!search && selectedTags.length === 0 && (
                   <button
-                    onClick={() => navigate('/dashboard/workspaces/create')}
+                    onClick={() => setShowCreateModal(true)}
                     className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors"
                   >
                     Create Your First Workspace
@@ -180,6 +187,11 @@ const Workspaces: React.FC = () => {
           )}
         </div>
       </div>
+      <CreateWorkspaceModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={handleWorkspaceCreated}
+      />
     </div>
   );
 };
