@@ -31,12 +31,6 @@ async def create_workspace(data: WorkspaceCreateRequest):
     try:
         logger.info(f"Creating workspace with data: name={data.name}, client={data.client}, tags={data.tags}, workspace_type={data.workspace_type}")
 
-        # Check for duplicate workspace name (case-insensitive)
-        existing = await workspace_repository.fetch_by_name_case_insensitive(data.name)
-        if existing:
-            logger.warning(f"Workspace with name '{data.name}' already exists.")
-            raise HTTPException(status_code=400, detail=f"Workspace with name '{data.name}' already exists.")
-
         workspace = await workspace_repository.create_workspace(
             name=data.name,
             client=data.client,
@@ -67,8 +61,6 @@ async def create_workspace(data: WorkspaceCreateRequest):
         logger.info(f"Returning workspace data: {result}")
         return JSONResponse(result)
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error creating workspace: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to create workspace: {str(e)}")
@@ -83,8 +75,7 @@ async def filter_workspaces(data: dict):
     for ws in workspaces:
         tag_relations = await ws.tags.all().prefetch_related("tag")
         tags = [wt.tag.name for wt in tag_relations]
-        content_count = await ws.generated_contents.all().count()
-        result.append({"id": ws.id, "name": ws.name, "client": ws.client, "tags": tags, "content_count": content_count})
+        result.append({"id": ws.id, "name": ws.name, "client": ws.client, "tags": tags})
     return JSONResponse(result, status_code=200)
 
 async def search_workspaces(data: dict):
@@ -97,8 +88,7 @@ async def search_workspaces(data: dict):
     for ws in workspaces:
         tag_relations = await ws.tags.all().prefetch_related("tag")
         tags = [wt.tag.name for wt in tag_relations]
-        content_count = await ws.generated_contents.all().count()
-        result.append({"id": ws.id, "name": ws.name, "client": ws.client, "tags": tags, "content_count": content_count})
+        result.append({"id": ws.id, "name": ws.name, "client": ws.client, "tags": tags})
     return JSONResponse(result, status_code=200)
 
 async def fetch_all_workspaces():
@@ -107,8 +97,7 @@ async def fetch_all_workspaces():
     for ws in workspaces:
         tag_relations = await ws.tags.all().prefetch_related("tag")
         tags = [wt.tag.name for wt in tag_relations]
-        content_count = await ws.generated_contents.all().count()
-        result.append({"id": ws.id, "name": ws.name, "client": ws.client, "tags": tags, "content_count": content_count})
+        result.append({"id": ws.id, "name": ws.name, "client": ws.client, "tags": tags})
     return JSONResponse(result, status_code=200)
 
 async def fetch_by_id(workspace_id: int):
