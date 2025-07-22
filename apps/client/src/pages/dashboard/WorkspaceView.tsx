@@ -1,17 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import {
-    FiArrowLeft,
-    FiEdit3,
-    FiEye,
-    FiFileText,
-    FiPlus,
-    FiSearch,
-    FiTag,
-    FiX,
+  FiArrowLeft,
+  FiEdit3,
+  FiEye,
+  FiFileText,
+  FiPlus,
+  FiSearch,
+  FiTag,
+  FiX,
+  FiZap,
 } from 'react-icons/fi';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDebounce } from '../../hooks/useDebounce';
-import { type Section, useSections } from '../../hooks/useSections';
+import { useSections, type Section } from '../../hooks/useSections';
 import { useTags } from '../../hooks/useTags';
 import { useWorkspace } from '../../hooks/useWorkspace';
 
@@ -213,19 +214,46 @@ const WorkspaceView: React.FC = () => {
                   <p className="text-gray-600 ml-8">
                     Client: {workspace.clientName}
                     {workspace.workspaceType && (
-                      <span className="ml-4">| Type: <span className="font-semibold">{workspace.workspaceType}</span></span>
+                      <span className="ml-4">
+                        | Type: <span className="font-semibold">{workspace.workspaceType}</span>
+                      </span>
                     )}
                   </p>
                 )}
               </div>
-              <div className="flex items-center space-x-3">
-                <span className="text-sm text-gray-500">{allSections.length} sections</span>
+              <div className="flex items-center space-x-2">
                 <button
-                  onClick={() => navigate('/dashboard/content-ingestion')}
-                  className="bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors"
+                  onClick={() =>
+                    navigate('/dashboard/content-ingestion', {
+                      state: { workspaceId: workspace.id },
+                    })
+                  }
+                  className="bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 text-sm"
                 >
-                  <FiPlus className="w-4 h-4 inline mr-2" />
+                  <FiPlus className="w-3 h-3" />
                   Add Content
+                </button>
+                <button
+                  onClick={() =>
+                    navigate('/dashboard/prompt-templates', {
+                      state: { workspaceId: workspace.id, type: workspace.workspaceType },
+                    })
+                  }
+                  className="bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 text-sm"
+                >
+                  <FiPlus className="w-3 h-3" />
+                  Add Prompt
+                </button>
+                <button
+                  onClick={() =>
+                    navigate('/dashboard/proposal-authoring', {
+                      state: { workspaceId: workspace.id, workspaceType: workspace.workspaceType },
+                    })
+                  }
+                  className="bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 text-sm"
+                >
+                  <FiZap className="w-3 h-3" />
+                  Generate Prompt
                 </button>
               </div>
             </div>
@@ -358,7 +386,11 @@ const WorkspaceView: React.FC = () => {
                 </p>
                 {!search && selectedTags.length === 0 && (
                   <button
-                    onClick={() => navigate('/dashboard/content-ingestion')}
+                    onClick={() =>
+                      navigate('/dashboard/content-ingestion', {
+                        state: { workspaceId: workspace.id },
+                      })
+                    }
                     className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors"
                   >
                     <FiPlus className="w-4 h-4 inline mr-2" />

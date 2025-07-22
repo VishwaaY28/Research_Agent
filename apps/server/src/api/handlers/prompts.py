@@ -9,7 +9,7 @@ from utils.llm import azure_openai_client, ollama_client
 
 logger = logging.getLogger(__name__)
 
-USE_AZURE_OPENAI = False
+USE_AZURE_OPENAI = True
 
 class PromptRequest(BaseModel):
     title: str
@@ -129,9 +129,14 @@ async def save_generated_content(req: Request, workspace_id: int, request: SaveG
 async def create_prompt(req: Request, workspace_id: int, request: PromptRequest):
     """Create a new prompt"""
     try:
+        logger.info(f"Creating prompt for workspace {workspace_id} with data: {request}")
+
         user = req.state.user
         if not user:
+            logger.error("No authenticated user found")
             raise HTTPException(status_code=401, detail="Not authenticated")
+
+        logger.info(f"Creating prompt with user_id: {user.id}")
 
         prompt = await content_repository.create_prompt(
             workspace_id=workspace_id,
@@ -141,7 +146,9 @@ async def create_prompt(req: Request, workspace_id: int, request: PromptRequest)
             tag_names=request.tags
         )
 
-        return JSONResponse({
+        logger.info(f"Created prompt with ID: {prompt.id}")
+
+        response_data = {
             "success": True,
             "prompt": {
                 "id": prompt.id,
@@ -149,10 +156,13 @@ async def create_prompt(req: Request, workspace_id: int, request: PromptRequest)
                 "content": prompt.content,
                 "created_at": prompt.created_at.isoformat()
             }
-        })
+        }
+        logger.info(f"Returning response: {response_data}")
+        return JSONResponse(response_data)
+
     except Exception as e:
-        logger.error(f"Error creating prompt: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error creating prompt: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create prompt: {str(e)}")
 
 async def get_workspace_prompts(workspace_id: int):
     """Get all prompts for a workspace"""
@@ -223,6 +233,50 @@ async def delete_prompt(workspace_id: int, prompt_id: int):
         return JSONResponse({"success": True})
     except Exception as e:
         logger.error(f"Error deleting prompt: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def get_prompts_by_section(workspace_id: int, section_name: str):
+    """Get prompts for a specific section"""
+    try:
+        prompts = await content_repository.get_prompts_by_section(workspace_id, section_name)
+
+        return JSONResponse({
+            "success": True,
+            "prompts": [
+                {
+                    "id": prompt.id,
+                    "title": prompt.title,
+                    "content": prompt.content,
+                    "created_at": prompt.created_at.isoformat(),
+                    "tags": [{"id": tag.tag.id, "name": tag.tag.name} for tag in prompt.tags]
+                }
+                for prompt in prompts
+            ]
+        })
+    except Exception as e:
+        logger.error(f"Error getting prompts by section: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def get_prompts_by_workspace_type(workspace_id: int, workspace_type: str):
+    """Get prompts for a specific workspace type"""
+    try:
+        prompts = await content_repository.get_prompts_by_workspace_type(workspace_id, workspace_type)
+
+        return JSONResponse({
+            "success": True,
+            "prompts": [
+                {
+                    "id": prompt.id,
+                    "title": prompt.title,
+                    "content": prompt.content,
+                    "created_at": prompt.created_at.isoformat(),
+                    "tags": [{"id": tag.tag.id, "name": tag.tag.name} for tag in prompt.tags]
+                }
+                for prompt in prompts
+            ]
+        })
+    except Exception as e:
+        logger.error(f"Error getting prompts by workspace type: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 async def get_workspace_generated_content(workspace_id: int):
@@ -329,4 +383,73 @@ async def delete_generated_content(workspace_id: int, content_id: int):
         return JSONResponse({"success": True})
     except Exception as e:
         logger.error(f"Error deleting generated content: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def get_default_prompts():
+    """Get default prompts for all sections"""
+    try:
+        # Return the predefined prompts for each workspace type and section
+        default_prompts = {
+            "Proposal": {
+                "Executive Summary": "Provide a concise summary of the proposal, highlighting the business context, objectives, and value proposition.",
+                "Problem Statement": "Explain the core business challenges the client is facing and why addressing them is critical.",
+                "Proposed Solution": "Describe the proposed solution in detail, including key features, components, and how it addresses the client's needs.",
+                "Scope of Work": "Outline the specific deliverables, services, and responsibilities covered under this proposal.",
+                "Project Approach and Methodology": "Describe the overall approach, phases, and methodology that will be used to execute the project.",
+                "Project Plan and Timeline": "Provide a high-level timeline with major milestones and estimated completion dates for key phases.",
+                "Team Composition and Roles": "List the proposed team members, their roles, responsibilities, and relevant experience.",
+            },
+            "Service Agreement": {
+                "Agreement Overview": "Summarize the purpose and scope of the service agreement.",
+                "Services Provided": "List and describe the services to be provided under this agreement.",
+                "Service Levels": "Define the expected service levels and performance metrics.",
+                "Responsibilities": "Outline the responsibilities of both parties.",
+                "Payment Terms": "Specify the payment terms, schedule, and invoicing process.",
+                "Termination Clause": "Describe the conditions under which the agreement may be terminated.",
+                "Confidentiality": "Explain the confidentiality obligations of both parties.",
+            },
+            "Report": {
+                "Introduction": "Provide an introduction to the report, including objectives and background.",
+                "Methodology": "Describe the methods and processes used to gather and analyze data.",
+                "Findings": "Summarize the key findings of the report.",
+                "Analysis": "Provide a detailed analysis of the findings.",
+                "Recommendations": "Offer actionable recommendations based on the analysis.",
+                "Conclusion": "Summarize the main points and conclusions of the report.",
+                "Appendices": "Include any supplementary material or data.",
+            },
+            "Research": {
+                "Abstract": "Summarize the research topic, objectives, and key findings.",
+                "Introduction": "Introduce the research problem and its significance.",
+                "Literature Review": "Review relevant literature and previous research.",
+                "Methodology": "Describe the research design, methods, and procedures.",
+                "Results": "Present the results of the research.",
+                "Discussion": "Interpret the results and discuss their implications.",
+                "References": "List all references and sources cited in the research.",
+            },
+            "Template": {
+                "Header": "Provide the header for the template, including title and date.",
+                "Body": "Describe the main content or body of the template.",
+                "Footer": "Include footer information such as page numbers or disclaimers.",
+                "Instructions": "Provide instructions for using or filling out the template.",
+                "Checklist": "List items to be checked or completed in the template.",
+                "Summary": "Summarize the purpose and key points of the template.",
+                "Appendix": "Include any additional material or resources.",
+            },
+            "Blog": {
+                "Title": "Provide a catchy and relevant title for the blog post.",
+                "Introduction": "Write an engaging introduction to the blog topic.",
+                "Main Content": "Develop the main content with supporting arguments and examples.",
+                "Tips & Insights": "Share tips, insights, or personal experiences related to the topic.",
+                "Conclusion": "Conclude the blog post with a summary or call to action.",
+                "References": "List any sources or references used in the blog post.",
+                "Author Bio": "Provide a brief bio of the blog author.",
+            },
+        }
+
+        return JSONResponse({
+            "success": True,
+            "default_prompts": default_prompts
+        })
+    except Exception as e:
+        logger.error(f"Error getting default prompts: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

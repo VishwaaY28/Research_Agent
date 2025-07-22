@@ -81,3 +81,13 @@ async def soft_delete_section(section_id: int):
 async def hard_delete_section(section_id: int):
     await section_repository.hard_delete_section(section_id)
     return {"success": True}
+
+async def create_section(workspace_id: int, name: str, content: str, source: str = None, tags: list = None):
+    section = await section_repository.create_section(workspace_id, name, content, source, tags or [])
+    return {
+        "id": section.id,
+        "name": section.name,
+        "content": section.content,
+        "source": section.source,
+        "tags": tags or []
+    }

@@ -2,20 +2,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-    FiCheck,
-    FiChevronDown,
-    FiChevronRight,
-    FiEye,
-    FiPlus,
-    FiSave,
-    FiSearch,
-    FiTag,
-    FiX,
+  FiCheck,
+  FiChevronDown,
+  FiChevronRight,
+  FiEye,
+  FiPlus,
+  FiSave,
+  FiSearch,
+  FiTag,
+  FiX,
 } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '../../../hooks/useDebounce';
 import { useSections } from '../../../hooks/useSections';
-import { type Tag, useTags } from '../../../hooks/useTags';
+import { useTags, type Tag } from '../../../hooks/useTags';
 import { useWorkspace } from '../../../hooks/useWorkspace';
 
 type MinorChunk = {
@@ -68,9 +68,14 @@ type SelectedItem = {
 type ContentResultsProps = {
   extractedResults: ExtractedContent[];
   onReset: () => void;
+  workspaceId?: string;
 };
 
-const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onReset }) => {
+const ContentResults: React.FC<ContentResultsProps> = ({
+  extractedResults,
+  onReset,
+  workspaceId,
+}) => {
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
   const [selectedWorkspace, setSelectedWorkspace] = useState('');
@@ -617,7 +622,8 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
     });
     return items;
   }, [extractedResults]);
-  const allItemsSelected = selectedItems.length > 0 && selectedItems.length === allSelectableItems.length;
+  const allItemsSelected =
+    selectedItems.length > 0 && selectedItems.length === allSelectableItems.length;
   const totalItems = allSelectableItems.length;
 
   const filteredWorkspaces = useMemo(() => {
@@ -1004,12 +1010,50 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
     return items;
   }
   function getAllSelectableIdsForDoc(result: ExtractedContent) {
-    return getAllSelectableItemsForDoc(result).map(item => item.uniqueId);
+    return getAllSelectableItemsForDoc(result).map((item) => item.uniqueId);
   }
   function allItemsSelectedForDoc(result: ExtractedContent) {
     const docIds = getAllSelectableIdsForDoc(result);
-    return docIds.length > 0 && docIds.every(id => selectedItems.some(item => item.uniqueId === id));
+    return (
+      docIds.length > 0 && docIds.every((id) => selectedItems.some((item) => item.uniqueId === id))
+    );
   }
+
+  useEffect(() => {
+    // Auto-save logic: if workspaceId is present and extractedResults is not empty, auto-save all chunks as sections
+    async function autoSaveToWorkspace() {
+      if (!workspaceId || !extractedResults.length) return;
+      try {
+        // Flatten all chunks from all extractedResults
+        const allSections = extractedResults.flatMap((result) =>
+          result.chunks.map((chunk) => ({
+            content: 'content' in chunk ? (chunk as any).content : '',
+            name:
+              'title' in chunk
+                ? (chunk as any).title
+                : 'label' in chunk
+                  ? (chunk as any).label
+                  : 'Untitled',
+            tags: [],
+          })),
+        );
+        if (allSections.length > 0) {
+          // Use the first filename as the source name
+          const sourceName =
+            extractedResults[0].filename || extractedResults[0].url || 'Extracted Content';
+          await createSections(parseInt(workspaceId), sourceName, allSections);
+          toast.success('Extracted content auto-saved to workspace!');
+          onReset();
+        }
+      } catch (err) {
+        toast.error('Auto-save to workspace failed');
+        console.error(err);
+      }
+    }
+    autoSaveToWorkspace();
+    // Only run on mount or when extractedResults changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId, extractedResults]);
 
   return (
     <>
@@ -1089,26 +1133,31 @@ const ContentResults: React.FC<ContentResultsProps> = ({ extractedResults, onRes
                       {/* Select All for this document */}
                       {result.chunks && result.chunks.length > 0 && (
                         <div className="flex items-center ml-4">
-                          <label htmlFor={`select-all-content-${resultIndex}`} className="text-sm text-gray-700 cursor-pointer mr-2">
+                          <label
+                            htmlFor={`select-all-content-${resultIndex}`}
+                            className="text-sm text-gray-700 cursor-pointer mr-2"
+                          >
                             Select All
                           </label>
                           <input
                             type="checkbox"
                             id={`select-all-content-${resultIndex}`}
                             checked={allItemsSelectedForDoc(result)}
-                            onChange={e => {
+                            onChange={(e) => {
                               if (e.target.checked) {
-                                setSelectedItems(prev => {
+                                setSelectedItems((prev) => {
                                   // Remove any previous selections for this doc, then add all for this doc
                                   const docIds = getAllSelectableIdsForDoc(result);
-                                  const filtered = prev.filter(item => !docIds.includes(item.uniqueId));
+                                  const filtered = prev.filter(
+                                    (item) => !docIds.includes(item.uniqueId),
+                                  );
                                   return [...filtered, ...getAllSelectableItemsForDoc(result)];
                                 });
                               } else {
-                                setSelectedItems(prev => {
+                                setSelectedItems((prev) => {
                                   // Remove all selections for this doc
                                   const docIds = getAllSelectableIdsForDoc(result);
-                                  return prev.filter(item => !docIds.includes(item.uniqueId));
+                                  return prev.filter((item) => !docIds.includes(item.uniqueId));
                                 });
                               }
                             }}

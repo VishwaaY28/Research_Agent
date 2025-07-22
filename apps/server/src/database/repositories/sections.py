@@ -135,6 +135,18 @@ class SectionRepository:
 
         return await query.prefetch_related("tags__tag", "content_source")
 
+    async def create_section(self, workspace_id: int, name: str, content: str, source: str = None, tags: list = None):
+        from database.models import Workspace, Section
+        workspace = await Workspace.get(id=workspace_id, deleted_at=None)
+        section = await Section.create(
+            workspace=workspace,
+            name=name,
+            content=content,
+            source=source or "manual"
+        )
+        if tags:
+            await self.add_tags_to_section(section.id, tags)
+        return section
 
     async def soft_delete_section(self, section_id):
         section = await Section.get(id=section_id)

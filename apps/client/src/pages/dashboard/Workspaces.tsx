@@ -1,16 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { FiFolder, FiPlus, FiSearch, FiTag } from 'react-icons/fi';
+import { FiFolder, FiPlus, FiSearch, FiTag, FiTrash2 } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useWorkspace } from '../../hooks/useWorkspace';
-import CreateWorkspaceModal from './CreateWorkspace';
 
 const Workspaces: React.FC = () => {
   const navigate = useNavigate();
-  const { workspaces, getAllTags, filterWorkspaces, fetchWorkspaces, loading } = useWorkspace();
+  const { workspaces, getAllTags, filterWorkspaces, fetchWorkspaces, loading, deleteWorkspace } =
+    useWorkspace();
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const debouncedSearch = useDebounce(search, 500);
 
@@ -37,11 +36,6 @@ const Workspaces: React.FC = () => {
     performFilter();
   }, [debouncedSearch, selectedTags]);
 
-  // Refresh workspaces after creating a new one
-  const handleWorkspaceCreated = async () => {
-    await fetchWorkspaces();
-  };
-
   return (
     <div className="min-h-full bg-white">
       <div className="bg-white border-b border-gray-200">
@@ -53,13 +47,15 @@ const Workspaces: React.FC = () => {
                 Organize and manage your reusable content libraries
               </p>
             </div>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-2"
-            >
-              <FiPlus className="w-4 h-4" />
-              Create Workspace
-            </button>
+            <div className="flex items-center space-x-3 mb-6">
+              <button
+                onClick={() => navigate('/dashboard/workspaces/create')}
+                className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors flex items-center gap-2"
+              >
+                <FiPlus className="w-4 h-4" />
+                Create Workspace
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -114,8 +110,20 @@ const Workspaces: React.FC = () => {
                 <div
                   key={workspace.id}
                   onClick={() => navigate(`/dashboard/workspaces/${workspace.id}`)}
-                  className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md hover:border-gray-300 transition-all duration-200 cursor-pointer group"
+                  className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md hover:border-gray-300 transition-all duration-200 cursor-pointer group relative"
                 >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm('Are you sure you want to delete this workspace?')) {
+                        deleteWorkspace(workspace.id);
+                      }
+                    }}
+                    className="absolute top-3 right-3 p-1 bg-red-100 hover:bg-red-200 text-red-600 rounded-full focus:outline-none focus:ring-2 focus:ring-red-300 z-10"
+                    title="Delete workspace"
+                  >
+                    <FiTrash2 className="w-4 h-4" />
+                  </button>
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <div className="flex items-center mb-3">
@@ -176,7 +184,7 @@ const Workspaces: React.FC = () => {
                 </p>
                 {!search && selectedTags.length === 0 && (
                   <button
-                    onClick={() => setShowCreateModal(true)}
+                    onClick={() => navigate('/dashboard/workspaces/create')}
                     className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors"
                   >
                     Create Your First Workspace
@@ -187,11 +195,6 @@ const Workspaces: React.FC = () => {
           )}
         </div>
       </div>
-      <CreateWorkspaceModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onCreated={handleWorkspaceCreated}
-      />
     </div>
   );
 };

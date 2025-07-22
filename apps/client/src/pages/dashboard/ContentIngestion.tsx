@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Toaster } from 'react-hot-toast';
+import { useLocation, useParams } from 'react-router-dom';
 import ContentResults from '../../components/dashboard/ContentIngestion/ContentResults';
 import IngestForm from '../../components/dashboard/ContentIngestion/IngestForm';
 
@@ -26,6 +27,10 @@ type ExtractedContent = {
 const ContentIngestion: React.FC = () => {
   const [extractedResults, setExtractedResults] = useState<ExtractedContent[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const location = useLocation();
+  const params = useParams<{ id?: string }>();
+  // Try to get workspaceId from params or location.state
+  const workspaceId = params.id || location.state?.workspaceId;
 
   const handleProcessingStart = () => {
     setIsProcessing(true);
@@ -67,7 +72,11 @@ const ContentIngestion: React.FC = () => {
           />
         </div>
       ) : (
-        <ContentResults extractedResults={extractedResults} onReset={handleReset} />
+        <ContentResults
+          extractedResults={extractedResults}
+          onReset={handleReset}
+          workspaceId={workspaceId}
+        />
       )}
     </div>
   );

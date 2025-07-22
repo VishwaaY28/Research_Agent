@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Path, Request
+from fastapi import APIRouter, Path, Request, Query
 from typing import List
 
 from api.handlers import prompts as prompts_handlers
@@ -44,6 +44,22 @@ async def create_prompt(
 async def get_workspace_prompts(workspace_id: int = Path(...)):
     """Get all prompts for a workspace"""
     return await prompts_handlers.get_workspace_prompts(workspace_id)
+
+@router.get("/prompts/by-section")
+async def get_prompts_by_section(
+    workspace_id: int = Path(...),
+    section_name: str = Query(...)
+):
+    """Get prompts for a specific section"""
+    return await prompts_handlers.get_prompts_by_section(workspace_id, section_name)
+
+@router.get("/prompts/by-workspace-type")
+async def get_prompts_by_workspace_type(
+    workspace_id: int = Path(...),
+    workspace_type: str = Query(...)
+):
+    """Get prompts for a specific workspace type"""
+    return await prompts_handlers.get_prompts_by_workspace_type(workspace_id, workspace_type)
 
 @router.post("/prompts/filter")
 async def filter_prompts_by_tags(
@@ -125,3 +141,8 @@ async def delete_generated_content(
 ):
     """Delete generated content"""
     return await prompts_handlers.delete_generated_content(workspace_id, content_id)
+
+@router.get("/prompts/defaults")
+async def get_default_prompts():
+    """Get default prompts for all sections"""
+    return await prompts_handlers.get_default_prompts()

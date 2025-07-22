@@ -22,6 +22,7 @@ export const API = {
       UPDATE: (id: string | number) => `/${id}`,
       DELETE_SOFT: (id: string | number) => `/soft/${id}`,
       DELETE_HARD: (id: string | number) => `/hard/${id}`,
+      TYPES: () => '/types',
       // IMAGES: {
       //   LIST: (workspaceId: string | number) => `/${workspaceId}/images`,
       //   ADD: (workspaceId: string | number, sourceImageId: string | number) =>

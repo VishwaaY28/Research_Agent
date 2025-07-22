@@ -11,13 +11,15 @@ import {
   FiUpload,
 } from 'react-icons/fi';
 import { NavLink, useNavigate } from 'react-router-dom';
-import logo from '../../assets/HexawareBlueLogo 2.png';
+import logo from '../../assets/logo.png';
 import { useAuth } from '../../hooks/useAuth';
+import PromptTemplateModal from './PromptTemplateModal';
 
 const Sidebar: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
+  const [showPromptTemplateModal, setShowPromptTemplateModal] = useState(false);
 
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: FiLayers },
@@ -35,16 +37,18 @@ const Sidebar: React.FC = () => {
 
   return (
     <>
-    <aside
-      className={`${collapsed ? 'w-16' : 'w-64'} h-full bg-white border-r border-gray-200 flex flex-col shadow-sm transition-all duration-200`}
-    >
-      <div className={`flex items-center justify-between p-6 border-b border-gray-200 ${collapsed ? 'justify-center p-2' : ''}`}>
-        {!collapsed && (
-          <div className="flex flex-col items-center space-y-1 w-full">
-            <img src={logo} alt="Logo" className="h-5 w-auto transition-all duration-200" />
-            <span className="text-base font-semibold mt-1">Proposal Authoring</span>
-          </div>
-        )}
+      <aside
+        className={`${collapsed ? 'w-16' : 'w-64'} h-full bg-white border-r border-gray-200 flex flex-col shadow-sm transition-all duration-200`}
+      >
+        <div
+          className={`flex items-center justify-between p-6 border-b border-gray-200 ${collapsed ? 'justify-center p-2' : ''}`}
+        >
+          {!collapsed && (
+            <div className="flex items-center space-x-2">
+              <img src={logo} alt="Logo" className="h-10 w-auto transition-all duration-200" />
+              <span className="text-lg font-bold text-primary">Proposal Authoring</span>
+            </div>
+          )}
           {/* No logo when collapsed */}
           <button
             onClick={() => setCollapsed((prev) => !prev)}
@@ -59,6 +63,19 @@ const Sidebar: React.FC = () => {
           <ul className="space-y-1">
             {navItems.map((item) => {
               const IconComponent = item.icon;
+              if (item.isPromptTemplate) {
+                return (
+                  <li key={item.label}>
+                    <button
+                      onClick={() => setShowPromptTemplateModal(true)}
+                      className={`flex items-center ${collapsed ? 'justify-center px-0' : 'space-x-3 px-4'} py-3 rounded-lg transition-colors text-neutral-700 hover:bg-gray-100 w-full`}
+                    >
+                      <IconComponent className={`w-5 h-5 ${collapsed ? 'mx-auto' : ''}`} />
+                      {!collapsed && <span className="font-medium">{item.label}</span>}
+                    </button>
+                  </li>
+                );
+              }
               return (
                 <li key={item.path}>
                   <NavLink
@@ -111,6 +128,11 @@ const Sidebar: React.FC = () => {
             </button>
           </div>
         )}
+        {/* Prompt Template Modal */}
+        <PromptTemplateModal
+          isOpen={showPromptTemplateModal}
+          onClose={() => setShowPromptTemplateModal(false)}
+        />
       </aside>
     </>
   );
