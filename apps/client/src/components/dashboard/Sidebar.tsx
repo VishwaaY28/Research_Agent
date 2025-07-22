@@ -11,7 +11,7 @@ import {
   FiUpload,
 } from 'react-icons/fi';
 import { NavLink, useNavigate } from 'react-router-dom';
-import logo from '../../assets/logo.png';
+import logo from '../../assets/HexawareBlueLogo 2.png';
 import { useAuth } from '../../hooks/useAuth';
 import PromptTemplateModal from './PromptTemplateModal';
 
@@ -44,11 +44,11 @@ const Sidebar: React.FC = () => {
           className={`flex items-center justify-between p-6 border-b border-gray-200 ${collapsed ? 'justify-center p-2' : ''}`}
         >
           {!collapsed && (
-            <div className="flex items-center space-x-2">
-              <img src={logo} alt="Logo" className="h-10 w-auto transition-all duration-200" />
-              <span className="text-lg font-bold text-primary">Proposal Authoring</span>
-            </div>
-          )}
+        <div className="flex flex-col items-center space-y-1 w-full">
+          <img src={logo} alt="Logo" className="h-5 w-auto transition-all duration-200" />
+          <span className="text-base font-semibold mt-1">Proposal Authoring</span>
+        </div>
+      )}
           {/* No logo when collapsed */}
           <button
             onClick={() => setCollapsed((prev) => !prev)}
