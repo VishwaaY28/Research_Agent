@@ -167,3 +167,24 @@ async def hard_delete(workspace_id: int):
     if not success:
         raise HTTPException(status_code=404, detail="Workspace not found")
     return JSONResponse({"success": True})
+
+async def get_workspace_types():
+    """Get all available workspace types"""
+    try:
+        # Return the predefined workspace types
+        workspace_types = [
+            "Proposal",
+            "Service Agreement", 
+            "Report",
+            "Research",
+            "Template",
+            "Blog"
+        ]
+        
+        return JSONResponse({
+            "success": True,
+            "workspace_types": workspace_types
+        })
+    except Exception as e:
+        logger.error(f"Error getting workspace types: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

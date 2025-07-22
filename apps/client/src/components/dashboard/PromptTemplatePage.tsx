@@ -1,9 +1,24 @@
-import { useState } from 'react';
-import { FiChevronLeft, FiChevronRight, FiFileText } from 'react-icons/fi';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
+import { FiFileText, FiSave } from 'react-icons/fi';
+import ReactModal from 'react-modal';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useContent } from '../../hooks/useContent';
+import { useWorkspace } from '../../hooks/useWorkspace';
 
-const WORKSPACE_TYPES = [
+// Add type for workspace type
+interface WorkspaceType {
+  id: string;
+  name: string;
+  sections: Array<{
+    name: string;
+    prompt: string;
+  }>;
+}
+
+const WORKSPACE_TYPES: WorkspaceType[] = [
   {
+    id: 'proposal',
     name: 'Proposal',
     sections: [
       {
@@ -19,7 +34,7 @@ const WORKSPACE_TYPES = [
       {
         name: 'Proposed Solution',
         prompt:
-          'Describe the proposed solution in detail, including key features, components, and how it addresses the client’s needs.',
+          "Describe the proposed solution in detail, including key features, components, and how it addresses the client's needs.",
       },
       {
         name: 'Scope of Work',
@@ -44,84 +59,7 @@ const WORKSPACE_TYPES = [
     ],
   },
   {
-    name: 'Service Agreement',
-    sections: [
-      {
-        name: 'Agreement Overview',
-        prompt: 'Summarize the purpose and scope of the service agreement.',
-      },
-      {
-        name: 'Services Provided',
-        prompt: 'List and describe the services to be provided under this agreement.',
-      },
-      {
-        name: 'Service Levels',
-        prompt: 'Define the expected service levels and performance metrics.',
-      },
-      { name: 'Responsibilities', prompt: 'Outline the responsibilities of both parties.' },
-      {
-        name: 'Payment Terms',
-        prompt: 'Specify the payment terms, schedule, and invoicing process.',
-      },
-      {
-        name: 'Termination Clause',
-        prompt: 'Describe the conditions under which the agreement may be terminated.',
-      },
-      {
-        name: 'Confidentiality',
-        prompt: 'Explain the confidentiality obligations of both parties.',
-      },
-    ],
-  },
-  {
-    name: 'Report',
-    sections: [
-      {
-        name: 'Introduction',
-        prompt: 'Provide an introduction to the report, including objectives and background.',
-      },
-      {
-        name: 'Methodology',
-        prompt: 'Describe the methods and processes used to gather and analyze data.',
-      },
-      { name: 'Findings', prompt: 'Summarize the key findings of the report.' },
-      { name: 'Analysis', prompt: 'Provide a detailed analysis of the findings.' },
-      {
-        name: 'Recommendations',
-        prompt: 'Offer actionable recommendations based on the analysis.',
-      },
-      { name: 'Conclusion', prompt: 'Summarize the main points and conclusions of the report.' },
-      { name: 'Appendices', prompt: 'Include any supplementary material or data.' },
-    ],
-  },
-  {
-    name: 'Research',
-    sections: [
-      { name: 'Abstract', prompt: 'Summarize the research topic, objectives, and key findings.' },
-      { name: 'Introduction', prompt: 'Introduce the research problem and its significance.' },
-      { name: 'Literature Review', prompt: 'Review relevant literature and previous research.' },
-      { name: 'Methodology', prompt: 'Describe the research design, methods, and procedures.' },
-      { name: 'Results', prompt: 'Present the results of the research.' },
-      { name: 'Discussion', prompt: 'Interpret the results and discuss their implications.' },
-      { name: 'References', prompt: 'List all references and sources cited in the research.' },
-    ],
-  },
-  {
-    name: 'Template',
-    sections: [
-      { name: 'Header', prompt: 'Provide the header for the template, including title and date.' },
-      { name: 'Body', prompt: 'Describe the main content or body of the template.' },
-      { name: 'Footer', prompt: 'Include footer information such as page numbers or disclaimers.' },
-      {
-        name: 'Instructions',
-        prompt: 'Provide instructions for using or filling out the template.',
-      },
-      { name: 'Checklist', prompt: 'List items to be checked or completed in the template.' },
-      { name: 'Summary', prompt: 'Summarize the purpose and key points of the template.' },
-      { name: 'Appendix', prompt: 'Include any additional material or resources.' },
-    ],
-  },
-  {
+    id: 'blog',
     name: 'Blog',
     sections: [
       { name: 'Title', prompt: 'Provide a catchy and relevant title for the blog post.' },
@@ -141,135 +79,223 @@ const WORKSPACE_TYPES = [
   },
 ];
 
-const PromptTemplatePage = () => {
-  const [selectedType, setSelectedType] = useState(null);
-  const [selectedSection, setSelectedSection] = useState(null);
+const PromptTemplatePage: React.FC = () => {
+  const [selectedType, setSelectedType] = useState<WorkspaceType | null>(null);
+  const [selectedSection, setSelectedSection] = useState<{ name: string; prompt: string } | null>(
+    null,
+  );
+  const [userPrompt, setUserPrompt] = useState('');
+  const [saving, setSaving] = useState(false);
+  const userInputRef = useRef(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  const { savePromptToWorkspace } = useContent();
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [modalWorkspaceType, setModalWorkspaceType] = useState<string>('');
+  const [modalWorkspaceId, setModalWorkspaceId] = useState<string>('');
+  const [workspaceTypes, setWorkspaceTypes] = useState<string[]>([]);
+  const [filteredWorkspaces, setFilteredWorkspaces] = useState<Workspace[]>([]);
+
+  const {
+    workspaces,
+    loading: workspacesLoading,
+    fetchWorkspaces,
+    createWorkspace,
+    fetchWorkspaceTypes,
+  } = useWorkspace();
+
+  useEffect(() => {
+    fetchWorkspaces();
+    fetchWorkspaceTypes().then(setWorkspaceTypes);
+  }, []);
+
+  // Pre-select workspace and type from navigation state
+  useEffect(() => {
+    if (location.state?.workspaceId) {
+      setModalWorkspaceId(String(location.state.workspaceId));
+    }
+    if (location.state?.type && workspaces.length > 0) {
+      const typeObj = WORKSPACE_TYPES.find((t) => t.name === location.state.type);
+      if (typeObj) setSelectedType(typeObj);
+    }
+  }, [location.state, workspaces]);
+
+  useEffect(() => {
+    if (modalWorkspaceType) {
+      setFilteredWorkspaces(workspaces.filter((w) => w.workspaceType === modalWorkspaceType));
+    } else {
+      setFilteredWorkspaces([]);
+    }
+  }, [modalWorkspaceType, workspaces]);
+
+  useEffect(() => {
+    setUserPrompt('');
+  }, [selectedSection]);
+
+  const handleSaveToWorkspace = async () => {
+    setModalWorkspaceId(''); // Reset selection when opening modal
+    setShowSaveModal(true);
+  };
+
+  const handleModalSave = async () => {
+    console.log('Modal save clicked', { selectedType, modalWorkspaceId, selectedSection });
+    if (!selectedType || !selectedType.name || !modalWorkspaceId) {
+      console.log('Early return: missing type or workspace', { selectedType, modalWorkspaceId });
+      toast.error('Please select a type and workspace');
+      return;
+    }
+    if (!selectedSection || !selectedSection.name) {
+      console.log('Early return: missing section', { selectedSection });
+      toast.error('Please select a section first');
+      return;
+    }
+    setSaving(true);
+    try {
+      const workspace = workspaces.find((w) => String(w.id) === String(modalWorkspaceId));
+      if (!workspace) {
+        toast.error('Workspace not found');
+        setSaving(false);
+        return;
+      }
+      const combinedPrompt = selectedSection.prompt + (userPrompt ? ' ' + userPrompt : '');
+      const title = `${selectedType.name} - ${selectedSection.name}`;
+      console.log('About to call savePromptToWorkspace', { workspace, title, combinedPrompt });
+      await savePromptToWorkspace(workspace.id, title, combinedPrompt, []);
+      toast.success('Prompt saved to workspace successfully!');
+      setUserPrompt('');
+      await fetchWorkspaces();
+      // After save, navigate to authoring for this workspace and section
+      navigate('/dashboard/proposal-authoring', {
+        state: { workspaceId: workspace.id, sectionName: selectedSection.name },
+      });
+    } catch (err) {
+      console.error('Failed to save prompt:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to save prompt to workspace');
+    } finally {
+      setShowSaveModal(false);
+      setModalWorkspaceId('');
+      setSaving(false);
+    }
+  };
 
   return (
-    <div className="flex flex-col min-h-full bg-gradient-to-br from-slate-100/90 to-gray-100/80 font-sans">
-      <div className="flex items-center justify-between p-8 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-        <h2 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-100/90 to-gray-100/80 font-sans">
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 w-full max-w-xl p-8 mt-10 mb-10">
+        <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-6 flex items-center gap-2 justify-center">
           <FiFileText className="w-7 h-7 text-slate-400" /> Prompt Templates
         </h2>
-      </div>
-      <div className="flex flex-1 h-[calc(100vh-80px)] bg-gradient-to-br from-white to-slate-100 relative">
-        {/* Column 1: Types */}
-        <div className="w-1/4 border-r border-gray-200 bg-white flex flex-col items-center py-8">
-          <div className="w-full flex flex-col items-center px-6">
-            <div className="mb-6 w-full">
-              <span className="block text-lg font-semibold text-slate-700 tracking-wide">
-                Workspace Types
-              </span>
-            </div>
-            <ul className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar w-full max-w-xs">
-              {WORKSPACE_TYPES.map((type) => (
-                <li key={type.name}>
-                  <button
-                    className={`w-full flex items-center justify-between p-3 rounded-2xl shadow-md border transition-all group ${selectedType && selectedType.name === type.name ? 'bg-slate-200 border-slate-400' : 'bg-white hover:bg-slate-100 border-gray-200'}`}
-                    onClick={() => {
-                      if (selectedType && selectedType.name === type.name) {
-                        setSelectedType(null);
-                        setSelectedSection(null);
-                      } else {
-                        setSelectedType(type);
-                        setSelectedSection(null);
-                      }
-                    }}
-                  >
-                    <span
-                      className={`font-semibold text-base ${selectedType && selectedType.name === type.name ? 'text-slate-900' : 'text-slate-700 group-hover:text-slate-900'} transition-colors`}
-                    >
-                      {type.name}
-                    </span>
-                    {selectedType && selectedType.name === type.name && selectedSection == null ? (
-                      <FiChevronLeft className="w-5 h-5 text-slate-400" />
-                    ) : (
-                      <FiChevronRight className="w-5 h-5 text-slate-400" />
-                    )}
-                  </button>
-                </li>
+        {/* Workspace Type Selector */}
+        <div className="mb-6">
+          <label className="block text-lg font-semibold text-slate-700 mb-2">Workspace Type</label>
+          <select
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary"
+            value={selectedType ? selectedType.name : ''}
+            onChange={(e) => {
+              const typeObj = WORKSPACE_TYPES.find((t) => t.name === e.target.value);
+              setSelectedType(typeObj || null);
+              setSelectedSection(null);
+            }}
+          >
+            <option value="">Select workspace type</option>
+            {WORKSPACE_TYPES.map((type) => (
+              <option key={type.id} value={type.name}>
+                {type.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {/* Section Selector */}
+        {selectedType && (
+          <div className="mb-6">
+            <label className="block text-lg font-semibold text-slate-700 mb-2">Section</label>
+            <select
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary"
+              value={selectedSection ? selectedSection.name : ''}
+              onChange={(e) => {
+                const sectionObj = selectedType.sections.find((s) => s.name === e.target.value);
+                setSelectedSection(sectionObj || null);
+              }}
+            >
+              <option value="">Select section</option>
+              {selectedType.sections.map((section) => (
+                <option key={section.name} value={section.name}>
+                  {section.name}
+                </option>
               ))}
-            </ul>
+            </select>
           </div>
-        </div>
-        {/* Column 2: Sections */}
-        <div className="w-1/4 border-r border-gray-200 bg-white flex flex-col items-center py-8">
-          <div className="w-full flex flex-col items-center px-6">
-            {selectedType && (
-              <>
-                <div className="mb-6 w-full">
-                  <span className="block text-lg font-semibold text-slate-700 tracking-wide">
-                    Sections
-                  </span>
-                </div>
-                <ul className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar w-full max-w-xs">
-                  {selectedType.sections.map((section) => (
-                    <li key={section.name}>
-                      <button
-                        className={`w-full flex items-center justify-between p-3 rounded-2xl shadow-md border transition-all group ${selectedSection && selectedSection.name === section.name ? 'bg-slate-200 border-slate-400' : 'bg-white hover:bg-slate-100 border-gray-200'}`}
-                        onClick={() => {
-                          if (selectedSection && selectedSection.name === section.name) {
-                            setSelectedSection(null);
-                          } else {
-                            setSelectedSection(section);
-                          }
-                        }}
-                      >
-                        <span
-                          className={`font-medium transition-colors ${selectedSection && selectedSection.name === section.name ? 'text-slate-900' : 'text-slate-700 group-hover:text-slate-900'}`}
-                        >
-                          {section.name}
-                        </span>
-                        {selectedSection && selectedSection.name === section.name ? (
-                          <FiChevronLeft className="w-5 h-5 text-slate-400" />
-                        ) : (
-                          <FiChevronRight className="w-5 h-5 text-slate-400" />
-                        )}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
+        )}
+        {/* Prompt Input */}
+        {selectedSection && (
+          <div className="mb-6">
+            <label className="block text-lg font-semibold text-slate-700 mb-2">Prompt</label>
+            <div className="bg-gray-50 rounded-md p-3 text-gray-800 whitespace-pre-line select-none cursor-not-allowed border border-gray-200 text-sm mb-2">
+              {selectedSection.prompt}
+            </div>
+            <input
+              ref={userInputRef}
+              type="text"
+              value={userPrompt}
+              onChange={(e) => setUserPrompt(e.target.value)}
+              className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-slate-800 placeholder:text-gray-400"
+              placeholder="Add your own prompt or instructions..."
+            />
           </div>
-        </div>
-        {/* Column 3: Prompt */}
-        <div className="flex-1 flex flex-col items-center py-8 bg-white">
-          <div className="w-full flex flex-col items-center px-6">
-            {selectedSection && (
-              <>
-                <div className="mb-6 w-full">
-                  <span className="block text-lg font-semibold text-slate-700 tracking-wide">Prompt</span>
-                </div>
-                <div className="w-full max-w-2xl flex-1 overflow-y-auto custom-scrollbar">
-                  <div className="bg-gradient-to-br from-slate-50 to-gray-100 rounded-2xl p-4 text-slate-800 shadow-inner border border-gray-200 text-base leading-normal font-normal">
-                    {selectedSection.prompt}
-                    <button
-                      className="mt-6 w-full py-2 rounded-xl bg-slate-700 text-white font-semibold text-base shadow hover:bg-slate-800 transition-colors"
-                      onClick={() => {
-                        navigate('/dashboard/proposal-authoring/create-proposal', {
-                          state: {
-                            type: selectedType.name,
-                            section: selectedSection.name,
-                            prompt: selectedSection.prompt,
-                          },
-                        });
-                      }}
-                    >
-                      Use This Prompt
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        )}
+        {/* Save Button - always visible, only enabled if type and section are selected */}
+        <button
+          className="w-full flex items-center justify-center gap-2 bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={handleSaveToWorkspace}
+          disabled={saving || !selectedType || !selectedSection}
+        >
+          <FiSave className="w-5 h-5" />
+          {saving ? 'Saving...' : 'Save to Workspace'}
+        </button>
       </div>
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 8px; background: #e0e7ef; border-radius: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #b6c6e3; border-radius: 8px; }
-      `}</style>
+      {/* Save Modal remains unchanged */}
+      <ReactModal
+        isOpen={showSaveModal}
+        onRequestClose={() => setShowSaveModal(false)}
+        contentLabel="Select Workspace"
+        ariaHideApp={false}
+        className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-30"
+        overlayClassName=""
+      >
+        <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
+          <h2 className="text-xl font-bold mb-4">Select Workspace</h2>
+          <div className="mb-4">
+            <label className="block mb-1 font-medium">Workspace</label>
+            <select
+              className="w-full border rounded p-2"
+              value={modalWorkspaceId}
+              onChange={(e) => setModalWorkspaceId(e.target.value)}
+            >
+              <option value="">Select workspace</option>
+              {workspaces.map((ws) => (
+                <option key={ws.id} value={ws.id}>
+                  {ws.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+              onClick={() => setShowSaveModal(false)}
+              disabled={saving}
+            >
+              Cancel
+            </button>
+            <button
+              className="px-4 py-2 rounded bg-primary text-white hover:bg-primary/90"
+              onClick={handleModalSave}
+              disabled={saving}
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </div>
+      </ReactModal>
     </div>
   );
 };

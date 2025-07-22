@@ -138,7 +138,12 @@ export function useWorkspace() {
     return Array.from(tags);
   }
 
-  async function createWorkspace(data: { name: string; client: string; tags: string[]; workspace_type?: string }) {
+  async function createWorkspace(data: {
+    name: string;
+    client: string;
+    tags: string[];
+    workspace_type?: string;
+  }) {
     const payload: any = {
       name: data.name,
       client: data.client,
@@ -177,16 +182,68 @@ export function useWorkspace() {
     );
   }
 
+  async function deleteWorkspace(id: string) {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        API.BASE_URL() +
+          API.ENDPOINTS.WORKSPACES.BASE_URL() +
+          API.ENDPOINTS.WORKSPACES.DELETE_SOFT(id),
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: localStorage.getItem('token')
+              ? `Bearer ${localStorage.getItem('token')}`
+              : '',
+          },
+        },
+      );
+      if (!res.ok) throw new Error('Failed to delete workspace');
+      setWorkspaces((prev) => prev.filter((w) => w.id !== id));
+      toast.success('Workspace deleted');
+    } catch (err: any) {
+      toast.error(err.message || 'Could not delete workspace');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchWorkspaceTypes() {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        API.BASE_URL() + API.ENDPOINTS.WORKSPACES.BASE_URL() + API.ENDPOINTS.WORKSPACES.TYPES(),
+        {
+          headers: {
+            Authorization: localStorage.getItem('token')
+              ? `Bearer ${localStorage.getItem('token')}`
+              : '',
+          },
+        },
+      );
+      if (!res.ok) throw new Error('Failed to fetch workspace types');
+      const data = await res.json();
+      return data.workspace_types || [];
+    } catch (err: any) {
+      toast.error(err.message || 'Could not load workspace types');
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return {
     workspaces,
     loading,
     fetchWorkspaces,
+    filterWorkspaces,
     searchWorkspaces,
     fetchWorkspace,
-    filterWorkspaces,
     filterWorkspacesByTags,
     getAllTags,
     createWorkspace,
     updateWorkspace,
+    deleteWorkspace,
+    fetchWorkspaceTypes,
   };
 }

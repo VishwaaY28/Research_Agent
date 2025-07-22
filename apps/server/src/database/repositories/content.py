@@ -1,3 +1,4 @@
+import logging
 from database.models import (
     Prompt, PromptTag, GeneratedContent, GeneratedContentTag,
     GeneratedContentSection, Tag, Section, Workspace
@@ -7,22 +8,33 @@ from tortoise.functions import Count
 from typing import List, Optional
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
+
 class ContentRepository:
     async def create_prompt(self, workspace_id: int, user_id: int, title: str, content: str, tag_names: List[str] = None):
         """Create a new prompt"""
-        prompt = await Prompt.create(
-            workspace_id=workspace_id,
-            user_id=user_id,
-            title=title,
-            content=content
-        )
+        try:
+            logger.info(f"Creating prompt in repository with workspace_id={workspace_id}, user_id={user_id}")
 
-        if tag_names:
-            for tag_name in tag_names:
-                tag = await tag_repository.get_or_create_tag(tag_name)
-                await PromptTag.create(prompt=prompt, tag=tag)
+            prompt = await Prompt.create(
+                workspace_id=workspace_id,
+                user_id=user_id,
+                title=title,
+                content=content
+            )
+            logger.info(f"Created prompt with ID: {prompt.id}")
 
-        return prompt
+            if tag_names:
+                logger.info(f"Adding tags to prompt {prompt.id}: {tag_names}")
+                for tag_name in tag_names:
+                    tag = await tag_repository.get_or_create_tag(tag_name)
+                    await PromptTag.create(prompt=prompt, tag=tag)
+                logger.info("Successfully added all tags")
+
+            return prompt
+        except Exception as e:
+            logger.error(f"Error in create_prompt: {str(e)}", exc_info=True)
+            raise
 
     async def get_workspace_prompts(self, workspace_id: int):
         """Get all prompts for a workspace"""
@@ -130,6 +142,26 @@ class ContentRepository:
     async def delete_generated_content(self, content_id: int):
         """Soft delete generated content"""
         await GeneratedContent.filter(id=content_id).update(deleted_at=datetime.now())
+
+    async def get_prompts_by_section(self, workspace_id: int, section_name: str):
+        """Get prompts for a specific section"""
+        return await Prompt.filter(
+            workspace_id=workspace_id,
+            title__icontains=section_name,
+            deleted_at__isnull=True
+        ).prefetch_related('tags__tag').order_by('-created_at')
+
+    async def get_prompts_by_workspace_type(self, workspace_id: int, workspace_type: str):
+        """Get prompts for a specific workspace type"""
+        # First get the workspace to check its type
+        workspace = await Workspace.get_or_none(id=workspace_id)
+        if not workspace or workspace.workspace_type != workspace_type:
+            return []
+        
+        return await Prompt.filter(
+            workspace_id=workspace_id,
+            deleted_at__isnull=True
+        ).prefetch_related('tags__tag').order_by('-created_at')
 
     async def get_workspace_content(self, workspace_id: int):
         """Get all content for a workspace (sections only)"""

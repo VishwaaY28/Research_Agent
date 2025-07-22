@@ -28,6 +28,16 @@ async def filter_sections_by_tags(
 ):
     return await section_handlers.filter_section_by_tags(workspace_id, tags)
 
+@router.post("/{workspace_id}")
+async def create_section(
+    workspace_id: int,
+    name: str = Body(..., embed=True),
+    content: str = Body(..., embed=True),
+    source: str = Body(None, embed=True),
+    tags: List[str] = Body(default_factory=list, embed=True)
+):
+    return await section_handlers.create_section(workspace_id, name, content, source, tags)
+
 @router.delete("/soft/{section_id}")
 async def soft_delete_section(section_id: int):
     return await section_handlers.soft_delete_section(section_id)

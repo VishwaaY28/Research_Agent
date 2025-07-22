@@ -422,6 +422,42 @@ export function useContent() {
     [baseUrl],
   );
 
+  const savePromptToWorkspace = useCallback(
+    async (workspaceId: string | number, title: string, content: string, tags: string[] = []) => {
+      setLoading(true);
+      try {
+        console.log('Saving prompt to backend:', { workspaceId, title, content, tags });
+        const response = await fetch(`${baseUrl}/api/workspaces/${workspaceId}/content/prompts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+          body: JSON.stringify({
+            title,
+            content,
+            tags,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Error response:', errorText);
+          throw new Error(`Failed to save prompt: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data.prompt;
+      } catch (error) {
+        console.error('Save prompt error:', error);
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [baseUrl],
+  );
+
   return {
     loading,
     getWorkspaceContent,
@@ -438,5 +474,6 @@ export function useContent() {
     removeGeneratedContentTag,
     deletePrompt,
     deleteGeneratedContent,
+    savePromptToWorkspace,
   };
 }

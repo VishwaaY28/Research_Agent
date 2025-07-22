@@ -6,6 +6,11 @@ from api.handlers.workspaces import WorkspaceCreateRequest, WorkspaceUpdateReque
 
 router = APIRouter(prefix="/api/workspaces")
 
+@router.get("/types")
+async def get_workspace_types():
+    """Get all available workspace types"""
+    return await ws_handlers.get_workspace_types()
+
 @router.post("")
 async def create_workspace(data: WorkspaceCreateRequest):
     return await ws_handlers.create_workspace(data)
