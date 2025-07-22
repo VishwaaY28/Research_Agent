@@ -2,14 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { FiFolder, FiPlus, FiSearch, FiTag, FiTrash2 } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '../../hooks/useDebounce';
+import { useSections } from '../../hooks/useSections';
 import { useWorkspace } from '../../hooks/useWorkspace';
 
 const Workspaces: React.FC = () => {
   const navigate = useNavigate();
   const { workspaces, getAllTags, filterWorkspaces, fetchWorkspaces, loading, deleteWorkspace } =
     useWorkspace();
+  const { fetchSections } = useSections();
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [sectionCounts, setSectionCounts] = useState<{ [workspaceId: string]: number }>({});
 
   const debouncedSearch = useDebounce(search, 500);
 
@@ -35,6 +38,26 @@ const Workspaces: React.FC = () => {
 
     performFilter();
   }, [debouncedSearch, selectedTags]);
+
+  useEffect(() => {
+    const fetchAllSectionCounts = async () => {
+      const counts: { [workspaceId: string]: number } = {};
+      await Promise.all(
+        workspaces.map(async (workspace) => {
+          try {
+            const sections = await fetchSections(workspace.id);
+            counts[workspace.id] = Array.isArray(sections) ? sections.length : 0;
+          } catch {
+            counts[workspace.id] = 0;
+          }
+        })
+      );
+      setSectionCounts(counts);
+    };
+    if (workspaces.length > 0) {
+      fetchAllSectionCounts();
+    }
+  }, [workspaces]);
 
   return (
     <div className="min-h-full bg-white">
@@ -161,7 +184,7 @@ const Workspaces: React.FC = () => {
                     )}
 
                     <div className="flex items-center justify-between text-sm text-gray-500">
-                      <span>Content pieces: 0</span>
+                      <span>Content pieces: {sectionCounts[workspace.id] ?? 0}</span>
                       <span>Last updated: Today</span>
                     </div>
                   </div>
