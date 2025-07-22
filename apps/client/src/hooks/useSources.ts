@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { API } from '../utils/constants';
 
 export function useSources() {
-  const baseUrl = API.BASE_URL();
+  const baseUrl = API.BASE_URL() + API.ENDPOINTS.SOURCES.BASE_URL();
 
   const uploadSources = useCallback(
     async ({ files, urls }: { files?: File[]; urls?: string[] }) => {

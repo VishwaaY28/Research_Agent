@@ -13,6 +13,7 @@ import DashHome from './pages/dashboard/Home';
 import ProposalAuthoring from './pages/dashboard/ProposalAuthoring';
 // import ProposalView from './pages/dashboard/ProposalView';
 import PromptTemplatePage from './components/dashboard/PromptTemplatePage';
+import AddContentChunksPage from './pages/dashboard/AddContentChunksPage';
 import Workspaces from './pages/dashboard/Workspaces';
 import WorkspaceView from './pages/dashboard/WorkspaceView';
 import Error from './pages/Error';
@@ -52,6 +53,11 @@ const router = createBrowserRouter([
       {
         path: 'workspaces/:id',
         element: <WorkspaceView />,
+        errorElement: <Error />,
+      },
+      {
+        path: 'workspaces/:id/add-content/:sourceId',
+        element: <AddContentChunksPage />,
         errorElement: <Error />,
       },
       {

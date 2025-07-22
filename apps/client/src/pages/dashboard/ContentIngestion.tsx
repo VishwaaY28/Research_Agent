@@ -41,7 +41,7 @@ const ContentIngestion: React.FC = () => {
   };
 
   const handleContentUploaded = (results: ExtractedContent[]) => {
-    setExtractedResults((prev) => [...prev, ...results]);
+    setExtractedResults(results); // Only keep the latest results, no duplicates
     setIsProcessing(false);
   };
 

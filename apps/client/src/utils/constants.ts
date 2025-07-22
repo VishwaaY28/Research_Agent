@@ -108,7 +108,6 @@ export const API = {
     },
     SOURCES: {
       BASE_URL: () => '/api/sources',
-      UPLOAD: () => '',
       LIST: () => '/list',
       BY_ID: (contentSourceId: string | number) => `/${contentSourceId}`,
       CHUNKS: (contentSourceId: string | number) => `/${contentSourceId}/chunks`,

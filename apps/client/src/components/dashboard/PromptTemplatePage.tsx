@@ -84,7 +84,7 @@ const PromptTemplatePage: React.FC = () => {
   const [selectedSection, setSelectedSection] = useState<{ name: string; prompt: string } | null>(
     null,
   );
-  const [userPrompt, setUserPrompt] = useState('');
+  const [editablePrompt, setEditablePrompt] = useState('');
   const [saving, setSaving] = useState(false);
   const userInputRef = useRef(null);
   const navigate = useNavigate();
@@ -129,10 +129,39 @@ const PromptTemplatePage: React.FC = () => {
   }, [modalWorkspaceType, workspaces]);
 
   useEffect(() => {
-    setUserPrompt('');
+    setEditablePrompt(selectedSection ? selectedSection.prompt : '');
   }, [selectedSection]);
 
   const handleSaveToWorkspace = async () => {
+    // If navigated from a specific workspace, save directly
+    if (location.state?.workspaceId && location.state?.type && selectedType && selectedSection) {
+      setSaving(true);
+      try {
+        const workspace = workspaces.find(
+          (w) => String(w.id) === String(location.state.workspaceId),
+        );
+        if (!workspace) {
+          toast.error('Workspace not found');
+          setSaving(false);
+          return;
+        }
+        const title = `${selectedType.name} - ${selectedSection.name}`;
+        await savePromptToWorkspace(workspace.id, title, editablePrompt, []);
+        toast.success('Prompt saved to workspace successfully!');
+        await fetchWorkspaces();
+        // After save, navigate to authoring for this workspace and section
+        navigate('/dashboard/proposal-authoring', {
+          state: { workspaceId: workspace.id, sectionName: selectedSection.name },
+        });
+      } catch (err) {
+        console.error('Failed to save prompt:', err);
+        toast.error(err instanceof Error ? err.message : 'Failed to save prompt to workspace');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+    // Otherwise, open the modal
     setModalWorkspaceId(''); // Reset selection when opening modal
     setShowSaveModal(true);
   };
@@ -157,12 +186,10 @@ const PromptTemplatePage: React.FC = () => {
         setSaving(false);
         return;
       }
-      const combinedPrompt = selectedSection.prompt + (userPrompt ? ' ' + userPrompt : '');
       const title = `${selectedType.name} - ${selectedSection.name}`;
-      console.log('About to call savePromptToWorkspace', { workspace, title, combinedPrompt });
-      await savePromptToWorkspace(workspace.id, title, combinedPrompt, []);
+      console.log('About to call savePromptToWorkspace', { workspace, title, editablePrompt });
+      await savePromptToWorkspace(workspace.id, title, editablePrompt, []);
       toast.success('Prompt saved to workspace successfully!');
-      setUserPrompt('');
       await fetchWorkspaces();
       // After save, navigate to authoring for this workspace and section
       navigate('/dashboard/proposal-authoring', {
@@ -229,16 +256,12 @@ const PromptTemplatePage: React.FC = () => {
         {selectedSection && (
           <div className="mb-6">
             <label className="block text-lg font-semibold text-slate-700 mb-2">Prompt</label>
-            <div className="bg-gray-50 rounded-md p-3 text-gray-800 whitespace-pre-line select-none cursor-not-allowed border border-gray-200 text-sm mb-2">
-              {selectedSection.prompt}
-            </div>
-            <input
-              ref={userInputRef}
-              type="text"
-              value={userPrompt}
-              onChange={(e) => setUserPrompt(e.target.value)}
-              className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-slate-800 placeholder:text-gray-400"
-              placeholder="Add your own prompt or instructions..."
+            <textarea
+              value={editablePrompt}
+              onChange={(e) => setEditablePrompt(e.target.value)}
+              className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-slate-800 placeholder:text-gray-400 focus:ring-2 focus:ring-primary focus:border-primary"
+              rows={5}
+              placeholder="Edit the prompt for this section..."
             />
           </div>
         )}
@@ -253,49 +276,63 @@ const PromptTemplatePage: React.FC = () => {
         </button>
       </div>
       {/* Save Modal remains unchanged */}
-      <ReactModal
-        isOpen={showSaveModal}
-        onRequestClose={() => setShowSaveModal(false)}
-        contentLabel="Select Workspace"
-        ariaHideApp={false}
-        className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-30"
-        overlayClassName=""
-      >
-        <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
-          <h2 className="text-xl font-bold mb-4">Select Workspace</h2>
-          <div className="mb-4">
-            <label className="block mb-1 font-medium">Workspace</label>
-            <select
-              className="w-full border rounded p-2"
-              value={modalWorkspaceId}
-              onChange={(e) => setModalWorkspaceId(e.target.value)}
-            >
-              <option value="">Select workspace</option>
-              {workspaces.map((ws) => (
-                <option key={ws.id} value={ws.id}>
-                  {ws.name}
-                </option>
-              ))}
-            </select>
+      {(!location.state?.workspaceId || !location.state?.type) && (
+        <ReactModal
+          isOpen={showSaveModal}
+          onRequestClose={() => setShowSaveModal(false)}
+          contentLabel="Select Workspace"
+          ariaHideApp={false}
+          className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-30"
+          overlayClassName=""
+        >
+          <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">Select Workspace</h2>
+            {/* Workspace Type (only show as text if navigated from a workspace) */}
+            {location.state?.type ? (
+              <div className="mb-4">
+                <label className="block mb-1 font-medium">Workspace Type</label>
+                <div className="w-full border rounded p-2 bg-gray-100 text-gray-700 cursor-not-allowed">
+                  {location.state.type}
+                </div>
+              </div>
+            ) : null}
+            <div className="mb-4">
+              <label className="block mb-1 font-medium">Workspace</label>
+              <select
+                className="w-full border rounded p-2"
+                value={modalWorkspaceId}
+                onChange={(e) => setModalWorkspaceId(e.target.value)}
+              >
+                <option value="">Select workspace</option>
+                {(location.state?.type
+                  ? workspaces.filter((ws) => ws.workspaceType === location.state.type)
+                  : workspaces
+                ).map((ws) => (
+                  <option key={ws.id} value={ws.id}>
+                    {ws.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+                onClick={() => setShowSaveModal(false)}
+                disabled={saving}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded bg-primary text-white hover:bg-primary/90"
+                onClick={handleModalSave}
+                disabled={saving}
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
           </div>
-          <div className="flex justify-end gap-2">
-            <button
-              className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
-              onClick={() => setShowSaveModal(false)}
-              disabled={saving}
-            >
-              Cancel
-            </button>
-            <button
-              className="px-4 py-2 rounded bg-primary text-white hover:bg-primary/90"
-              onClick={handleModalSave}
-              disabled={saving}
-            >
-              {saving ? 'Saving...' : 'Save'}
-            </button>
-          </div>
-        </div>
-      </ReactModal>
+        </ReactModal>
+      )}
     </div>
   );
 };
