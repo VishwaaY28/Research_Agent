@@ -1,13 +1,5 @@
 import React, { useEffect } from 'react';
-import {
-    FiArrowRight,
-    FiClock,
-    FiEdit,
-    FiFileText,
-    FiFolder,
-    FiPlus,
-    FiTag
-} from 'react-icons/fi';
+import { FiArrowRight, FiClock, FiEdit, FiFileText, FiFolder, FiPlus, FiTag } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { useDashboard } from '../../hooks/useDashboard';
 
@@ -103,11 +95,20 @@ const Home: React.FC = () => {
   return (
     <div className="h-full overflow-y-auto bg-gray-50">
       <div className="p-8">
-        <div className="mb-10">
-          <h1 className="text-3xl font-bold text-black mb-2">Welcome back.</h1>
-          <p className="text-neutral-600 text-lg">
-            Here's your workspace overview and recent activity.
-          </p>
+        <div className="mb-10 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-black mb-2">Welcome back.</h1>
+            <p className="text-neutral-600 text-lg">
+              Here's your workspace overview and recent activity.
+            </p>
+          </div>
+          <button
+            onClick={fetchDashboardData}
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
+            title="Refresh dashboard stats"
+          >
+            Refresh
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
@@ -161,9 +162,7 @@ const Home: React.FC = () => {
                             <div className="flex items-center mb-2">
                               <h3 className="font-medium text-black">{ws.name}</h3>
                             </div>
-                            <p className="text-sm text-gray-600 mb-2">
-                              Client: {ws.client}
-                            </p>
+                            <p className="text-sm text-gray-600 mb-2">Client: {ws.client}</p>
                             <div className="flex items-center space-x-4">
                               <div className="flex items-center text-sm text-neutral-500">
                                 <FiClock className="w-4 h-4 mr-1" />
@@ -182,9 +181,7 @@ const Home: React.FC = () => {
                     <h3 className="text-lg font-medium text-gray-900 mb-2">
                       No recently used workspaces
                     </h3>
-                    <p className="text-gray-500 mb-6">
-                      Open a workspace to see it appear here
-                    </p>
+                    <p className="text-gray-500 mb-6">Open a workspace to see it appear here</p>
                     <button
                       onClick={() => navigate('/dashboard/workspaces/create')}
                       className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"

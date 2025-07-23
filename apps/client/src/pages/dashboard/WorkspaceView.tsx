@@ -3,7 +3,10 @@ import {
   FiArrowLeft,
   FiEdit3,
   FiEye,
+  FiFile,
   FiFileText,
+  FiGlobe,
+  FiLoader,
   FiPlus,
   FiSearch,
   FiTag,
@@ -13,6 +16,7 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useSections, type Section } from '../../hooks/useSections';
+import { useSources } from '../../hooks/useSources';
 import { useTags } from '../../hooks/useTags';
 import { useWorkspace } from '../../hooks/useWorkspace';
 
@@ -37,6 +41,21 @@ const WorkspaceView: React.FC = () => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [viewingSection, setViewingSection] = useState<Section | null>(null);
   const [currentTags, setCurrentTags] = useState<any[]>([]);
+  const { listSources } = useSources();
+  const [sourceChunks, setSourceChunks] = useState<any[]>([]);
+  const [sourceText, setSourceText] = useState('');
+  const [extractedResults, setExtractedResults] = useState<any[]>([]);
+  const [isAddContentModalOpen, setIsAddContentModalOpen] = useState(false);
+  const [sources, setSources] = useState<any[]>([]);
+  const [sourcesLoading, setSourcesLoading] = useState(false);
+  // Add state for search and selection
+  const [sourceSearch, setSourceSearch] = useState('');
+  const [selectedSources, setSelectedSources] = useState<any[]>([]);
+  const [selectedSourceForChunks, setSelectedSourceForChunks] = useState<any | null>(null);
+  const [chunksLoading, setChunksLoading] = useState(false);
+  const [selectedChunks, setSelectedChunks] = useState<number[]>([]); // store chunk indices
+
+  const { createSections } = useSections();
 
   const debouncedSearch = useDebounce(search, 500);
 
@@ -161,6 +180,98 @@ const WorkspaceView: React.FC = () => {
     setViewingSection(null);
   }, []);
 
+  // Fetch sources for this workspace
+  const fetchSources = async () => {
+    try {
+      const allSources = await listSources();
+      setExtractedResults(allSources);
+    } catch (err) {
+      setExtractedResults([]);
+    }
+  };
+
+  // Fetch chunks/text for a source (mocked, replace with real fetch if needed)
+  const fetchSourceChunks = async (source: any) => {
+    // TODO: Replace with real API call to fetch chunks and extracted text for the source
+    setSourceChunks(source.chunks || []);
+    setSourceText(source.extracted_text || '');
+  };
+
+  // Fetch sources when modal opens
+  useEffect(() => {
+    if (isAddContentModalOpen) {
+      setSourcesLoading(true);
+      listSources()
+        .then((data) => {
+          // Always use data.sources if present and is an array, otherwise fallback to data if it's an array
+          if (data && Array.isArray(data.sources)) {
+            setSources(data.sources);
+          } else if (Array.isArray(data)) {
+            setSources(data);
+          } else {
+            setSources([]);
+          }
+        })
+        .catch(() => setSources([]))
+        .finally(() => setSourcesLoading(false));
+    }
+  }, [isAddContentModalOpen, listSources]);
+
+  // Filtered sources logic
+  const filteredSources = sources.filter(
+    (source) =>
+      source.name.toLowerCase().includes(sourceSearch.toLowerCase()) ||
+      source.type.toLowerCase().includes(sourceSearch.toLowerCase()),
+  );
+
+  const toggleSourceSelection = (source: any) => {
+    setSelectedSources((prev) => {
+      const exists = prev.find((s) => s.id === source.id);
+      if (exists) {
+        return prev.filter((s) => s.id !== source.id);
+      } else {
+        return [...prev, source];
+      }
+    });
+  };
+
+  // Fetch chunks for a source
+  const handleAddSource = (source: any) => {
+    // Navigate to the in-page chunk selection view
+    navigate(`/dashboard/workspaces/${workspace?.id}/add-content/${source.id}`);
+  };
+
+  const handleToggleChunk = (idx: number) => {
+    setSelectedChunks((prev) =>
+      prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx],
+    );
+  };
+
+  const handleSaveChunksToWorkspace = async () => {
+    if (!selectedSourceForChunks || selectedChunks.length === 0 || !workspace) return;
+    // Prepare sections payload
+    const sections = selectedChunks.map((idx) => {
+      const chunk = sourceChunks[idx];
+      return {
+        content: chunk.content,
+        name: chunk.label || chunk.content.substring(0, 50) + '...',
+        tags: [],
+      };
+    });
+    // Save to workspace
+    try {
+      await createSections(parseInt(workspace.id), selectedSourceForChunks.name, sections);
+      // Reset modal state
+      setSelectedSourceForChunks(null);
+      setSourceChunks([]);
+      setSelectedChunks([]);
+      setIsAddContentModalOpen(false);
+      // Optionally, show a toast or reload workspace sections
+    } catch (err) {
+      // Optionally, show error toast
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-full flex items-center justify-center">
@@ -196,6 +307,153 @@ const WorkspaceView: React.FC = () => {
 
   return (
     <div className="min-h-full bg-white">
+      {/* Add Content Modal */}
+      {isAddContentModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-3xl mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-black">
+                Add Content from Existing Sources
+              </h3>
+              <button
+                onClick={() => setIsAddContentModalOpen(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="mb-4">
+              <div className="relative">
+                <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="Search existing sources..."
+                  value={sourceSearch}
+                  onChange={(e) => setSourceSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+            </div>
+            {sourcesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+              </div>
+            ) : filteredSources.length === 0 ? (
+              <div className="text-center py-12">
+                <FiFile className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No content sources found</h3>
+                <p className="text-gray-500 mb-4">You haven't uploaded any content sources yet.</p>
+              </div>
+            ) : (
+              <div className="max-h-96 overflow-y-auto space-y-2">
+                {filteredSources.map((source) => (
+                  <div
+                    key={source.id}
+                    className={`p-3 border rounded-lg flex items-center justify-between transition-all ${
+                      selectedSourceForChunks && selectedSourceForChunks.id === source.id
+                        ? 'border-primary bg-primary/5'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      {source.type === 'pdf' && <FiFile className="w-4 h-4 text-red-500" />}
+                      {source.type === 'docx' && <FiFile className="w-4 h-4 text-blue-500" />}
+                      {source.type === 'web' && <FiGlobe className="w-4 h-4 text-green-500" />}
+                      {!['pdf', 'docx', 'web'].includes(source.type) && (
+                        <FiFile className="w-4 h-4 text-gray-500" />
+                      )}
+                      <div>
+                        <h4 className="font-medium text-black">{source.name}</h4>
+                        <p className="text-sm text-gray-500">
+                          {source.type.toUpperCase()} •{' '}
+                          {source.created_at
+                            ? new Date(source.created_at).toLocaleDateString()
+                            : ''}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      className="ml-4 p-2 rounded-full bg-primary/10 hover:bg-primary/20 text-primary"
+                      title="Add"
+                      onClick={() => handleAddSource(source)}
+                    >
+                      <FiPlus className="w-5 h-5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Chunks display for selected source */}
+            {selectedSourceForChunks && (
+              <div className="mt-8">
+                <h4 className="text-lg font-semibold mb-4">
+                  Select Chunks from: {selectedSourceForChunks.name}
+                </h4>
+                {chunksLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <FiLoader className="w-8 h-8 animate-spin text-primary mx-auto mb-2" />
+                    <span className="ml-2 text-gray-500">Loading chunks...</span>
+                  </div>
+                ) : sourceChunks.length === 0 ? (
+                  <div className="text-gray-500">No chunks found for this source.</div>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {sourceChunks.map((chunk, idx) => (
+                      <div
+                        key={idx}
+                        className={`p-3 border rounded-lg flex items-center justify-between cursor-pointer transition-all ${
+                          selectedChunks.includes(idx)
+                            ? 'border-primary bg-primary/10'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        onClick={() => handleToggleChunk(idx)}
+                      >
+                        <div className="flex-1">
+                          <div className="font-medium text-black">
+                            {chunk.label || chunk.content.substring(0, 50) + '...'}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {chunk.page && `Page ${chunk.page} • `}
+                            {chunk.section_type && `${chunk.section_type}`}
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={selectedChunks.includes(idx)}
+                          onChange={() => handleToggleChunk(idx)}
+                          className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary ml-4"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex justify-end mt-6">
+                  <button
+                    onClick={handleSaveChunksToWorkspace}
+                    disabled={selectedChunks.length === 0}
+                    className={`py-2 px-6 rounded-lg font-semibold transition-colors ml-2 ${
+                      selectedChunks.length > 0
+                        ? 'bg-primary text-white hover:bg-primary/90'
+                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    Save to Workspace
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => setIsAddContentModalOpen(false)}
+                className="py-2 px-6 rounded-lg border border-gray-300 text-neutral-700 hover:bg-gray-50 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="bg-white border-b border-gray-200">
         <div className="px-8 py-6">
           <div className="max-w-7xl mx-auto">
@@ -223,11 +481,7 @@ const WorkspaceView: React.FC = () => {
               </div>
               <div className="flex items-center space-x-2">
                 <button
-                  onClick={() =>
-                    navigate('/dashboard/content-ingestion', {
-                      state: { workspaceId: workspace.id },
-                    })
-                  }
+                  onClick={() => setIsAddContentModalOpen(true)}
                   className="bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 text-sm"
                 >
                   <FiPlus className="w-3 h-3" />
@@ -339,14 +593,37 @@ const WorkspaceView: React.FC = () => {
                           ))}
                         </div>
                       )}
-                      {section.name && (
-                        <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
-                          {section.name}
-                        </h3>
+                      <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
+                        {typeof section.name === 'string' && section.name.trim()
+                          ? section.name
+                          : typeof section.content === 'string' && section.content.trim()
+                            ? section.content.substring(0, 50) + '...'
+                            : `Section ${section.id ? section.id : ''}`}
+                      </h3>
+                      {typeof section.content === 'string' ? (
+                        <p className="text-gray-700 text-sm leading-relaxed line-clamp-4">
+                          {section.content}
+                        </p>
+                      ) : (
+                        <div>
+                          {section.content &&
+                            typeof section.content === 'object' &&
+                            (section.content as any).question && (
+                              <div className="mb-2">
+                                <span className="font-medium">Question:</span>{' '}
+                                {(section.content as any).question}
+                              </div>
+                            )}
+                          {section.content &&
+                            typeof section.content === 'object' &&
+                            (section.content as any).response && (
+                              <div>
+                                <span className="font-medium">Response:</span>{' '}
+                                {(section.content as any).response}
+                              </div>
+                            )}
+                        </div>
                       )}
-                      <p className="text-gray-700 text-sm leading-relaxed line-clamp-4">
-                        {section.content}
-                      </p>
                     </div>
                     <div className="flex items-center gap-2 ml-4 flex-shrink-0">
                       <button
@@ -386,11 +663,7 @@ const WorkspaceView: React.FC = () => {
                 </p>
                 {!search && selectedTags.length === 0 && (
                   <button
-                    onClick={() =>
-                      navigate('/dashboard/content-ingestion', {
-                        state: { workspaceId: workspace.id },
-                      })
-                    }
+                    onClick={() => setIsAddContentModalOpen(true)}
                     className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors"
                   >
                     <FiPlus className="w-4 h-4 inline mr-2" />

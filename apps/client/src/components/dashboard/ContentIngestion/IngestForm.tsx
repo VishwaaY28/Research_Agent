@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { BiTrash } from 'react-icons/bi';
-import { FiDatabase, FiFile, FiGlobe, FiLoader, FiSearch, FiUpload } from 'react-icons/fi';
+import { FiFile, FiGlobe, FiLoader, FiSearch, FiUpload } from 'react-icons/fi';
 import { useSources } from '../../../hooks/useSources';
 import { API } from '../../../utils/constants';
 
@@ -30,6 +30,7 @@ const IngestForm: React.FC<IngestFormProps> = ({
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [webLinks, setWebLinks] = useState<string>('');
   const [errors, setErrors] = useState<{ file?: string; url?: string }>({});
+  // Restore all state and logic for existing sources
   const [uploadType, setUploadType] = useState<'file' | 'url' | 'existing'>('file');
   const [existingSources, setExistingSources] = useState<ContentSource[]>([]);
   const [selectedSources, setSelectedSources] = useState<ContentSource[]>([]);
@@ -38,6 +39,7 @@ const IngestForm: React.FC<IngestFormProps> = ({
 
   const { uploadSources } = useSources();
 
+  // Fetch existing sources when switching to 'existing' tab
   useEffect(() => {
     if (uploadType === 'existing') {
       fetchExistingSources();
@@ -85,6 +87,36 @@ const IngestForm: React.FC<IngestFormProps> = ({
     return null;
   };
 
+  const toggleSourceSelection = (source: ContentSource) => {
+    setSelectedSources((prev) => {
+      const exists = prev.find((s) => s.id === source.id);
+      if (exists) {
+        return prev.filter((s) => s.id !== source.id);
+      } else {
+        return [...prev, source];
+      }
+    });
+  };
+
+  const filteredExistingSources = existingSources.filter(
+    (source) =>
+      source.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      source.type.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
+  const getSourceIcon = (type: string) => {
+    switch (type) {
+      case 'pdf':
+        return <FiFile className="w-4 h-4 text-red-500" />;
+      case 'docx':
+        return <FiFile className="w-4 h-4 text-blue-500" />;
+      case 'web':
+        return <FiGlobe className="w-4 h-4 text-green-500" />;
+      default:
+        return <FiFile className="w-4 h-4 text-gray-500" />;
+    }
+  };
+
   const validateFile = (file: File) => {
     const allowedTypes = [
       'application/pdf',
@@ -117,36 +149,6 @@ const IngestForm: React.FC<IngestFormProps> = ({
     setErrors((prev) => ({ ...prev, url: undefined }));
   };
 
-  const toggleSourceSelection = (source: ContentSource) => {
-    setSelectedSources((prev) => {
-      const exists = prev.find((s) => s.id === source.id);
-      if (exists) {
-        return prev.filter((s) => s.id !== source.id);
-      } else {
-        return [...prev, source];
-      }
-    });
-  };
-
-  const filteredExistingSources = existingSources.filter(
-    (source) =>
-      source.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      source.type.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
-
-  const getSourceIcon = (type: string) => {
-    switch (type) {
-      case 'pdf':
-        return <FiFile className="w-4 h-4 text-red-500" />;
-      case 'docx':
-        return <FiFile className="w-4 h-4 text-blue-500" />;
-      case 'web':
-        return <FiGlobe className="w-4 h-4 text-green-500" />;
-      default:
-        return <FiFile className="w-4 h-4 text-gray-500" />;
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -164,12 +166,18 @@ const IngestForm: React.FC<IngestFormProps> = ({
           .filter(Boolean);
         results = await uploadSources({ urls });
       } else if (uploadType === 'existing' && selectedSources.length > 0) {
-        for (const source of selectedSources) {
-          const content = await fetchSourceContent(source.id);
-          if (content) {
-            results.push(content);
-          }
-        }
+        results = await Promise.all(
+          selectedSources.map(async (source) => {
+            const sourceContent = await fetchSourceContent(source.id);
+            if (sourceContent) {
+              return sourceContent;
+            }
+            return {
+              success: false,
+              error: `Failed to fetch content for source ID: ${source.id}`,
+            };
+          }),
+        );
       }
 
       if (results.length > 0) {
@@ -189,8 +197,8 @@ const IngestForm: React.FC<IngestFormProps> = ({
 
         setSelectedFiles([]);
         setWebLinks('');
-        setSelectedSources([]);
         setErrors({});
+        setSelectedSources([]); // Clear selected sources after processing
       }
     } catch (error) {
       console.error('Upload error:', error);
@@ -212,9 +220,7 @@ const IngestForm: React.FC<IngestFormProps> = ({
     <div className="max-w-4xl mx-auto p-8">
       <div className="text-center mb-8">
         <h2 className="text-3xl font-bold text-black mb-3">Content Ingestion</h2>
-        <p className="text-neutral-600">
-          Upload new documents, web content, or import from existing sources
-        </p>
+        <p className="text-neutral-600">Upload new documents or web content</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -262,11 +268,13 @@ const IngestForm: React.FC<IngestFormProps> = ({
         >
           <div className="flex items-center mb-4">
             <div className="p-2 bg-primary/10 rounded-lg mr-3">
-              <FiDatabase className="w-6 h-6 text-primary" />
+              <FiSearch className="w-6 h-6 text-primary" />
             </div>
             <h3 className="text-lg font-semibold text-black">Existing Sources</h3>
           </div>
-          <p className="text-neutral-600 text-sm">Import from previously extracted content</p>
+          <p className="text-neutral-600 text-sm">
+            Import content from previously extracted sources
+          </p>
         </div>
       </div>
 
@@ -356,7 +364,6 @@ const IngestForm: React.FC<IngestFormProps> = ({
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
-
             {loadingExisting ? (
               <div className="text-center py-8">
                 <FiLoader className="w-8 h-8 animate-spin text-primary mx-auto mb-2" />
@@ -404,7 +411,6 @@ const IngestForm: React.FC<IngestFormProps> = ({
                 )}
               </div>
             )}
-
             {selectedSources.length > 0 && (
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-blue-800 text-sm">
@@ -434,7 +440,7 @@ const IngestForm: React.FC<IngestFormProps> = ({
           ) : (
             <>
               <FiUpload className="w-5 h-5 inline mr-3" />
-              {uploadType === 'existing' ? 'Import Content' : 'Process Content'}
+              Process Content
             </>
           )}
         </button>

@@ -527,42 +527,52 @@ const ProposalAuthoring: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-1 space-y-4">
             <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-              <h3 className="text-base font-semibold text-gray-900 mb-2">Select Workspace</h3>
+              <h3 className="text-base font-semibold text-gray-900 mb-2">Workspace</h3>
               <div className="relative">
-                <button
-                  onClick={() => setShowWorkspaceDropdown(!showWorkspaceDropdown)}
-                  className="w-full flex items-center justify-between p-2 border border-gray-300 rounded-md hover:border-gray-400 transition-colors text-sm"
-                >
-                  <span
-                    className={
-                      selectedWorkspaceObj && 'name' in selectedWorkspaceObj
-                        ? 'text-gray-900'
-                        : 'text-gray-500'
-                    }
-                  >
-                    {'name' in selectedWorkspaceObj
-                      ? selectedWorkspaceObj.name
-                      : 'Choose a workspace...'}
-                  </span>
-                  <FiChevronDown className="w-4 h-4" />
-                </button>
-
-                {showWorkspaceDropdown && (
-                  <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto text-sm">
-                    {workspaces.map((workspace) => (
-                      <button
-                        key={workspace.id}
-                        onClick={() => {
-                          setSelectedWorkspace(workspace.id);
-                          setShowWorkspaceDropdown(false);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-gray-50 first:rounded-t-md last:rounded-b-md transition-colors"
-                      >
-                        <div className="font-medium text-gray-900">{workspace.name}</div>
-                        <div className="text-xs text-gray-500">{workspace.clientName}</div>
-                      </button>
-                    ))}
+                {location.state?.workspaceId ? (
+                  // Show only the originating workspace as plain text inside a box
+                  <div className="bg-gray-50 border border-gray-200 rounded-md px-4 py-2 text-gray-900 text-base font-medium">
+                    {workspaces.find((w) => w.id === location.state.workspaceId)?.name ||
+                      'Workspace'}
                   </div>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setShowWorkspaceDropdown(!showWorkspaceDropdown)}
+                      className="w-full flex items-center justify-between p-2 border border-gray-300 rounded-md hover:border-gray-400 transition-colors text-sm"
+                    >
+                      <span
+                        className={
+                          selectedWorkspaceObj && 'name' in selectedWorkspaceObj
+                            ? 'text-gray-900'
+                            : 'text-gray-500'
+                        }
+                      >
+                        {'name' in selectedWorkspaceObj
+                          ? selectedWorkspaceObj.name
+                          : 'Choose a workspace...'}
+                      </span>
+                      <FiChevronDown className="w-4 h-4" />
+                    </button>
+
+                    {showWorkspaceDropdown && (
+                      <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto text-sm">
+                        {workspaces.map((workspace) => (
+                          <button
+                            key={workspace.id}
+                            onClick={() => {
+                              setSelectedWorkspace(workspace.id);
+                              setShowWorkspaceDropdown(false);
+                            }}
+                            className="w-full text-left px-3 py-2 hover:bg-gray-50 first:rounded-t-md last:rounded-b-md transition-colors"
+                          >
+                            <div className="font-medium text-gray-900">{workspace.name}</div>
+                            <div className="text-xs text-gray-500">{workspace.clientName}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -570,7 +580,7 @@ const ProposalAuthoring: React.FC = () => {
             {/* Section selector only appears if a workspace is selected */}
             {selectedWorkspace && (
               <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-                <h3 className="text-base font-semibold text-gray-900 mb-2">Select Section</h3>
+                <h3 className="text-base font-semibold text-gray-900 mb-2">Section</h3>
                 <div className="relative mb-2">
                   <select
                     value={selectedSectionName}
@@ -578,7 +588,7 @@ const ProposalAuthoring: React.FC = () => {
                     className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
                     disabled={!sectionList.length}
                   >
-                    <option value="">Choose a section...</option>
+                    <option value="">Section...</option>
                     {sectionList.map((section: { name: string }) => (
                       <option key={section.name} value={section.name}>
                         {section.name}
@@ -640,7 +650,7 @@ const ProposalAuthoring: React.FC = () => {
             {workspaceContent && (
               <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Select Context</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Context</h3>
                   {/* Select All Checkbox */}
                   {workspaceContent.sections.length > 0 && (
                     <div className="flex items-center">

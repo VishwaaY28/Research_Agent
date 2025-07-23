@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
   FiCheck,
@@ -92,6 +92,7 @@ const ContentResults: React.FC<ContentResultsProps> = ({
   const [selectedWorkspaceTags, setSelectedWorkspaceTags] = useState<string[]>([]);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [newTagInput, setNewTagInput] = useState('');
+  const autoSavedRef = useRef(false);
 
   const navigate = useNavigate();
   const { createSections } = useSections();
@@ -1022,20 +1023,43 @@ const ContentResults: React.FC<ContentResultsProps> = ({
   useEffect(() => {
     // Auto-save logic: if workspaceId is present and extractedResults is not empty, auto-save all chunks as sections
     async function autoSaveToWorkspace() {
-      if (!workspaceId || !extractedResults.length) return;
+      if (!workspaceId || !extractedResults.length || autoSavedRef.current) return;
       try {
-        // Flatten all chunks from all extractedResults
+        autoSavedRef.current = true; // Set immediately to prevent any double execution
+        // Flatten all chunks from all extractedResults, always as plain text
         const allSections = extractedResults.flatMap((result) =>
-          result.chunks.map((chunk) => ({
-            content: 'content' in chunk ? (chunk as any).content : '',
-            name:
-              'title' in chunk
-                ? (chunk as any).title
-                : 'label' in chunk
-                  ? (chunk as any).label
-                  : 'Untitled',
-            tags: [],
-          })),
+          result.chunks.map((chunk) => {
+            let content = '';
+            if ('content' in chunk) {
+              if (Array.isArray(chunk.content)) {
+                // StructuredChunk: join all text fields
+                content = chunk.content
+                  .map((section) =>
+                    [
+                      section.tag,
+                      ...(Array.isArray(section.content) ? section.content.map((c) => c.text) : []),
+                    ].join('\n'),
+                  )
+                  .join('\n\n');
+              } else if (typeof chunk.content === 'string') {
+                // SimpleChunk: just use the string
+                content = chunk.content;
+              } else {
+                // Fallback: stringify if unknown
+                content = String(chunk.content);
+              }
+            }
+            return {
+              content,
+              name:
+                'title' in chunk
+                  ? (chunk as any).title
+                  : 'label' in chunk
+                    ? (chunk as any).label
+                    : 'Untitled',
+              tags: [],
+            };
+          }),
         );
         if (allSections.length > 0) {
           // Use the first filename as the source name

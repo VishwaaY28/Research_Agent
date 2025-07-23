@@ -10,6 +10,7 @@ from api.routes.sources import router as sources_router
 from api.routes.tags import router as tags_router
 from api.routes.prompts import router as prompts_router
 from api.routes.data import router as data_router
+from api.handlers import prompt_templates
 # from api.routes.images import router as images_router
 # from api.routes.tables import router as tables_router
 from config.env import env
@@ -31,7 +32,7 @@ async def shutdown_event():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3002"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -52,6 +53,7 @@ app.include_router(sources_router)
 app.include_router(tags_router)
 app.include_router(prompts_router)
 app.include_router(data_router)
+app.include_router(prompt_templates.router, prefix="/api/prompt-templates")
 # app.include_router(images_router)
 # app.include_router(tables_router)
 

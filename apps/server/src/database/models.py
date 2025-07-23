@@ -132,3 +132,17 @@ class GeneratedContentSection(TimestampMixin):
 #     id = fields.IntField(pk=True)
 #     generated_content = fields.ForeignKeyField('models.GeneratedContent', related_name='tables')
 #     table = fields.ForeignKeyField('models.WorkspaceTable', related_name='generated_contents')
+
+class WorkspaceType(TimestampMixin):
+    id = fields.IntField(pk=True)
+    name = fields.CharField(max_length=255, unique=True)
+
+class SectionTemplate(TimestampMixin):
+    id = fields.IntField(pk=True)
+    workspace_type = fields.ForeignKeyField('models.WorkspaceType', related_name='sections')
+    name = fields.CharField(max_length=255)
+
+class PromptTemplate(TimestampMixin):
+    id = fields.IntField(pk=True)
+    section_template = fields.ForeignKeyField('models.SectionTemplate', related_name='prompts')
+    prompt = fields.TextField()

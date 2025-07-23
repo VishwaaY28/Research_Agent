@@ -41,7 +41,9 @@ CREATE TABLE IF NOT EXISTS "workspace" (
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deleted_at" TIMESTAMP,
     "name" VARCHAR(255) NOT NULL,
-    "client" VARCHAR(255) NOT NULL
+    "client" VARCHAR(255) NOT NULL,
+    "workspace_type" VARCHAR(50),
+    "last_used_at" TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS "prompt" (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,

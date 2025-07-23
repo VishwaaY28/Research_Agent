@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { FiArrowLeft, FiFolder, FiPlus, FiX } from 'react-icons/fi';
+import { FiFolder, FiPlus, FiX } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { useWorkspace } from '../../hooks/useWorkspace';
 
-const CreateWorkspace: React.FC = () => {
+const CreateWorkspace: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const navigate = useNavigate();
   const { createWorkspace } = useWorkspace();
 
@@ -60,8 +60,8 @@ const CreateWorkspace: React.FC = () => {
     }
 
     if (!formData.clientName.trim()) {
-toast.error('Client name is required');
-return;
+      toast.error('Client name is required');
+      return;
     }
 
     setIsSubmitting(true);
@@ -76,7 +76,11 @@ return;
       });
 
       toast.success('Workspace created successfully!');
-      navigate(`/dashboard/workspaces/${newWorkspace.id}`);
+      if (onClose) {
+        onClose();
+      } else {
+        navigate(`/dashboard/workspaces/${newWorkspace.id}`);
+      }
     } catch (error: any) {
       toast.error(error.message || 'Failed to create workspace. Please try again.');
     } finally {
@@ -86,31 +90,21 @@ return;
 
   return (
     <div className="min-h-full bg-white">
-      <div className="bg-white border-b border-gray-200">
-        <div className="px-8 py-6">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-center">
-              <button
-                onClick={() => navigate('/dashboard/workspaces')}
-                className="mr-4 p-2 text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <FiArrowLeft className="w-5 h-5" />
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Create New Workspace</h1>
-                <p className="text-gray-600 mt-1">
-                  Set up a new content workspace for organizing reusable proposal components
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
+      {/* Removed header section for compact modal */}
       <div className="px-8 py-8">
         <div className="max-w-2xl mx-auto">
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="p-8">
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden relative">
+            {/* Close button at top right */}
+            <button
+              onClick={() => (onClose ? onClose() : navigate('/dashboard/workspaces'))}
+              className="absolute top-3 right-3 p-2 text-gray-400 hover:text-gray-600 transition-colors z-10"
+              aria-label="Close"
+            >
+              <FiX className="w-6 h-6" />
+            </button>
+            <div className="p-6">
+              {/* Optionally, you can add a small title here if needed */}
+              {/* <h2 className="text-xl font-semibold text-gray-900 mb-6">Workspace Details</h2> */}
               <div className="flex items-center mb-6">
                 <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mr-4">
                   <FiFolder className="w-6 h-6 text-primary" />
@@ -128,7 +122,7 @@ return;
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
                     Workspace Name <span className="text-red-500">*</span>
                   </label>
-                   <div className="flex gap-2">
+                  <div className="flex gap-2">
                     <select
                       value={selectedVertical}
                       onChange={(e) => setSelectedVertical(e.target.value)}
@@ -223,7 +217,7 @@ return;
                     placeholder="Who is this workspace being prepared for?"
                     required
                   />
-                   <datalist id="client-suggestions">
+                  <datalist id="client-suggestions">
                     <option value="NYSE" />
                     <option value="BSE" />
                     <option value="UHG" />
@@ -289,7 +283,7 @@ return;
                 <div className="flex justify-end space-x-4 pt-6 border-t border-gray-100">
                   <button
                     type="button"
-                    onClick={() => navigate('/dashboard/workspaces')}
+                    onClick={() => (onClose ? onClose() : navigate('/dashboard/workspaces'))}
                     className="px-6 py-3 border border-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
                   >
                     Cancel

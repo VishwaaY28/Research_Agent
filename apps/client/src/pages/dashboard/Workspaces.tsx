@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useSections } from '../../hooks/useSections';
 import { useWorkspace } from '../../hooks/useWorkspace';
+import CreateWorkspace from './CreateWorkspace';
 
 const Workspaces: React.FC = () => {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ const Workspaces: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [sectionCounts, setSectionCounts] = useState<{ [workspaceId: string]: number }>({});
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const debouncedSearch = useDebounce(search, 500);
 
@@ -50,7 +52,7 @@ const Workspaces: React.FC = () => {
           } catch {
             counts[workspace.id] = 0;
           }
-        })
+        }),
       );
       setSectionCounts(counts);
     };
@@ -58,6 +60,12 @@ const Workspaces: React.FC = () => {
       fetchAllSectionCounts();
     }
   }, [workspaces]);
+
+  const handleWorkspaceCreated = () => {
+    setShowCreateModal(false);
+    // Refresh the workspace list after creation
+    fetchWorkspaces();
+  };
 
   return (
     <div className="min-h-full bg-white">
@@ -72,11 +80,11 @@ const Workspaces: React.FC = () => {
             </div>
             <div className="flex items-center space-x-3 mb-6">
               <button
-                onClick={() => navigate('/dashboard/workspaces/create')}
-                className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors flex items-center gap-2"
+                onClick={() => setShowCreateModal(true)}
+                className="bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors"
               >
-                <FiPlus className="w-4 h-4" />
-                Create Workspace
+                <FiPlus className="w-4 h-4 inline mr-2" />
+                New Workspace
               </button>
             </div>
           </div>
@@ -218,6 +226,13 @@ const Workspaces: React.FC = () => {
           )}
         </div>
       </div>
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <CreateWorkspace onClose={handleWorkspaceCreated} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
