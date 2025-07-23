@@ -9,6 +9,7 @@ const AddContentChunksPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedChunks, setSelectedChunks] = useState<number[]>([]);
   const [sourceName, setSourceName] = useState('');
+  const [sourceUrl, setSourceUrl] = useState('');
   const navigate = useNavigate();
   const { createSections } = useSections();
 
@@ -23,12 +24,15 @@ const AddContentChunksPage: React.FC = () => {
         if (Array.isArray(data.chunks)) {
           setChunks(data.chunks);
           setSourceName(data.filename || data.source?.name || '');
+          setSourceUrl(data.url || data.source?.source_url || '');
         } else if (data && data.source && Array.isArray(data.source.chunks)) {
           setChunks(data.source.chunks);
           setSourceName(data.source.name || '');
+          setSourceUrl(data.source.source_url || '');
         } else {
           setChunks([]);
           setSourceName('');
+          setSourceUrl('');
         }
       })
       .finally(() => setLoading(false));
@@ -49,52 +53,50 @@ const AddContentChunksPage: React.FC = () => {
           typeof chunk.content === 'string'
             ? chunk.content
             : Array.isArray(chunk.content)
-            ? chunk.content
-                .map((section: any) => {
-                  if (section.content && Array.isArray(section.content)) {
-                    return `${section.tag}\n${section.content.map((c: any) => c.text).join('\n')}`;
-                  } else if (section.text) {
-                    return section.text;
-                  } else {
-                    return '';
-                  }
-                })
-                .join('\n\n')
-            : '',
-        name:
-          chunk.label ||
-          (typeof chunk.content === 'string'
-            ? chunk.content.substring(0, 50) + '...'
-            : 'Untitled Chunk'),
+              ? chunk.content
+                  .map((section: any) => {
+                    if (section.content && Array.isArray(section.content)) {
+                      return `${section.tag}\n${section.content.map((c: any) => c.text).join('\n')}`;
+                    } else if (section.text) {
+                      return section.text;
+                    } else {
+                      return '';
+                    }
+                  })
+                  .join('\n\n')
+              : '',
+        name: getChunkLabel(chunk, idx),
         tags: [],
       };
     });
-    await createSections(parseInt(workspaceId), sourceName, sections);
+    // Use the URL as filename if present, otherwise fallback to sourceName
+    const filename = sourceUrl || sourceName;
+    await createSections(parseInt(workspaceId), filename, sections);
     navigate(`/dashboard/workspaces/${workspaceId}`);
   };
 
   // Helper to get a label for a chunk
-  const getChunkLabel = (chunk: any) => {
-    if (chunk.label) return chunk.label;
-    if (typeof chunk.content === 'string') return chunk.content.substring(0, 50) + '...';
+  const getChunkLabel = (chunk: any, idx: number) => {
+    if (chunk.label && typeof chunk.label === 'string' && chunk.label.trim()) return chunk.label;
+    if (typeof chunk.content === 'string' && chunk.content.trim())
+      return chunk.content.substring(0, 50) + '...';
     if (Array.isArray(chunk.content)) {
       // For structured content, join all text fields
-      return (
-        chunk.content
-          .map((section: any) =>
-            section.tag
-              ? `${section.tag}: ${
-                  Array.isArray(section.content)
-                    ? section.content.map((c: any) => c.text).join(' ')
-                    : ''
-                }`
-              : '',
-          )
-          .join(' ')
-          .substring(0, 50) + '...'
-      );
+      const joined = chunk.content
+        .map((section: any) =>
+          section.tag
+            ? `${section.tag}: ${
+                Array.isArray(section.content)
+                  ? section.content.map((c: any) => c.text).join(' ')
+                  : ''
+              }`
+            : '',
+        )
+        .join(' ')
+        .substring(0, 50);
+      return joined ? joined + '...' : `Section ${idx + 1}`;
     }
-    return 'Untitled Chunk';
+    return `Section ${idx + 1}`;
   };
 
   return (
@@ -126,7 +128,7 @@ const AddContentChunksPage: React.FC = () => {
               onClick={() => handleToggleChunk(idx)}
             >
               <div className="flex-1">
-                <div className="font-medium text-black">{getChunkLabel(chunk)}</div>
+                <div className="font-medium text-black">{getChunkLabel(chunk, idx)}</div>
                 <div className="text-xs text-gray-500 mt-1">
                   {chunk.page && `Page ${chunk.page} • `}
                   {chunk.section_type && `${chunk.section_type}`}

@@ -1,4 +1,4 @@
-from database.models import Workspace, Tag, WorkspaceTag
+from database.models import Workspace, Tag, WorkspaceTag, Section, Prompt, GeneratedContent
 from tortoise.exceptions import DoesNotExist
 from tortoise.transactions import in_transaction
 
@@ -99,8 +99,17 @@ class WorkspaceRepository:
         if not workspace:
             return False
         from datetime import datetime
-        workspace.deleted_at = datetime.utcnow()
+        now = datetime.utcnow()
+        workspace.deleted_at = now
         await workspace.save()
+
+        # Soft-delete all related sections
+        await Section.filter(workspace_id=workspace_id, deleted_at=None).update(deleted_at=now)
+        # Soft-delete all related prompts
+        await Prompt.filter(workspace_id=workspace_id, deleted_at=None).update(deleted_at=now)
+        # Soft-delete all related generated content
+        await GeneratedContent.filter(workspace_id=workspace_id, deleted_at=None).update(deleted_at=now)
+
         return True
 
     @staticmethod

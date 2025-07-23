@@ -238,7 +238,7 @@ const WorkspaceView: React.FC = () => {
   // Fetch chunks for a source
   const handleAddSource = (source: any) => {
     // Navigate to the in-page chunk selection view
-    navigate(`/dashboard/workspaces/${workspace.id}/add-content/${source.id}`);
+    navigate(`/dashboard/workspaces/${workspace?.id}/add-content/${source.id}`);
   };
 
   const handleToggleChunk = (idx: number) => {
@@ -594,10 +594,11 @@ const WorkspaceView: React.FC = () => {
                         </div>
                       )}
                       <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
-                        {section.name || 'Untitled Section'}
-                        {section.number && (
-                          <span className="ml-2 text-xs text-gray-500">{section.number}</span>
-                        )}
+                        {typeof section.name === 'string' && section.name.trim()
+                          ? section.name
+                          : typeof section.content === 'string' && section.content.trim()
+                            ? section.content.substring(0, 50) + '...'
+                            : `Section ${section.id ? section.id : ''}`}
                       </h3>
                       {typeof section.content === 'string' ? (
                         <p className="text-gray-700 text-sm leading-relaxed line-clamp-4">
@@ -605,18 +606,22 @@ const WorkspaceView: React.FC = () => {
                         </p>
                       ) : (
                         <div>
-                          {section.content.question && (
-                            <div className="mb-2">
-                              <span className="font-medium">Question:</span>{' '}
-                              {section.content.question}
-                            </div>
-                          )}
-                          {section.content.response && (
-                            <div>
-                              <span className="font-medium">Response:</span>{' '}
-                              {section.content.response}
-                            </div>
-                          )}
+                          {section.content &&
+                            typeof section.content === 'object' &&
+                            (section.content as any).question && (
+                              <div className="mb-2">
+                                <span className="font-medium">Question:</span>{' '}
+                                {(section.content as any).question}
+                              </div>
+                            )}
+                          {section.content &&
+                            typeof section.content === 'object' &&
+                            (section.content as any).response && (
+                              <div>
+                                <span className="font-medium">Response:</span>{' '}
+                                {(section.content as any).response}
+                              </div>
+                            )}
                         </div>
                       )}
                     </div>

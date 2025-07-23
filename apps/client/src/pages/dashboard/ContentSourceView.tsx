@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { FiArrowLeft, FiCalendar, FiChevronDown, FiChevronRight, FiFile, FiFileText, FiGlobe } from 'react-icons/fi';
+import {
+  FiArrowLeft,
+  FiCalendar,
+  FiChevronDown,
+  FiChevronRight,
+  FiFile,
+  FiFileText,
+  FiGlobe,
+} from 'react-icons/fi';
 import { useNavigate, useParams } from 'react-router-dom';
 import { API } from '../../utils/constants';
 
@@ -174,11 +182,15 @@ const ContentSourceView: React.FC = () => {
             details.chunks.map((chunk: Chunk, index: number) =>
               isStructuredChunk(chunk) ? (
                 <div key={index} className="bg-white rounded-xl border border-gray-200">
-                  <div className="flex items-center justify-between p-6 cursor-pointer" onClick={() => toggleSection(index)}>
+                  <div
+                    className="flex items-center justify-between p-6 cursor-pointer"
+                    onClick={() => toggleSection(index)}
+                  >
                     <div>
-                      <h3 className="text-lg font-semibold text-black">{chunk.title}</h3>
+                      <h3 className="text-base font-semibold text-gray-900">{chunk.title}</h3>
                       <p className="text-sm text-gray-500">
-                        {chunk.content.length} minor chunks • {chunk.start_range} - {chunk.end_range}
+                        {chunk.content.length} minor chunks • {chunk.start_range} -{' '}
+                        {chunk.end_range}
                       </p>
                     </div>
                     <button className="p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-colors">
@@ -192,9 +204,12 @@ const ContentSourceView: React.FC = () => {
                   {expandedSections.has(index) && (
                     <div className="border-t border-gray-100 bg-gray-50">
                       {chunk.content.map((minor, minorIdx) => (
-                        <div key={minorIdx} className="p-4 border-b border-gray-100 last:border-b-0">
-                          <h4 className="font-medium text-gray-800 mb-2">{minor.tag}</h4>
-                          <div className="text-sm text-gray-600 space-y-1">
+                        <div
+                          key={minorIdx}
+                          className="p-4 border-b border-gray-100 last:border-b-0"
+                        >
+                          <h4 className="font-medium text-gray-800 mb-2 text-base">{minor.tag}</h4>
+                          <div className="text-base text-gray-800 space-y-1">
                             {minor.content.slice(0, 2).map((content, contentIndex) => (
                               <p key={contentIndex} className="line-clamp-2">
                                 {content.text.substring(0, 200)}
@@ -215,14 +230,14 @@ const ContentSourceView: React.FC = () => {
               ) : (
                 <div key={index} className="bg-white rounded-xl border border-gray-200 p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-black">{chunk.label}</h3>
+                    <h3 className="text-base font-semibold text-gray-900">{chunk.label}</h3>
                     {(chunk as SimpleChunk).page && (
                       <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
                         Page {(chunk as SimpleChunk).page}
                       </span>
                     )}
                   </div>
-                  <div className="text-gray-700 leading-relaxed max-h-40 overflow-y-auto">
+                  <div className="text-base text-gray-800 leading-relaxed max-h-40 overflow-y-auto">
                     {chunk.content.substring(0, 500)}
                     {chunk.content.length > 500 && '...'}
                   </div>
@@ -234,7 +249,7 @@ const ContentSourceView: React.FC = () => {
                     </div>
                   )}
                 </div>
-              )
+              ),
             )
           )}
         </div>

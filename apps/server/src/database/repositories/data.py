@@ -9,7 +9,8 @@ class DashboardDataRepository:
         async with in_transaction():
             total_workspaces = await Workspace.filter(deleted_at=None).count()
 
-            total_sections = await Section.filter(deleted_at=None).count()
+            # Only count sections whose workspace is not soft-deleted
+            total_sections = await Section.filter(deleted_at=None, workspace__deleted_at=None).count()
 
             total_prompts = await Prompt.filter(deleted_at=None).count()
 
