@@ -137,6 +137,10 @@ const PromptTemplatePage: React.FC = () => {
   const [sectionsLoading, setSectionsLoading] = useState(false);
   const { workspaces, fetchWorkspaces } = useWorkspace();
 
+  useEffect(() => {
+    fetchWorkspaces();
+  }, []);
+
   // Merge static and custom types for UI display
   const allTypes = [
     ...WORKSPACE_TYPES,
@@ -243,11 +247,13 @@ const PromptTemplatePage: React.FC = () => {
     try {
       const title = `${selectedType.name} - ${selectedSection.name}`;
       await savePromptToWorkspace(workspace.id, title, editablePrompt, []);
-      toast.success('Prompt saved to workspace successfully!');
+      toast.success('Prompt added to workspace');
       await fetchWorkspaces();
-      navigate('/dashboard/proposal-authoring', {
-        state: { workspaceId: workspace.id, sectionName: selectedSection.name },
-      });
+      // Reset section and prompt for new entry
+      setSelectedSection(null);
+      setEditablePrompt('');
+      // Optionally, you can also reset selectedSectionName if needed
+      // setSelectedSectionName('');
     } catch (err) {
       console.error('Failed to save prompt:', err);
       toast.error(err instanceof Error ? err.message : 'Failed to save prompt to workspace');
