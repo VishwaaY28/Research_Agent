@@ -183,7 +183,7 @@ const Home: React.FC = () => {
                     </h3>
                     <p className="text-gray-500 mb-6">Open a workspace to see it appear here</p>
                     <button
-                      onClick={() => navigate('/dashboard/workspaces/create')}
+                      onClick={() => navigate('/dashboard/workspaces?create=1')}
                       className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
                     >
                       Create Workspace
@@ -202,7 +202,7 @@ const Home: React.FC = () => {
               </div>
               <div className="p-6 space-y-3">
                 <button
-                  onClick={() => navigate('/dashboard/workspaces/create')}
+                  onClick={() => navigate('/dashboard/workspaces?create=1')}
                   className="w-full p-4 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
                 >
                   <div className="flex items-center">

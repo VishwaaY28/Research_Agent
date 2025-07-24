@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { FiFolder, FiPlus, FiSearch, FiTag, FiTrash2 } from 'react-icons/fi';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useSections } from '../../hooks/useSections';
 import { useWorkspace } from '../../hooks/useWorkspace';
@@ -8,6 +8,7 @@ import CreateWorkspace from './CreateWorkspace';
 
 const Workspaces: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { workspaces, getAllTags, filterWorkspaces, fetchWorkspaces, loading, deleteWorkspace } =
     useWorkspace();
   const { fetchSections } = useSections();
@@ -61,6 +62,14 @@ const Workspaces: React.FC = () => {
     }
   }, [workspaces]);
 
+  useEffect(() => {
+    // Open modal if ?create=1 is in the query string
+    const params = new URLSearchParams(location.search);
+    if (params.get('create') === '1') {
+      setShowCreateModal(true);
+    }
+  }, [location.search]);
+
   const handleWorkspaceCreated = () => {
     setShowCreateModal(false);
     // Refresh the workspace list after creation
@@ -79,13 +88,15 @@ const Workspaces: React.FC = () => {
               </p>
             </div>
             <div className="flex items-center space-x-3 mb-6">
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors"
-              >
-                <FiPlus className="w-4 h-4 inline mr-2" />
-                New Workspace
-              </button>
+              {workspaces.length > 0 && (
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors"
+                >
+                  <FiPlus className="w-4 h-4 inline mr-2" />
+                  New Workspace
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -215,10 +226,10 @@ const Workspaces: React.FC = () => {
                 </p>
                 {!search && selectedTags.length === 0 && (
                   <button
-                    onClick={() => navigate('/dashboard/workspaces/create')}
+                    onClick={() => setShowCreateModal(true)}
                     className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors"
                   >
-                    Create Your First Workspace
+                    Add New Workspace
                   </button>
                 )}
               </div>
