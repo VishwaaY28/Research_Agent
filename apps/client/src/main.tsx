@@ -8,7 +8,6 @@ import ContentIngestion from './pages/dashboard/ContentIngestion';
 import ContentSources from './pages/dashboard/ContentSources';
 import ContentSourceView from './pages/dashboard/ContentSourceView';
 import CreateProposal from './pages/dashboard/CreateProposal';
-import CreateWorkspace from './pages/dashboard/CreateWorkspace';
 import DashHome from './pages/dashboard/Home';
 import ProposalAuthoring from './pages/dashboard/ProposalAuthoring';
 // import ProposalView from './pages/dashboard/ProposalView';
@@ -43,11 +42,6 @@ const router = createBrowserRouter([
       {
         path: 'workspaces',
         element: <Workspaces />,
-        errorElement: <Error />,
-      },
-      {
-        path: 'workspaces/create',
-        element: <CreateWorkspace />,
         errorElement: <Error />,
       },
       {
