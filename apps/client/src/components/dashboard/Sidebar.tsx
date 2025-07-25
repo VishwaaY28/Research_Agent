@@ -2,15 +2,13 @@ import React, { useState } from 'react';
 import {
   FiChevronLeft,
   FiChevronRight,
-  FiDatabase,
-  FiEdit3,
   FiFolder,
   FiLayers,
   FiLogOut,
   FiSettings,
   FiUpload,
 } from 'react-icons/fi';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import logo from '../../assets/HexawareBlueLogo 2.png';
 import { useAuth } from '../../hooks/useAuth';
 import PromptTemplateModal from './PromptTemplateModal';
@@ -18,6 +16,7 @@ import PromptTemplateModal from './PromptTemplateModal';
 const Sidebar: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [showPromptTemplateModal, setShowPromptTemplateModal] = useState(false);
 
@@ -25,8 +24,6 @@ const Sidebar: React.FC = () => {
     { path: '/dashboard', label: 'Dashboard', icon: FiLayers },
     { path: '/dashboard/content-ingestion', label: 'Content Ingestion', icon: FiUpload },
     { path: '/dashboard/workspaces', label: 'Workspaces', icon: FiFolder },
-    { path: '/dashboard/proposal-authoring', label: 'Proposal Authoring', icon: FiEdit3 },
-    { path: '/dashboard/content-sources', label: 'Content Sources', icon: FiDatabase },
     { path: '/dashboard/prompt-templates', label: 'Prompt Templates', icon: FiSettings },
   ];
 
@@ -44,11 +41,11 @@ const Sidebar: React.FC = () => {
           className={`flex items-center justify-between p-6 border-b border-gray-200 ${collapsed ? 'justify-center p-2' : ''}`}
         >
           {!collapsed && (
-        <div className="flex flex-col items-center space-y-1 w-full">
-          <img src={logo} alt="Logo" className="h-5 w-auto transition-all duration-200" />
-          <span className="text-base font-semibold mt-1">Proposal Authoring</span>
-        </div>
-      )}
+            <div className="flex flex-col items-center space-y-1 w-full">
+              <img src={logo} alt="Logo" className="h-5 w-auto transition-all duration-200" />
+              <span className="text-base font-semibold mt-1">Proposal Authoring</span>
+            </div>
+          )}
           {/* No logo when collapsed */}
           <button
             onClick={() => setCollapsed((prev) => !prev)}
@@ -80,29 +77,43 @@ const Sidebar: React.FC = () => {
                 <li key={item.path}>
                   <NavLink
                     to={item.path}
-                    className={({ isActive }) =>
-                      `flex items-center ${collapsed ? 'justify-center px-0' : 'space-x-3 px-4'} py-3 rounded-lg transition-colors ${
-                        isActive ? 'bg-primary text-white' : 'text-neutral-700 hover:bg-gray-100'
-                      }`
-                    }
+                    className={({ isActive }) => {
+                      // Highlight 'Workspaces' for both /dashboard/workspaces and /dashboard/proposal-authoring
+                      const isWorkspaceActive =
+                        item.path === '/dashboard/workspaces' &&
+                        (location.pathname.startsWith('/dashboard/workspaces') ||
+                          location.pathname.startsWith('/dashboard/proposal-authoring'));
+                      const active = isActive || isWorkspaceActive;
+                      return `flex items-center ${collapsed ? 'justify-center px-0' : 'space-x-3 px-4'} py-3 rounded-lg transition-colors ${
+                        active ? 'bg-primary text-white' : 'text-neutral-700 hover:bg-gray-100'
+                      }`;
+                    }}
                     end={item.path === '/dashboard'}
                   >
-                    {({ isActive }) => (
-                      <>
-                        <IconComponent
-                          className={`w-5 h-5 ${
-                            collapsed
-                              ? isActive
-                                ? 'mx-auto text-blue-300'
-                                : 'mx-auto text-neutral-700'
-                              : isActive
-                                ? 'text-white'
-                                : 'text-neutral-700'
-                          }`}
-                        />
-                        {!collapsed && <span className="font-medium">{item.label}</span>}
-                      </>
-                    )}
+                    {({ isActive }) => {
+                      // Highlight 'Workspaces' for both /dashboard/workspaces and /dashboard/proposal-authoring
+                      const isWorkspaceActive =
+                        item.path === '/dashboard/workspaces' &&
+                        (location.pathname.startsWith('/dashboard/workspaces') ||
+                          location.pathname.startsWith('/dashboard/proposal-authoring'));
+                      const active = isActive || isWorkspaceActive;
+                      return (
+                        <>
+                          <IconComponent
+                            className={`w-5 h-5 ${
+                              collapsed
+                                ? active
+                                  ? 'mx-auto text-blue-300'
+                                  : 'mx-auto text-neutral-700'
+                                : active
+                                  ? 'text-white'
+                                  : 'text-neutral-700'
+                            }`}
+                          />
+                          {!collapsed && <span className="font-medium">{item.label}</span>}
+                        </>
+                      );
+                    }}
                   </NavLink>
                 </li>
               );

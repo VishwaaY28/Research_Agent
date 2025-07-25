@@ -31,7 +31,7 @@ const IngestForm: React.FC<IngestFormProps> = ({
   const [webLinks, setWebLinks] = useState<string>('');
   const [errors, setErrors] = useState<{ file?: string; url?: string }>({});
   // Restore all state and logic for existing sources
-  const [uploadType, setUploadType] = useState<'file' | 'url' | 'existing'>('file');
+  const [uploadType, setUploadType] = useState<'file' | 'url'>('file');
   const [existingSources, setExistingSources] = useState<ContentSource[]>([]);
   const [selectedSources, setSelectedSources] = useState<ContentSource[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -213,8 +213,7 @@ const IngestForm: React.FC<IngestFormProps> = ({
   const canSubmit =
     !isProcessing &&
     ((uploadType === 'file' && selectedFiles.length > 0 && !errors.file) ||
-      (uploadType === 'url' && webLinks.trim().length > 0 && !errors.url) ||
-      (uploadType === 'existing' && selectedSources.length > 0));
+      (uploadType === 'url' && webLinks.trim().length > 0 && !errors.url));
 
   return (
     <div className="max-w-4xl mx-auto p-8">
@@ -223,7 +222,7 @@ const IngestForm: React.FC<IngestFormProps> = ({
         <p className="text-neutral-600">Upload new documents or web content</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div
           className={`p-6 border-2 rounded-2xl cursor-pointer transition-all duration-200 hover:shadow-lg ${
             uploadType === 'file'
@@ -256,25 +255,6 @@ const IngestForm: React.FC<IngestFormProps> = ({
             <h3 className="text-lg font-semibold text-black">Web Link</h3>
           </div>
           <p className="text-neutral-600 text-sm">Extract content from web pages and articles</p>
-        </div>
-
-        <div
-          className={`p-6 border-2 rounded-2xl cursor-pointer transition-all duration-200 hover:shadow-lg ${
-            uploadType === 'existing'
-              ? 'border-primary bg-gradient-to-br from-primary/5 to-primary/10 shadow-md'
-              : 'border-gray-200 hover:border-gray-300'
-          }`}
-          onClick={() => !isProcessing && setUploadType('existing')}
-        >
-          <div className="flex items-center mb-4">
-            <div className="p-2 bg-primary/10 rounded-lg mr-3">
-              <FiSearch className="w-6 h-6 text-primary" />
-            </div>
-            <h3 className="text-lg font-semibold text-black">Existing Sources</h3>
-          </div>
-          <p className="text-neutral-600 text-sm">
-            Import content from previously extracted sources
-          </p>
         </div>
       </div>
 

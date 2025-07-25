@@ -70,10 +70,27 @@ const Workspaces: React.FC = () => {
     }
   }, [location.search]);
 
-  const handleWorkspaceCreated = () => {
+  const handleWorkspaceCreated = (newWorkspace: any) => {
     setShowCreateModal(false);
-    // Refresh the workspace list after creation
     fetchWorkspaces();
+    if (newWorkspace && newWorkspace.id) {
+      const defaultSectionMap = {
+        Proposal: 'Executive Summary',
+        'Service Agreement': 'Agreement Overview',
+        Report: 'Introduction',
+        Research: 'Abstract',
+        Template: 'Header',
+        Blog: 'Title',
+      };
+      const defaultSectionName = defaultSectionMap[newWorkspace.workspaceType] || '';
+      navigate(`/dashboard/proposal-authoring/${newWorkspace.id}`, {
+        state: {
+          workspaceId: newWorkspace.id,
+          sectionName: defaultSectionName,
+          workspaceName: newWorkspace.name,
+        },
+      });
+    }
   };
 
   return (
@@ -238,9 +255,12 @@ const Workspaces: React.FC = () => {
         </div>
       </div>
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-transparent flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <CreateWorkspace onClose={handleWorkspaceCreated} />
+            <CreateWorkspace
+              onWorkspaceCreated={handleWorkspaceCreated}
+              onClose={() => setShowCreateModal(false)}
+            />
           </div>
         </div>
       )}

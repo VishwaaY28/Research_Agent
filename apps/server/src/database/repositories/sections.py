@@ -3,6 +3,7 @@ from tortoise.queryset import Prefetch
 from tortoise.exceptions import DoesNotExist
 from typing import List
 from datetime import datetime
+import json
 
 class SectionRepository:
     async def bulk_create_sections(self, workspace_id, filename, chunks):
@@ -40,6 +41,11 @@ class SectionRepository:
         created_sections = []
         for chunk in chunks:
             content = chunk["content"]
+            if not isinstance(content, str):
+                try:
+                    content = json.dumps(content)
+                except Exception:
+                    content = str(content)
             name = chunk.get("name")
             tags = chunk.get("tags", [])
             if not name:
@@ -135,14 +141,24 @@ class SectionRepository:
 
         return await query.prefetch_related("tags__tag", "content_source")
 
-    async def create_section(self, workspace_id: int, name: str, content: str, source: str = None, tags: list = None):
-        from database.models import Workspace, Section
+    async def create_section(self, workspace_id: int, name: str, content: str, source: str = None, tags: list = None, content_source_id: int = None):
+        from database.models import Workspace, Section, ContentSources
         workspace = await Workspace.get(id=workspace_id, deleted_at=None)
+        content_source = None
+        if content_source_id is not None:
+            content_source = await ContentSources.get(id=content_source_id)
+        # Always stringify content
+        if not isinstance(content, str):
+            try:
+                content = json.dumps(content)
+            except Exception:
+                content = str(content)
         section = await Section.create(
             workspace=workspace,
             name=name,
             content=content,
-            source=source or "manual"
+            source=source or "manual",
+            content_source=content_source
         )
         if tags:
             await self.add_tags_to_section(section.id, tags)

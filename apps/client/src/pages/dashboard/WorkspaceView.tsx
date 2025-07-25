@@ -593,37 +593,65 @@ const WorkspaceView: React.FC = () => {
                           ))}
                         </div>
                       )}
-                      <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
-                        {typeof section.name === 'string' && section.name.trim()
-                          ? section.name
-                          : typeof section.content === 'string' && section.content.trim()
-                            ? section.content.substring(0, 50) + '...'
-                            : `Section ${section.id ? section.id : ''}`}
-                      </h3>
-                      {typeof section.content === 'string' ? (
-                        <p className="text-gray-700 text-sm leading-relaxed line-clamp-4">
-                          {section.content}
-                        </p>
-                      ) : (
-                        <div>
-                          {section.content &&
-                            typeof section.content === 'object' &&
-                            (section.content as any).question && (
-                              <div className="mb-2">
-                                <span className="font-medium">Question:</span>{' '}
-                                {(section.content as any).question}
-                              </div>
-                            )}
-                          {section.content &&
-                            typeof section.content === 'object' &&
-                            (section.content as any).response && (
-                              <div>
-                                <span className="font-medium">Response:</span>{' '}
-                                {(section.content as any).response}
-                              </div>
-                            )}
-                        </div>
-                      )}
+                      {(() => {
+                        let parsedContent = section.content;
+                        if (typeof parsedContent === 'string') {
+                          try {
+                            parsedContent = JSON.parse(parsedContent.replace(/'/g, '"'));
+                          } catch (e) {
+                            parsedContent = [];
+                          }
+                        }
+                        if (!Array.isArray(parsedContent)) {
+                          parsedContent = [];
+                        }
+                        // Heading: first non-empty tag, else section.name (if not 'Chunk X'), else section.source
+                        let heading = '';
+                        const firstTag = parsedContent.find(
+                          (item: any) =>
+                            item.tag &&
+                            item.tag.trim() !== '' &&
+                            item.tag.trim().toLowerCase() !== 'untitled section',
+                        );
+                        if (firstTag) heading = firstTag.tag;
+                        const isChunkName =
+                          typeof section.name === 'string' &&
+                          /^chunk\s*\d+$/i.test(section.name.trim());
+                        if (
+                          (!heading ||
+                            heading.trim() === '' ||
+                            heading.toLowerCase().startsWith('chunk ')) &&
+                          section.name &&
+                          !isChunkName
+                        ) {
+                          heading = section.name;
+                        } else if (
+                          !heading ||
+                          heading.trim() === '' ||
+                          heading.toLowerCase().startsWith('chunk ') ||
+                          isChunkName
+                        ) {
+                          heading = section.source || 'Section';
+                        }
+                        // Preview: concatenate all text fields from all minor chunks
+                        let previewText = parsedContent
+                          .map((item: any) =>
+                            Array.isArray(item.content)
+                              ? item.content.map((c: any) => c.text).join(' ')
+                              : '',
+                          )
+                          .join(' ');
+                        return (
+                          <>
+                            <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
+                              {heading}
+                            </h3>
+                            <p className="text-gray-700 text-sm leading-relaxed line-clamp-4">
+                              {previewText}
+                            </p>
+                          </>
+                        );
+                      })()}
                     </div>
                     <div className="flex items-center gap-2 ml-4 flex-shrink-0">
                       <button
@@ -682,7 +710,20 @@ const WorkspaceView: React.FC = () => {
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div className="flex-1">
                 <h2 className="text-xl font-semibold text-gray-900">
-                  {viewingSection.name || 'Content Details'}
+                  {(() => {
+                    let parsedContent = viewingSection.content;
+                    if (typeof parsedContent === 'string') {
+                      try {
+                        parsedContent = JSON.parse(parsedContent.replace(/'/g, '"'));
+                      } catch (e) {
+                        parsedContent = [];
+                      }
+                    }
+                    if (!Array.isArray(parsedContent)) {
+                      parsedContent = [];
+                    }
+                    return viewingSection.name || 'Untitled Section';
+                  })()}
                 </h2>
                 <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                   <div className="flex items-center">
@@ -719,7 +760,31 @@ const WorkspaceView: React.FC = () => {
 
               <div className="prose max-w-none">
                 <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">
-                  {viewingSection.content}
+                  {(() => {
+                    let parsedContent = viewingSection.content;
+                    if (typeof parsedContent === 'string') {
+                      try {
+                        parsedContent = JSON.parse(parsedContent.replace(/'/g, '"'));
+                      } catch (e) {
+                        parsedContent = [];
+                      }
+                    }
+                    if (!Array.isArray(parsedContent)) {
+                      parsedContent = [];
+                    }
+                    return parsedContent
+                      .map((item: any) =>
+                        Array.isArray(item.content)
+                          ? item.content
+                              .map(
+                                (c: any) =>
+                                  (c.page_number ? `Page ${c.page_number}\n` : '') + (c.text || ''),
+                              )
+                              .join('\n\n')
+                          : '',
+                      )
+                      .join('\n\n');
+                  })()}
                 </div>
               </div>
             </div>

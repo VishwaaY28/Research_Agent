@@ -143,6 +143,8 @@ export function useWorkspace() {
     client: string;
     tags: string[];
     workspace_type?: string;
+    source_ids?: number[];
+    chunks?: any[];
   }) {
     const payload: any = {
       name: data.name,
@@ -150,6 +152,8 @@ export function useWorkspace() {
       tags: data.tags,
     };
     if (data.workspace_type) payload.workspace_type = data.workspace_type;
+    if (data.source_ids) payload.source_ids = data.source_ids;
+    if (data.chunks) payload.chunks = data.chunks;
     const res = await fetch(API.BASE_URL() + API.ENDPOINTS.WORKSPACES.BASE_URL(), {
       method: 'POST',
       headers: {
@@ -165,6 +169,7 @@ export function useWorkspace() {
       throw new Error(err.detail || 'Failed to create workspace');
     }
     const ws = await res.json();
+    console.log('DEBUG ws from backend:', ws);
     const newWorkspace: Workspace = {
       id: ws.id.toString(),
       name: ws.name,
