@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-  FiChevronDown,
   FiCopy,
-  FiEye,
   FiFileText,
   FiLoader,
+  FiPlus,
   FiRefreshCw,
   FiSave,
   FiTag,
@@ -13,19 +12,25 @@ import {
   FiZap,
 } from 'react-icons/fi';
 import ReactMarkdown from 'react-markdown';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   useContent,
   type Prompt,
   type Section,
   type WorkspaceContent,
 } from '../../hooks/useContent';
+import type { Workspace } from '../../hooks/useWorkspace';
 import { useWorkspace } from '../../hooks/useWorkspace';
+
+function hasTextProp(item: any): item is { text: string } {
+  return item && typeof item === 'object' && 'text' in item && typeof item.text === 'string';
+}
 
 const ProposalAuthoring: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { workspaces, fetchWorkspaces } = useWorkspace();
+  const { workspaceId } = useParams<{ workspaceId: string }>();
+  const { workspaces, fetchWorkspaces, fetchWorkspace } = useWorkspace();
   const {
     getWorkspaceContent,
     generateContent,
@@ -52,6 +57,7 @@ const ProposalAuthoring: React.FC = () => {
   const [selectedSectionName, setSelectedSectionName] = useState('');
   const [activeTab, setActiveTab] = useState<'prompts' | 'generated'>('prompts');
   const [generatedPrompts, setGeneratedPrompts] = useState<any[]>([]);
+  const [fallbackWorkspace, setFallbackWorkspace] = useState<Workspace | null>(null);
 
   // Add static section lists for each workspace type
   const WORKSPACE_SECTIONS: Record<string, { name: string }[]> = {
@@ -140,13 +146,61 @@ const ProposalAuthoring: React.FC = () => {
     },
   };
 
-  const selectedWorkspaceObj = workspaces.find((w) => w.id === selectedWorkspace) || {
-    workspaceType: '',
-  };
+  // Prefer workspace name from navigation state if available
+  const workspaceNameFromState = location.state?.workspaceName;
+
+  // Compute selectedWorkspaceObj after all hooks and state
+  let selectedWorkspaceObj: Workspace | { workspaceType: string; name: string };
+  const foundWorkspace = workspaces.find((w) => w.id === selectedWorkspace);
+  if (foundWorkspace) {
+    selectedWorkspaceObj = foundWorkspace;
+  } else if (fallbackWorkspace) {
+    selectedWorkspaceObj = fallbackWorkspace;
+  } else {
+    selectedWorkspaceObj = {
+      workspaceType: '',
+      name: workspaceNameFromState || 'Workspace',
+    };
+  }
 
   useEffect(() => {
     fetchWorkspaces();
   }, []);
+
+  // Ensure workspace name is always set correctly when navigating
+  useEffect(() => {
+    if (workspaceId) {
+      const ws = workspaces.find((w) => w.id === workspaceId);
+      if (ws && ws.name) {
+        setSelectedWorkspace(workspaceId);
+        setFallbackWorkspace(null); // clear fallback if found
+      } else {
+        // If not found, fetch directly by ID
+        fetchWorkspace(workspaceId).then((fw) => {
+          console.log('Fetched fallback workspace:', fw);
+          if (fw && fw.name) {
+            setFallbackWorkspace({
+              id: fw.id?.toString?.() || workspaceId,
+              name: fw.name,
+              workspaceType: fw.workspaceType || fw.workspace_type || '',
+              clientName: fw.clientName || fw.client || '',
+              tags: fw.tags || [],
+            });
+            setSelectedWorkspace(workspaceId);
+          } else {
+            console.warn('No workspace found for ID', workspaceId, 'Response:', fw);
+          }
+        });
+      }
+    }
+  }, [workspaceId, workspaces, fetchWorkspace]);
+
+  // Auto-select workspace from URL param if present
+  useEffect(() => {
+    if (workspaceId) {
+      setSelectedWorkspace(workspaceId);
+    }
+  }, [workspaceId]);
 
   // Pre-fill from navigation state (prompt template or workspace selection)
   useEffect(() => {
@@ -204,15 +258,11 @@ const ProposalAuthoring: React.FC = () => {
 
       // Get the prompt for this section from our mapping
       const promptText =
-        WORKSPACE_SECTION_PROMPTS[workspaceType || '']?.[selectedSectionName] || '';
+        WORKSPACE_SECTION_PROMPTS[
+          workspaceType && workspaceType.trim() ? workspaceType : 'Proposal'
+        ]?.[selectedSectionName] || '';
 
-      console.log('Setting prompt for section:', {
-        workspaceType,
-        selectedSectionName,
-        promptText,
-      });
-
-      setPrompt(promptText);
+      setPrompt(promptText); // Always set the prompt state to the pre-defined prompt
       setUserPrompt(''); // Clear any user-added prompt when changing sections
     }
   }, [selectedWorkspaceObj, selectedSectionName]);
@@ -306,6 +356,7 @@ const ProposalAuthoring: React.FC = () => {
     try {
       const content = await getWorkspaceContent(selectedWorkspace);
       setWorkspaceContent(content);
+      console.log('DEBUG: Loaded workspace content:', content);
     } catch (error) {
       toast.error('Failed to load workspace content');
       console.error('Error loading workspace content:', error);
@@ -331,9 +382,24 @@ const ProposalAuthoring: React.FC = () => {
       return;
     }
 
+    // Combine auto-generated prompt and user input
+    const combinedPrompt = userPrompt.trim()
+      ? `${prompt.trim()}\n\n${userPrompt.trim()}`
+      : prompt.trim();
+
     setIsGenerating(true);
     try {
-      const content = await generateContent(selectedWorkspace, prompt, selectedSections);
+      let content;
+      if (selectedSections.length > 0) {
+        // If chunks/sections are selected, use them as context
+        content = await generateContent(selectedWorkspace, combinedPrompt, selectedSections);
+      } else {
+        // If no chunks selected, use the section name and workspace type as a heading
+        const sectionHeading = selectedSectionName
+          ? `Section: ${selectedSectionName} (Type: ${selectedWorkspaceObj.workspaceType || 'Proposal'})\n\n`
+          : '';
+        content = await generateContent(selectedWorkspace, sectionHeading + combinedPrompt, []);
+      }
       setGeneratedContent(content);
       toast.success('Content generated successfully!');
     } catch (error) {
@@ -360,7 +426,7 @@ const ProposalAuthoring: React.FC = () => {
         tags,
       );
       toast.success('Content saved successfully!');
-      navigate('/dashboard/proposal-authoring');
+      navigate(`/dashboard/workspaces/${selectedWorkspace}`);
     } catch (error) {
       toast.error('Failed to save content');
       console.error(error);
@@ -423,7 +489,9 @@ const ProposalAuthoring: React.FC = () => {
           <div className="flex-1 overflow-y-auto p-6">
             <div className="prose prose-gray max-w-none">
               <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
-                {viewingSection.content}
+                {typeof viewingSection.content === 'string'
+                  ? viewingSection.content
+                  : JSON.stringify(viewingSection.content, null, 2)}
               </div>
             </div>
           </div>
@@ -474,353 +542,288 @@ const ProposalAuthoring: React.FC = () => {
     );
   };
 
+  // Replace the main return JSX with a ChatGPT-like layout
   return (
-    <div className="min-h-full bg-gradient-to-br from-gray-50 to-gray-100/50">
-      <div className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="px-8 py-6">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Generate Content</h1>
-                <p className="text-gray-600 mt-1">
-                  Create AI-powered content using your workspace resources
-                </p>
-              </div>
-            </div>
-
-            {generatedContent && (
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => copyToClipboard(generatedContent)}
-                  className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-primary hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <FiCopy className="w-4 h-4" />
-                  Copy
-                </button>
-                <button
-                  onClick={handleRetry}
-                  disabled={isGenerating}
-                  className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  <FiRefreshCw className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
-                  Retry
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-all duration-200 shadow-lg shadow-blue-600/25 disabled:opacity-50"
-                >
-                  {isSaving ? (
-                    <FiLoader className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <FiSave className="w-4 h-4" />
-                  )}
-                  Save Content
-                </button>
-              </div>
-            )}
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100/50">
+      {/* Common header spanning both sidebar and main */}
+      <div className="w-full px-8 pt-8 pb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-black mb-2">
+            {selectedWorkspaceObj.name || 'Proposal Authoring'}
+          </h1>
+          <p className="text-neutral-600 text-lg">
+            Create, refine, and generate proposals using your workspace content.
+          </p>
         </div>
       </div>
-
-      <div className="max-w-7xl mx-auto px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1 space-y-4">
-            <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-              <h3 className="text-base font-semibold text-gray-900 mb-2">Workspace</h3>
-              <div className="relative">
-                {location.state?.workspaceId ? (
-                  // Show only the originating workspace as plain text inside a box
-                  <div className="bg-gray-50 border border-gray-200 rounded-md px-4 py-2 text-gray-900 text-base font-medium">
-                    {workspaces.find((w) => w.id === location.state.workspaceId)?.name ||
-                      'Workspace'}
-                  </div>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => setShowWorkspaceDropdown(!showWorkspaceDropdown)}
-                      className="w-full flex items-center justify-between p-2 border border-gray-300 rounded-md hover:border-gray-400 transition-colors text-sm"
-                    >
-                      <span
-                        className={
-                          selectedWorkspaceObj && 'name' in selectedWorkspaceObj
-                            ? 'text-gray-900'
-                            : 'text-gray-500'
+      <div className="flex">
+        {/* Sidebar */}
+        <aside className="w-80 bg-white border-r border-gray-200 flex flex-col p-4 space-y-4 min-h-screen">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Workspace</h3>
+            <div className="relative mb-4">
+              <div className="bg-gray-50 border border-gray-200 rounded-md px-4 py-2 text-gray-900 text-base font-medium">
+                {workspaceNameFromState || selectedWorkspaceObj.name || 'Workspace'}
+              </div>
+            </div>
+            {/* Section selector */}
+            {selectedWorkspace && (
+              <div className="mb-4">
+                <h3 className="text-base font-semibold text-gray-900 mb-2">Section</h3>
+                <select
+                  value={selectedSectionName}
+                  onChange={(e) => setSelectedSectionName(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                  disabled={!sectionList.length}
+                >
+                  <option value="">Section...</option>
+                  {sectionList.map((section: { name: string }) => (
+                    <option key={section.name} value={section.name}>
+                      {section.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {/* Context/sections */}
+            {workspaceContent && (
+              <div className="mb-4">
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <h3 className="text-base font-semibold text-gray-900 mb-2">Context</h3>
+                  <div className="flex items-center mb-2">
+                    <input
+                      type="checkbox"
+                      id="select-all-context-sections"
+                      checked={
+                        selectedSections.length === workspaceContent.sections.length &&
+                        workspaceContent.sections.length > 0
+                      }
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedSections(
+                            workspaceContent.sections.map((section) => section.id),
+                          );
+                        } else {
+                          setSelectedSections([]);
                         }
-                      >
-                        {'name' in selectedWorkspaceObj
-                          ? selectedWorkspaceObj.name
-                          : 'Choose a workspace...'}
-                      </span>
-                      <FiChevronDown className="w-4 h-4" />
-                    </button>
-
-                    {showWorkspaceDropdown && (
-                      <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto text-sm">
-                        {workspaces.map((workspace) => (
+                      }}
+                      className="mr-2"
+                    />
+                    <label
+                      htmlFor="select-all-context-sections"
+                      className="text-sm font-medium text-gray-700 cursor-pointer"
+                    >
+                      Select All
+                    </label>
+                  </div>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                    {workspaceContent.sections.map((section: Section, idx: number) => {
+                      // Smart heading fallback
+                      let heading = section.name;
+                      if (!heading) {
+                        // Try to extract from content if possible
+                        try {
+                          let parsed: any = section.content;
+                          if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+                          if (Array.isArray(parsed)) {
+                            let firstTag: any = parsed.find(
+                              (item: any) =>
+                                typeof item === 'object' &&
+                                item &&
+                                'tag' in item &&
+                                typeof item.tag === 'string' &&
+                                item.tag.trim() !== '',
+                            );
+                            if (firstTag && typeof firstTag.tag === 'string')
+                              heading = firstTag.tag;
+                          } else if (
+                            parsed &&
+                            typeof parsed === 'object' &&
+                            'tag' in parsed &&
+                            typeof parsed.tag === 'string'
+                          ) {
+                            heading = parsed.tag;
+                          }
+                        } catch {}
+                        if (!heading) heading = `Section ${idx + 1}`;
+                      }
+                      return (
+                        <div
+                          key={section.id}
+                          className="flex items-center gap-2 p-2 rounded hover:bg-gray-100 border-b border-gray-100"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedSections.includes(section.id)}
+                            onChange={() => handleSectionToggle(section.id)}
+                            className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                          />
+                          <span className="font-medium text-gray-900 truncate">{heading}</span>
                           <button
-                            key={workspace.id}
-                            onClick={() => {
-                              setSelectedWorkspace(workspace.id);
-                              setShowWorkspaceDropdown(false);
-                            }}
-                            className="w-full text-left px-3 py-2 hover:bg-gray-50 first:rounded-t-md last:rounded-b-md transition-colors"
+                            className="ml-auto text-xs text-blue-600 hover:underline"
+                            onClick={() => handleViewSection(section)}
                           >
-                            <div className="font-medium text-gray-900">{workspace.name}</div>
-                            <div className="text-xs text-gray-500">{workspace.clientName}</div>
+                            View
                           </button>
-                        ))}
-                      </div>
-                    )}
-                  </>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* Tags */}
+            <div className="mb-4">
+              <h3 className="text-base font-semibold text-gray-900 mb-2">Tags</h3>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+                  className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
+                  placeholder="Add a tag..."
+                />
+                <button
+                  onClick={handleAddTag}
+                  className="px-3 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center text-sm"
+                  disabled={!newTag.trim()}
+                >
+                  <FiPlus className="w-4 h-4" />
+                </button>
+              </div>
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center px-3 py-1 bg-primary/10 text-primary text-xs rounded-full font-medium"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTag(tag)}
+                        className="ml-2 text-primary/60 hover:text-primary transition-colors"
+                      >
+                        <FiX className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Generated Content (History) */}
+            <div className="mb-4">
+              <h3 className="text-base font-semibold text-gray-900 mb-2">
+                Generated Content (History)
+              </h3>
+              <div className="max-h-48 overflow-y-auto space-y-2 pr-2">
+                {generatedPrompts && generatedPrompts.length > 0 ? (
+                  generatedPrompts.map((item, idx) => (
+                    <button
+                      key={item.id || idx}
+                      className="w-full text-left px-3 py-2 rounded bg-gray-50 hover:bg-primary/10 border border-gray-100 text-xs text-gray-700 truncate"
+                      title={item.content}
+                      onClick={() => setGeneratedContent(item.content)}
+                    >
+                      {item.content.slice(0, 60)}
+                      {item.content.length > 60 ? '...' : ''}
+                    </button>
+                  ))
+                ) : (
+                  <div className="text-xs text-gray-400">No generated content yet.</div>
                 )}
               </div>
             </div>
+          </div>
+        </aside>
 
-            {/* Section selector only appears if a workspace is selected */}
-            {selectedWorkspace && (
-              <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-                <h3 className="text-base font-semibold text-gray-900 mb-2">Section</h3>
-                <div className="relative mb-2">
-                  <select
-                    value={selectedSectionName}
-                    onChange={(e) => setSelectedSectionName(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-                    disabled={!sectionList.length}
-                  >
-                    <option value="">Section...</option>
-                    {sectionList.map((section: { name: string }) => (
-                      <option key={section.name} value={section.name}>
-                        {section.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Display the prompt selection dropdown and auto-generated prompt */}
-                {selectedSectionName && (
-                  <div className="mt-2">
-                    <h4 className="font-medium text-gray-800 mb-1 text-sm">Saved Prompts</h4>
-                    {sectionPrompts.length > 0 ? (
-                      <select
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 mb-2 text-sm"
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                      >
-                        <option value="">-- Select a saved prompt --</option>
-                        {sectionPrompts.map((p) => (
-                          <option key={p.id} value={p.content}>
-                            {p.title}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="text-xs text-gray-500 mb-2">
-                        No saved prompts for this section.
-                      </div>
-                    )}
-                    <h4 className="font-medium text-gray-800 mb-1 text-sm">
-                      Auto-Generated Prompt
-                    </h4>
-                    <div className="bg-gray-50 rounded-md p-3 text-gray-800 whitespace-pre-line select-none cursor-not-allowed border border-gray-200 text-sm">
-                      {prompt ||
-                        WORKSPACE_SECTION_PROMPTS[selectedWorkspaceObj.workspaceType || '']?.[
-                          selectedSectionName
-                        ] ||
-                        ''}
-                    </div>
-                  </div>
-                )}
+        {/* Main chat area */}
+        <main className="flex-1 flex flex-col bg-gray-50 min-h-screen relative">
+          {/* Section heading */}
+          <div className="px-8 pt-8 pb-2">
+            <h2 className="text-xl font-bold text-gray-900">{selectedSectionName || 'Section'}</h2>
+            {selectedSectionName && (
+              <div className="bg-gray-50 rounded-md p-3 text-gray-800 whitespace-pre-line select-none border border-gray-200 text-sm mt-2">
+                {WORKSPACE_SECTION_PROMPTS[
+                  selectedWorkspaceObj.workspaceType && selectedWorkspaceObj.workspaceType.trim()
+                    ? selectedWorkspaceObj.workspaceType
+                    : 'Proposal'
+                ]?.[selectedSectionName] || ''}
               </div>
             )}
-
-            {/* User prompt input */}
-            <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-              <h3 className="text-base font-semibold text-gray-900 mb-2">
-                Your Additional Instructions
-              </h3>
+            {/* User prompt input moved here */}
+            <div className="mt-4">
               <textarea
                 value={userPrompt}
                 onChange={(e) => setUserPrompt(e.target.value)}
-                placeholder="Add your own instructions or modifications to the prompt..."
-                className="w-full min-h-[60px] border border-gray-300 rounded-md px-3 py-2 text-sm"
+                placeholder="Type your prompt or instructions..."
+                className="w-full min-h-[40px] max-h-32 border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"
+                readOnly={false}
+                disabled={false}
               />
-            </div>
-
-            {workspaceContent && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Context</h3>
-                  {/* Select All Checkbox */}
-                  {workspaceContent.sections.length > 0 && (
-                    <div className="flex items-center">
-                      <label
-                        htmlFor="select-all-sections"
-                        className="text-sm text-gray-700 cursor-pointer mr-2"
-                      >
-                        Select All
-                      </label>
-                      <input
-                        type="checkbox"
-                        id="select-all-sections"
-                        checked={selectedSections.length === workspaceContent.sections.length}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedSections(
-                              workspaceContent.sections.map((section) => section.id),
-                            );
-                          } else {
-                            setSelectedSections([]);
-                          }
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-4">
-                  {workspaceContent.sections.length > 0 && (
-                    <div>
-                      <h4 className="font-medium text-gray-800 mb-2 flex items-center gap-2">
-                        <FiFileText className="w-4 h-4" />
-                        Content Sections ({selectedSections.length}/
-                        {workspaceContent.sections.length})
-                      </h4>
-                      <div className="space-y-2 max-h-40 overflow-y-auto">
-                        {workspaceContent.sections.map((section: Section) => (
-                          <div
-                            key={section.id}
-                            className="flex items-start gap-3 p-2 hover:bg-gray-50 rounded-lg group"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedSections.includes(section.id)}
-                              onChange={() => handleSectionToggle(section.id)}
-                              className="mt-1 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
-                            />
-                            <div
-                              className="flex-1 min-w-0 cursor-pointer"
-                              onClick={() => handleSectionToggle(section.id)}
-                            >
-                              <div className="font-medium text-sm text-gray-900 truncate">
-                                {section.name}
-                              </div>
-                              <div className="text-xs text-gray-500 truncate">
-                                {section.content.substring(0, 100)}...
-                              </div>
-                            </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleViewSection(section);
-                              }}
-                              className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-primary rounded transition-all"
-                              title="View full content"
-                            >
-                              <FiEye className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Tags</h3>
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
-                    placeholder="Add a tag..."
-                    className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
-                  <button
-                    onClick={handleAddTag}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                  >
-                    Add
-                  </button>
-                </div>
-                {tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center px-3 py-1 bg-primary/10 text-primary rounded-full text-sm"
-                      >
-                        <FiTag className="w-3 h-3 mr-1" />
-                        {tag}
-                        <button
-                          onClick={() => handleRemoveTag(tag)}
-                          className="ml-2 text-primary hover:text-primary/80"
-                        >
-                          <FiX className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
+              <button
+                onClick={handleGenerate}
+                disabled={!prompt.trim() || !selectedWorkspace || isGenerating}
+                className="mt-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-all duration-200 shadow-lg shadow-blue-600/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isGenerating ? (
+                  <FiLoader className="w-5 h-5 animate-spin" />
+                ) : (
+                  <FiZap className="w-5 h-5" />
                 )}
-              </div>
+                Generate
+              </button>
             </div>
-
-            <button
-              onClick={handleGenerate}
-              disabled={!prompt.trim() || !selectedWorkspace || isGenerating}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm rounded-md font-medium bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 shadow-lg shadow-blue-600/25 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isGenerating ? (
-                <FiLoader className="w-4 h-4 animate-spin" />
-              ) : (
-                <FiZap className="w-4 h-4" />
-              )}
-              Generate Content
-            </button>
           </div>
-
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm h-[655px] overflow-y-auto">
-              <div className="p-6 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">Generated Content</h3>
-              </div>
-              <div className="p-6">
-                {contentLoading || isGenerating ? (
-                  <div className="flex items-center justify-center h-64">
-                    <div className="text-center">
-                      <FiLoader className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
-                      <p className="text-gray-600">Generating your content...</p>
-                    </div>
-                  </div>
-                ) : generatedContent ? (
+          {/* Chat history */}
+          <div className="flex-1 overflow-y-auto px-8 py-8 flex flex-col gap-6">
+            {/* Show prompt and generated content as chat bubbles */}
+            {generatedContent && (
+              <div className="flex gap-3 items-start flex-row-reverse">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                  <FiFileText className="w-5 h-5 text-green-600" />
+                </div>
+                <div className="bg-white rounded-xl p-4 shadow border border-gray-100 max-w-2xl">
+                  <div className="text-gray-900 font-medium mb-1">AI Response</div>
                   <div className="prose prose-gray max-w-none">
                     <ReactMarkdown>{generatedContent}</ReactMarkdown>
                   </div>
-                ) : (
-                  <div className="flex items-center justify-center h-64">
-                    <div className="text-center">
-                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <FiZap className="w-8 h-8 text-gray-400" />
-                      </div>
-                      <h4 className="text-lg font-medium text-gray-900 mb-2">Ready to generate</h4>
-                      <p className="text-gray-600">
-                        Configure your prompt and context, then click "Generate Content" to get
-                        started.
-                      </p>
-                    </div>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => copyToClipboard(generatedContent)}
+                      className="flex items-center gap-2 px-3 py-1 text-gray-600 hover:text-primary hover:bg-gray-100 rounded-lg transition-colors text-xs"
+                    >
+                      <FiCopy className="w-3 h-3" /> Copy
+                    </button>
+                    <button
+                      onClick={handleRetry}
+                      disabled={isGenerating}
+                      className="flex items-center gap-2 px-3 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors text-xs disabled:opacity-50"
+                    >
+                      <FiRefreshCw className={`w-3 h-3 ${isGenerating ? 'animate-spin' : ''}`} />{' '}
+                      Retry
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      disabled={isSaving}
+                      className="flex items-center gap-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-all duration-200 text-xs disabled:opacity-50"
+                    >
+                      {isSaving ? (
+                        <FiLoader className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <FiSave className="w-3 h-3" />
+                      )}{' '}
+                      Save
+                    </button>
                   </div>
-                )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
-        </div>
+          <SectionViewModal />
+        </main>
       </div>
-
-      <SectionViewModal />
     </div>
   );
 };

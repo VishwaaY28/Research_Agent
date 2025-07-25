@@ -95,7 +95,7 @@ const ContentSources: React.FC = () => {
         <p className="text-neutral-600">View and manage all your extracted content sources</p>
       </div>
 
-      <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg w-fit">
+      <div className="flex flex-row flex-wrap gap-2 mb-6 bg-gray-100 p-1 rounded-lg w-full">
         {[
           { key: 'all', label: 'All Sources' },
           { key: 'pdf', label: 'PDF' },
@@ -133,7 +133,7 @@ const ContentSources: React.FC = () => {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="flex flex-col gap-4 w-full">
           {filteredSources.map((source) => (
             <div
               key={source.id}

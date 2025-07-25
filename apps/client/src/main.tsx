@@ -75,6 +75,11 @@ const router = createBrowserRouter([
         errorElement: <Error />,
       },
       {
+        path: 'proposal-authoring/:id',
+        element: <ProposalAuthoring />,
+        errorElement: <Error />,
+      },
+      {
         path: 'proposal-authoring/create-proposal',
         element: <CreateProposal />,
         errorElement: <Error />,

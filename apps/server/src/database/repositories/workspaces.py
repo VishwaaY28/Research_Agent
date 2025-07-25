@@ -5,6 +5,9 @@ from tortoise.transactions import in_transaction
 class WorkspaceRepository:
     @staticmethod
     async def create_workspace(name: str, client: str, tag_names: list[str], workspace_type: str = None):
+        """
+        Create a workspace. Content association (sources/chunks) is handled in the handler, not here.
+        """
         async with in_transaction():
             workspace = await Workspace.create(name=name, client=client, workspace_type=workspace_type)
 

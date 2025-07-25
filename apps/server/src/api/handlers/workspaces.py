@@ -13,6 +13,8 @@ class WorkspaceCreateRequest(BaseModel):
     client: str
     tags: List[str]
     workspace_type: Optional[str] = None
+    source_ids: Optional[List[int]] = None  # IDs of sources to associate
+    chunks: Optional[List[dict]] = None     # Chunks to add as sections
 
 class WorkspaceUpdateRequest(BaseModel):
     name: Optional[str] = None
@@ -29,7 +31,7 @@ class WorkspaceFilterRequest(BaseModel):
 
 async def create_workspace(data: WorkspaceCreateRequest):
     try:
-        logger.info(f"Creating workspace with data: name={data.name}, client={data.client}, tags={data.tags}, workspace_type={data.workspace_type}")
+        logger.info(f"Creating workspace with data: name={data.name}, client={data.client}, tags={data.tags}, workspace_type={data.workspace_type}, source_ids={getattr(data, 'source_ids', None)}, chunks={getattr(data, 'chunks', None)}")
 
         workspace = await workspace_repository.create_workspace(
             name=data.name,
@@ -37,6 +39,44 @@ async def create_workspace(data: WorkspaceCreateRequest):
             tag_names=data.tags,
             workspace_type=data.workspace_type
         )
+
+        # Associate all sections from selected sources
+        if data.source_ids:
+            from database.repositories.sections import section_repository
+            for source_id in data.source_ids:
+                # Fetch all chunks/sections for this source
+                from database.models import Section
+                sections = await Section.filter(content_source_id=source_id, deleted_at=None).all()
+                for s in sections:
+                    # Duplicate section for this workspace
+                    await section_repository.create_section(
+                        workspace_id=workspace.id,
+                        name=s.name,
+                        content=s.content,
+                        source=s.source,
+                        tags=[t.name for t in await s.tags.all().prefetch_related("tag")]
+                    )
+
+        # Add selected chunks as new sections
+        if data.chunks:
+            from database.repositories.sections import section_repository
+            import json
+            for chunk in data.chunks:
+                # chunk should have: content_source_id, name, content, tags (optional)
+                content = chunk.get("content")
+                if not isinstance(content, str):
+                    try:
+                        content = json.dumps(content)
+                    except Exception:
+                        content = str(content)
+                await section_repository.create_section(
+                    workspace_id=workspace.id,
+                    name=chunk.get("name"),
+                    content=content,
+                    source=chunk.get("source"),
+                    tags=chunk.get("tags", []),
+                    content_source_id=chunk.get("content_source_id")
+                )
 
         logger.info(f"Workspace created with ID: {workspace.id}")
         
