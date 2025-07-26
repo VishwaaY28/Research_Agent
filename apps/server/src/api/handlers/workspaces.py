@@ -95,7 +95,7 @@ async def create_workspace(data: WorkspaceCreateRequest):
             "name": workspace.name,
             "client": workspace.client,
             "tags": tags,
-            "workspace_type": workspace.workspace_type
+            "workspace_type": workspace.workspace_type_id
         }
 
         logger.info(f"Returning workspace data: {result}")
@@ -115,7 +115,14 @@ async def filter_workspaces(data: dict):
     for ws in workspaces:
         tag_relations = await ws.tags.all().prefetch_related("tag")
         tags = [wt.tag.name for wt in tag_relations]
-        result.append({"id": ws.id, "name": ws.name, "client": ws.client, "tags": tags})
+        
+        result.append({
+            "id": ws.id, 
+            "name": ws.name, 
+            "client": ws.client, 
+            "tags": tags,
+            "workspace_type": ws.workspace_type_id
+        })
     return JSONResponse(result, status_code=200)
 
 async def search_workspaces(data: dict):
@@ -128,7 +135,14 @@ async def search_workspaces(data: dict):
     for ws in workspaces:
         tag_relations = await ws.tags.all().prefetch_related("tag")
         tags = [wt.tag.name for wt in tag_relations]
-        result.append({"id": ws.id, "name": ws.name, "client": ws.client, "tags": tags})
+        
+        result.append({
+            "id": ws.id, 
+            "name": ws.name, 
+            "client": ws.client, 
+            "tags": tags,
+            "workspace_type": ws.workspace_type_id
+        })
     return JSONResponse(result, status_code=200)
 
 async def fetch_all_workspaces():
@@ -137,8 +151,15 @@ async def fetch_all_workspaces():
     for ws in workspaces:
         tag_relations = await ws.tags.all().prefetch_related("tag")
         tags = [wt.tag.name for wt in tag_relations]
-        result.append({"id": ws.id, "name": ws.name, "client": ws.client, "tags": tags})
-    return JSONResponse(result, status_code=200)
+        
+        result.append({
+            "id": ws.id, 
+            "name": ws.name, 
+            "client": ws.client, 
+            "tags": tags,
+            "workspace_type": ws.workspace_type_id
+        })
+    return JSONResponse(result)
 
 async def fetch_by_id(workspace_id: int):
     # Update last_used_at whenever a workspace is accessed
@@ -153,7 +174,7 @@ async def fetch_by_id(workspace_id: int):
         "name": workspace.name,
         "client": workspace.client,
         "tags": tags,
-        "workspace_type": workspace.workspace_type
+        "workspace_type": workspace.workspace_type_id
     })
 
 async def fetch_by_name(name: str):
@@ -167,7 +188,7 @@ async def fetch_by_name(name: str):
         "name": workspace.name,
         "client": workspace.client,
         "tags": tags,
-        "workspace_type": workspace.workspace_type
+        "workspace_type": workspace.workspace_type_id
     })
 
 async def filter_by_tags(tags: List[str]):
@@ -176,7 +197,13 @@ async def filter_by_tags(tags: List[str]):
     for ws in workspaces:
         tag_relations = await ws.tags.all().prefetch_related("tag")
         ws_tags = [wt.tag.name for wt in tag_relations]
-        result.append({"id": ws.id, "name": ws.name, "client": ws.client, "tags": ws_tags})
+        result.append({
+            "id": ws.id, 
+            "name": ws.name, 
+            "client": ws.client, 
+            "tags": ws_tags,
+            "workspace_type": ws.workspace_type_id
+        })
     return JSONResponse(result, status_code=200)
 
 async def update_workspace(workspace_id: int, data: WorkspaceUpdateRequest):
@@ -190,41 +217,36 @@ async def update_workspace(workspace_id: int, data: WorkspaceUpdateRequest):
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
+    # Fetch updated workspace with tags
     updated_workspace = await workspace_repository.fetch_by_id(workspace_id)
     tag_relations = await updated_workspace.tags.all().prefetch_related("tag")
     tags = [wt.tag.name for wt in tag_relations]
-
-    return JSONResponse({"id": workspace.id, "name": workspace.name, "client": workspace.client, "tags": tags})
+    
+    return JSONResponse({
+        "id": updated_workspace.id,
+        "name": updated_workspace.name,
+        "client": updated_workspace.client,
+        "tags": tags,
+        "workspace_type": updated_workspace.workspace_type_id
+    })
 
 async def soft_delete(workspace_id: int):
     success = await workspace_repository.soft_delete(workspace_id)
     if not success:
         raise HTTPException(status_code=404, detail="Workspace not found")
-    return JSONResponse({"success": True})
+    return JSONResponse({"message": "Workspace deleted successfully"})
 
 async def hard_delete(workspace_id: int):
     success = await workspace_repository.hard_delete(workspace_id)
     if not success:
         raise HTTPException(status_code=404, detail="Workspace not found")
-    return JSONResponse({"success": True})
+    return JSONResponse({"message": "Workspace permanently deleted"})
 
 async def get_workspace_types():
-    """Get all available workspace types"""
-    try:
-        # Return the predefined workspace types
-        workspace_types = [
-            "Proposal",
-            "Service Agreement", 
-            "Report",
-            "Research",
-            "Template",
-            "Blog"
-        ]
-        
-        return JSONResponse({
-            "success": True,
-            "workspace_types": workspace_types
-        })
-    except Exception as e:
-        logger.error(f"Error getting workspace types: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    from database.models import WorkspaceType
+    types = await WorkspaceType.all()
+    return JSONResponse([{
+        "id": t.id,
+        "name": t.name,
+        "is_default": t.is_default
+    } for t in types])

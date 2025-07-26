@@ -1,26 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-  FiCopy,
-  FiFileText,
-  FiLoader,
-  FiPlus,
-  FiRefreshCw,
-  FiSave,
-  FiTag,
-  FiX,
-  FiZap,
+    FiArrowLeft,
+    FiCopy,
+    FiFileText,
+    FiLoader,
+    FiPlus,
+    FiRefreshCw,
+    FiSave,
+    FiTag,
+    FiX,
+    FiZap,
 } from 'react-icons/fi';
 import ReactMarkdown from 'react-markdown';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
-  useContent,
-  type Prompt,
-  type Section,
-  type WorkspaceContent,
+    useContent,
+    type Prompt,
+    type Section,
+    type WorkspaceContent,
 } from '../../hooks/useContent';
 import type { Workspace } from '../../hooks/useWorkspace';
 import { useWorkspace } from '../../hooks/useWorkspace';
+import { API } from '../../utils/constants';
 
 function hasTextProp(item: any): item is { text: string } {
   return item && typeof item === 'object' && 'text' in item && typeof item.text === 'string';
@@ -58,93 +60,12 @@ const ProposalAuthoring: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'prompts' | 'generated'>('prompts');
   const [generatedPrompts, setGeneratedPrompts] = useState<any[]>([]);
   const [fallbackWorkspace, setFallbackWorkspace] = useState<Workspace | null>(null);
+  const [sectionTemplates, setSectionTemplates] = useState<{ id: number; name: string }[]>([]);
+  const [sectionTemplatesLoading, setSectionTemplatesLoading] = useState(false);
+  const [workspaceTypes, setWorkspaceTypes] = useState<{ id: number; name: string }[]>([]);
 
   // Add static section lists for each workspace type
-  const WORKSPACE_SECTIONS: Record<string, { name: string }[]> = {
-    Proposal: [
-      { name: 'Executive Summary' },
-      { name: 'Problem Statement' },
-      { name: 'Proposed Solution' },
-      { name: 'Scope of Work' },
-      { name: 'Project Approach and Methodology' },
-      { name: 'Project Plan and Timeline' },
-      { name: 'Team Composition and Roles' },
-    ],
-    Blog: [
-      { name: 'Title' },
-      { name: 'Introduction' },
-      { name: 'Main Content' },
-      { name: 'Tips & Insights' },
-      { name: 'Conclusion' },
-      { name: 'References' },
-      { name: 'Author Bio' },
-    ],
-  };
-
-  // Add static prompt map for each workspace type and section
-  const WORKSPACE_SECTION_PROMPTS: Record<string, Record<string, string>> = {
-    Proposal: {
-      'Executive Summary':
-        'Provide a concise summary of the proposal, highlighting the business context, objectives, and value proposition.',
-      'Problem Statement':
-        'Explain the core business challenges the client is facing and why addressing them is critical.',
-      'Proposed Solution':
-        "Describe the proposed solution in detail, including key features, components, and how it addresses the client's needs.",
-      'Scope of Work':
-        'Outline the specific deliverables, services, and responsibilities covered under this proposal.',
-      'Project Approach and Methodology':
-        'Describe the overall approach, phases, and methodology that will be used to execute the project.',
-      'Project Plan and Timeline':
-        'Provide a high-level timeline with major milestones and estimated completion dates for key phases.',
-      'Team Composition and Roles':
-        'List the proposed team members, their roles, responsibilities, and relevant experience.',
-    },
-    'Service Agreement': {
-      'Agreement Overview': 'Summarize the purpose and scope of the service agreement.',
-      'Services Provided': 'List and describe the services to be provided under this agreement.',
-      'Service Levels': 'Define the expected service levels and performance metrics.',
-      Responsibilities: 'Outline the responsibilities of both parties.',
-      'Payment Terms': 'Specify the payment terms, schedule, and invoicing process.',
-      'Termination Clause': 'Describe the conditions under which the agreement may be terminated.',
-      Confidentiality: 'Explain the confidentiality obligations of both parties.',
-    },
-    Report: {
-      Introduction: 'Provide an introduction to the report, including objectives and background.',
-      Methodology: 'Describe the methods and processes used to gather and analyze data.',
-      Findings: 'Summarize the key findings of the report.',
-      Analysis: 'Provide a detailed analysis of the findings.',
-      Recommendations: 'Offer actionable recommendations based on the analysis.',
-      Conclusion: 'Summarize the main points and conclusions of the report.',
-      Appendices: 'Include any supplementary material or data.',
-    },
-    Research: {
-      Abstract: 'Summarize the research topic, objectives, and key findings.',
-      Introduction: 'Introduce the research problem and its significance.',
-      'Literature Review': 'Review relevant literature and previous research.',
-      Methodology: 'Describe the research design, methods, and procedures.',
-      Results: 'Present the results of the research.',
-      Discussion: 'Interpret the results and discuss their implications.',
-      References: 'List all references and sources cited in the research.',
-    },
-    Template: {
-      Header: 'Provide the header for the template, including title and date.',
-      Body: 'Describe the main content or body of the template.',
-      Footer: 'Include footer information such as page numbers or disclaimers.',
-      Instructions: 'Provide instructions for using or filling out the template.',
-      Checklist: 'List items to be checked or completed in the template.',
-      Summary: 'Summarize the purpose and key points of the template.',
-      Appendix: 'Include any additional material or resources.',
-    },
-    Blog: {
-      Title: 'Provide a catchy and relevant title for the blog post.',
-      Introduction: 'Write an engaging introduction to the blog topic.',
-      'Main Content': 'Develop the main content with supporting arguments and examples.',
-      'Tips & Insights': 'Share tips, insights, or personal experiences related to the topic.',
-      Conclusion: 'Conclude the blog post with a summary or call to action.',
-      References: 'List any sources or references used in the blog post.',
-      'Author Bio': 'Provide a brief bio of the blog author.',
-    },
-  };
+  // REMOVE all static WORKSPACE_SECTIONS and WORKSPACE_SECTION_PROMPTS
 
   // Prefer workspace name from navigation state if available
   const workspaceNameFromState = location.state?.workspaceName;
@@ -162,6 +83,57 @@ const ProposalAuthoring: React.FC = () => {
       name: workspaceNameFromState || 'Workspace',
     };
   }
+
+  // Fetch all workspace types on mount
+  useEffect(() => {
+    fetch(`${API.BASE_URL()}/api/prompt-templates/types`, {
+      headers: {
+        Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setWorkspaceTypes(data);
+        else if (Array.isArray(data.workspace_types)) setWorkspaceTypes(data.workspace_types);
+        else setWorkspaceTypes([]);
+      })
+      .catch(() => setWorkspaceTypes([]));
+  }, []);
+
+  // Fetch section templates for the workspace type (by ID)
+  useEffect(() => {
+    async function fetchTemplates() {
+      let wsTypeId = selectedWorkspaceObj?.workspaceType;
+      if (wsTypeId && isNaN(Number(wsTypeId))) {
+        // If it's a name, look up the ID
+        const found = workspaceTypes.find((t) => t.name === wsTypeId);
+        wsTypeId = found ? String(found.id) : undefined;
+      }
+      if (!wsTypeId) {
+        setSectionTemplates([]);
+        return;
+      }
+      setSectionTemplatesLoading(true);
+      try {
+        const res = await fetch(
+          `${API.BASE_URL()}/api/prompt-templates/types/${String(wsTypeId)}/sections`,
+          {
+            headers: {
+              Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
+            },
+          },
+        );
+        if (!res.ok) throw new Error('Failed to fetch section templates');
+        const data = await res.json();
+        setSectionTemplates(Array.isArray(data) ? data : []);
+      } catch {
+        setSectionTemplates([]);
+      } finally {
+        setSectionTemplatesLoading(false);
+      }
+    }
+    fetchTemplates();
+  }, [selectedWorkspaceObj?.workspaceType, workspaceTypes]);
 
   useEffect(() => {
     fetchWorkspaces();
@@ -257,41 +229,28 @@ const ProposalAuthoring: React.FC = () => {
       }
 
       // Get the prompt for this section from our mapping
-      const promptText =
-        WORKSPACE_SECTION_PROMPTS[
-          workspaceType && workspaceType.trim() ? workspaceType : 'Proposal'
-        ]?.[selectedSectionName] || '';
+      // REMOVE WORKSPACE_SECTION_PROMPTS
+      const promptText = ''; // No longer using static prompts
 
       setPrompt(promptText); // Always set the prompt state to the pre-defined prompt
       setUserPrompt(''); // Clear any user-added prompt when changing sections
     }
   }, [selectedWorkspaceObj, selectedSectionName]);
 
-  // Fetch prompts for the selected section
+  // When a section is selected, fetch its prompt(s) dynamically
   useEffect(() => {
     async function fetchPrompts() {
-      if (selectedWorkspace && selectedSectionName) {
+      if (selectedWorkspace && selectedSectionId) {
         const allPrompts = await getWorkspacePrompts(selectedWorkspace);
-        console.log('Fetched prompts:', allPrompts);
-        console.log('Selected section name:', selectedSectionName);
         setSectionPrompts(
-          allPrompts.filter((p) => {
-            const parts = p.title.split(' - ');
-            const match =
-              parts.length > 1 &&
-              parts[1].trim().toLowerCase() === selectedSectionName.trim().toLowerCase();
-            if (!match) {
-              console.log('Prompt not matched:', p.title, 'vs', selectedSectionName);
-            }
-            return match;
-          }),
+          allPrompts.filter((p) => String((p as any)?.section_id) === String(selectedSectionId))
         );
       } else {
         setSectionPrompts([]);
       }
     }
     fetchPrompts();
-  }, [selectedWorkspace, selectedSectionName, getWorkspacePrompts]);
+  }, [selectedWorkspace, selectedSectionId, getWorkspacePrompts]);
 
   // Fetch generated content for the selected workspace
   useEffect(() => {
@@ -314,31 +273,10 @@ const ProposalAuthoring: React.FC = () => {
     fetchGenerated();
   }, [selectedWorkspace, selectedSectionName, getWorkspaceGeneratedContent]);
 
-  // Section selector now uses static list based on workspace type
-  const sectionList: { name: string }[] = (() => {
-    if (!selectedWorkspaceObj) return [];
-
-    // Get workspace type from the workspace object
-    let workspaceType = selectedWorkspaceObj.workspaceType;
-
-    // If workspaceType is undefined, try to infer from workspace name
-    if (!workspaceType && 'name' in selectedWorkspaceObj && selectedWorkspaceObj.name) {
-      const name = selectedWorkspaceObj.name.toLowerCase();
-      if (name.includes('proposal')) workspaceType = 'Proposal';
-      else if (name.includes('blog')) workspaceType = 'Blog';
-      else workspaceType = '';
-    }
-
-    // Normalize for comparison
-    const type = (workspaceType || '').toLowerCase().trim();
-    if (type === 'blog') {
-      return WORKSPACE_SECTIONS['Blog'];
-    }
-    if (type === 'proposal') {
-      return WORKSPACE_SECTIONS['Proposal'];
-    }
-    return WORKSPACE_SECTIONS['Proposal'];
-  })();
+  // Section list is now dynamic from workspaceContent
+  const sectionList: { id: number; name: string }[] = Array.isArray(workspaceContent?.sections)
+    ? workspaceContent.sections.map((s: any) => ({ id: s.id, name: s.name }))
+    : [];
 
   // Debug logging
   console.log('Debug section dropdown:', {
@@ -347,7 +285,6 @@ const ProposalAuthoring: React.FC = () => {
     workspaceType: selectedWorkspaceObj?.workspaceType,
     workspaceName: 'name' in selectedWorkspaceObj ? selectedWorkspaceObj.name : undefined,
     sectionList,
-    availableTypes: Object.keys(WORKSPACE_SECTIONS),
   });
 
   const loadWorkspaceContent = async () => {
@@ -465,9 +402,60 @@ const ProposalAuthoring: React.FC = () => {
     setViewingSection(section);
   };
 
+  // When viewing a section, show its actual content (handle string/JSON)
   const SectionViewModal = () => {
     if (!viewingSection) return null;
-
+    let contentString = '';
+    if (typeof viewingSection.content === 'string') {
+      contentString = viewingSection.content;
+      try {
+        const parsed = JSON.parse(viewingSection.content);
+        if (Array.isArray(parsed)) {
+          contentString = (parsed as any[])
+            .map((item) =>
+              item && typeof item === 'object'
+                ? (
+                  // @ts-ignore
+                  typeof (item as any).text === 'string'
+                    ? (item as any).text
+                    : // @ts-ignore
+                    typeof (item as any).content === 'string'
+                    ? (item as any).content
+                    : JSON.stringify(item)
+                )
+                : String(item)
+            )
+            .join('\n');
+        } else {
+          // fallback to string
+          contentString = viewingSection.content;
+        }
+      } catch {
+        // fallback to string
+        contentString = viewingSection.content;
+      }
+    } else if (Array.isArray(viewingSection.content)) {
+      contentString = (viewingSection.content as any[])
+        .map((item) =>
+          item && typeof item === 'object'
+            ? (
+              // @ts-ignore
+              typeof (item as any).text === 'string'
+                ? (item as any).text
+                : // @ts-ignore
+                typeof (item as any).content === 'string'
+                ? (item as any).content
+                : JSON.stringify(item)
+            )
+            : String(item)
+        )
+        .join('\n');
+    } else if (viewingSection.content && typeof viewingSection.content === 'object') {
+      contentString =
+        (typeof viewingSection.content.text === 'string' && viewingSection.content.text) ||
+        (typeof viewingSection.content.content === 'string' && viewingSection.content.content) ||
+        JSON.stringify(viewingSection.content);
+    }
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-xl max-w-4xl w-full max-h-[80vh] flex flex-col">
@@ -489,24 +477,22 @@ const ProposalAuthoring: React.FC = () => {
           <div className="flex-1 overflow-y-auto p-6">
             <div className="prose prose-gray max-w-none">
               <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
-                {typeof viewingSection.content === 'string'
-                  ? viewingSection.content
-                  : JSON.stringify(viewingSection.content, null, 2)}
+                {contentString}
               </div>
             </div>
           </div>
 
           <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
             <div className="flex items-center gap-2">
-              {viewingSection.tags && viewingSection.tags.length > 0 && (
+              {Array.isArray(viewingSection.tags) && viewingSection.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1">
-                  {viewingSection.tags.map((tag) => (
+                  {viewingSection.tags.map((tag, idx) => (
                     <span
-                      key={tag.id}
+                      key={typeof tag === 'object' && tag !== null && 'id' in tag ? tag.id : idx}
                       className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs"
                     >
                       <FiTag className="w-3 h-3 mr-1" />
-                      {tag.name}
+                      {typeof tag === 'object' && tag !== null && 'name' in tag ? tag.name : String(tag)}
                     </span>
                   ))}
                 </div>
@@ -514,7 +500,7 @@ const ProposalAuthoring: React.FC = () => {
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => copyToClipboard(viewingSection.content)}
+                onClick={() => copyToClipboard(contentString)}
                 className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-primary hover:bg-white rounded-lg transition-colors"
               >
                 <FiCopy className="w-4 h-4" />
@@ -545,15 +531,24 @@ const ProposalAuthoring: React.FC = () => {
   // Replace the main return JSX with a ChatGPT-like layout
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100/50">
-      {/* Common header spanning both sidebar and main */}
+      {/* Header with back arrow */}
       <div className="w-full px-8 pt-8 pb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-black mb-2">
-            {selectedWorkspaceObj.name || 'Proposal Authoring'}
-          </h1>
-          <p className="text-neutral-600 text-lg">
-            Create, refine, and generate proposals using your workspace content.
-          </p>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate('/dashboard/workspaces')}
+            className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100"
+            title="Back to Workspaces"
+          >
+            <FiArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="text-3xl font-bold text-black mb-2">
+              {selectedWorkspaceObj.name || 'Proposal Authoring'}
+            </h1>
+            <p className="text-neutral-600 text-lg">
+              Create, refine, and generate proposals using your workspace content.
+            </p>
+          </div>
         </div>
       </div>
       <div className="flex">
@@ -571,18 +566,21 @@ const ProposalAuthoring: React.FC = () => {
               <div className="mb-4">
                 <h3 className="text-base font-semibold text-gray-900 mb-2">Section</h3>
                 <select
-                  value={selectedSectionName}
-                  onChange={(e) => setSelectedSectionName(e.target.value)}
+                  value={selectedSectionId}
+                  onChange={(e) => setSelectedSectionId(e.target.value)}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-                  disabled={!sectionList.length}
+                  disabled={sectionTemplatesLoading || !sectionTemplates.length}
                 >
-                  <option value="">Section...</option>
-                  {sectionList.map((section: { name: string }) => (
-                    <option key={section.name} value={section.name}>
+                  <option value="">{sectionTemplatesLoading ? 'Loading...' : 'Section...'}</option>
+                  {sectionTemplates.map((section) => (
+                    <option key={section.id} value={section.id}>
                       {section.name}
                     </option>
                   ))}
                 </select>
+                {!sectionTemplatesLoading && sectionTemplates.length === 0 && (
+                  <div className="text-xs text-gray-500 mt-2">No sections found for this workspace type.</div>
+                )}
               </div>
             )}
             {/* Context/sections */}
@@ -594,15 +592,10 @@ const ProposalAuthoring: React.FC = () => {
                     <input
                       type="checkbox"
                       id="select-all-context-sections"
-                      checked={
-                        selectedSections.length === workspaceContent.sections.length &&
-                        workspaceContent.sections.length > 0
-                      }
+                      checked={selectedSections.length === workspaceContent.sections.length && workspaceContent.sections.length > 0}
                       onChange={(e) => {
                         if (e.target.checked) {
-                          setSelectedSections(
-                            workspaceContent.sections.map((section) => section.id),
-                          );
+                          setSelectedSections(workspaceContent.sections.map((section) => section.id));
                         } else {
                           setSelectedSections([]);
                         }
@@ -618,24 +611,16 @@ const ProposalAuthoring: React.FC = () => {
                   </div>
                   <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
                     {workspaceContent.sections.map((section: Section, idx: number) => {
-                      // Smart heading fallback
                       let heading = section.name;
                       if (!heading) {
-                        // Try to extract from content if possible
                         try {
                           let parsed: any = section.content;
                           if (typeof parsed === 'string') parsed = JSON.parse(parsed);
                           if (Array.isArray(parsed)) {
                             let firstTag: any = parsed.find(
-                              (item: any) =>
-                                typeof item === 'object' &&
-                                item &&
-                                'tag' in item &&
-                                typeof item.tag === 'string' &&
-                                item.tag.trim() !== '',
+                              (item: any) => typeof item === 'object' && item && 'tag' in item && typeof item.tag === 'string' && item.tag.trim() !== '',
                             );
-                            if (firstTag && typeof firstTag.tag === 'string')
-                              heading = firstTag.tag;
+                            if (firstTag && typeof firstTag.tag === 'string') heading = firstTag.tag;
                           } else if (
                             parsed &&
                             typeof parsed === 'object' &&
@@ -745,11 +730,7 @@ const ProposalAuthoring: React.FC = () => {
             <h2 className="text-xl font-bold text-gray-900">{selectedSectionName || 'Section'}</h2>
             {selectedSectionName && (
               <div className="bg-gray-50 rounded-md p-3 text-gray-800 whitespace-pre-line select-none border border-gray-200 text-sm mt-2">
-                {WORKSPACE_SECTION_PROMPTS[
-                  selectedWorkspaceObj.workspaceType && selectedWorkspaceObj.workspaceType.trim()
-                    ? selectedWorkspaceObj.workspaceType
-                    : 'Proposal'
-                ]?.[selectedSectionName] || ''}
+                {/* REMOVE WORKSPACE_SECTION_PROMPTS */}
               </div>
             )}
             {/* User prompt input moved here */}

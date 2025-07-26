@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import {
-  FiArrowLeft,
-  FiEdit3,
-  FiEye,
-  FiFile,
-  FiFileText,
-  FiGlobe,
-  FiLoader,
-  FiPlus,
-  FiSearch,
-  FiTag,
-  FiX,
-  FiZap,
+    FiArrowLeft,
+    FiEdit3,
+    FiEye,
+    FiFile,
+    FiFileText,
+    FiGlobe,
+    FiLoader,
+    FiPlus,
+    FiSearch,
+    FiTag,
+    FiX,
+    FiZap,
 } from 'react-icons/fi';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -19,6 +19,7 @@ import { useSections, type Section } from '../../hooks/useSections';
 import { useSources } from '../../hooks/useSources';
 import { useTags } from '../../hooks/useTags';
 import { useWorkspace } from '../../hooks/useWorkspace';
+import { API } from '../../utils/constants';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -54,6 +55,14 @@ const WorkspaceView: React.FC = () => {
   const [selectedSourceForChunks, setSelectedSourceForChunks] = useState<any | null>(null);
   const [chunksLoading, setChunksLoading] = useState(false);
   const [selectedChunks, setSelectedChunks] = useState<number[]>([]); // store chunk indices
+  const [tab, setTab] = useState<'content' | 'sections'>('content');
+  const [sectionPrompts, setSectionPrompts] = useState<{ [sectionId: string]: any[] }>({});
+  const [promptsLoading, setPromptsLoading] = useState(false);
+  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
+  const [promptLoading, setPromptLoading] = useState(false);
+  const [sectionTemplates, setSectionTemplates] = useState<any[]>([]);
+  const [sectionTemplatesLoading, setSectionTemplatesLoading] = useState(false);
+  const [workspaceTypeName, setWorkspaceTypeName] = useState<string | null>(null);
 
   const { createSections } = useSections();
 
@@ -98,6 +107,26 @@ const WorkspaceView: React.FC = () => {
           tags: workspaceData.tags || [],
           workspaceType: workspaceData.workspaceType,
         });
+
+        // Fetch workspace type name if workspaceType is a number
+        if (workspaceData.workspaceType && typeof workspaceData.workspaceType === 'number') {
+          try {
+            const res = await fetch(`${API.BASE_URL()}/api/prompt-templates/types/${workspaceData.workspaceType}`,
+              { headers: { Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '' } });
+            if (res.ok) {
+              const data = await res.json();
+              setWorkspaceTypeName(data.name || String(workspaceData.workspaceType));
+            } else {
+              setWorkspaceTypeName(String(workspaceData.workspaceType));
+            }
+          } catch {
+            setWorkspaceTypeName(String(workspaceData.workspaceType));
+          }
+        } else if (workspaceData.workspaceType && typeof workspaceData.workspaceType === 'string') {
+          setWorkspaceTypeName(workspaceData.workspaceType);
+        } else {
+          setWorkspaceTypeName(null);
+        }
 
         const sectionsData = await fetchSections(id);
         setAllSections(sectionsData);
@@ -269,6 +298,86 @@ const WorkspaceView: React.FC = () => {
       // Optionally, show a toast or reload workspace sections
     } catch (err) {
       // Optionally, show error toast
+    }
+  };
+
+  // Fetch prompt for a section
+  const fetchPromptForSection = async (sectionId: string | number) => {
+    setPromptLoading(true);
+    try {
+      const res = await fetch(
+        `${API.BASE_URL()}/api/prompt-templates/sections/${sectionId}/prompts`,
+        {
+          headers: {
+            Authorization: localStorage.getItem('token')
+              ? `Bearer ${localStorage.getItem('token')}`
+              : '',
+          },
+        },
+      );
+      if (!res.ok) throw new Error('Failed to fetch prompt');
+      const data = await res.json();
+      // Use the first prompt or empty string
+      setSectionPrompts((prev) => ({ ...prev, [sectionId]: data }));
+    } catch (err) {
+      setSectionPrompts((prev) => ({ ...prev, [sectionId]: [] }));
+    } finally {
+      setPromptLoading(false);
+    }
+  };
+
+  // Fetch section templates for the workspace type
+  const fetchSectionTemplates = async (workspaceTypeId: string | number) => {
+    setSectionTemplatesLoading(true);
+    try {
+      const res = await fetch(
+        `${API.BASE_URL()}/api/prompt-templates/types/${workspaceTypeId}/sections`,
+        {
+          headers: {
+            Authorization: localStorage.getItem('token')
+              ? `Bearer ${localStorage.getItem('token')}`
+              : '',
+          },
+        },
+      );
+      if (!res.ok) throw new Error('Failed to fetch section templates');
+      const data = await res.json();
+      setSectionTemplates(data);
+    } catch (err) {
+      setSectionTemplates([]);
+    } finally {
+      setSectionTemplatesLoading(false);
+    }
+  };
+
+  // Fetch section templates when switching to the Sections tab
+  useEffect(() => {
+    if (tab === 'sections' && workspace?.workspaceType) {
+      fetchSectionTemplates(workspace.workspaceType);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, workspace?.workspaceType]);
+
+  const fetchPromptsForSection = async (sectionId: string | number) => {
+    setPromptsLoading(true);
+    try {
+      const res = await fetch(
+        `${API.BASE_URL()}/api/prompt-templates/sections/${sectionId}/prompts`,
+        {
+          headers: {
+            Authorization: localStorage.getItem('token')
+              ? `Bearer ${localStorage.getItem('token')}`
+              : '',
+          },
+        },
+      );
+      if (!res.ok) throw new Error('Failed to fetch prompts');
+      const data = await res.json();
+      setSectionPrompts((prev) => ({ ...prev, [sectionId]: data }));
+    } catch (err) {
+      setSectionPrompts((prev) => ({ ...prev, [sectionId]: [] }));
+    } finally {
+      setPromptsLoading(false);
     }
   };
 
@@ -471,9 +580,9 @@ const WorkspaceView: React.FC = () => {
                 {workspace.clientName && (
                   <p className="text-gray-600 ml-8">
                     Client: {workspace.clientName}
-                    {workspace.workspaceType && (
+                    {workspaceTypeName && (
                       <span className="ml-4">
-                        | Type: <span className="font-semibold">{workspace.workspaceType}</span>
+                        | Type: <span className="font-semibold">{workspaceTypeName}</span>
                       </span>
                     )}
                   </p>
@@ -489,17 +598,6 @@ const WorkspaceView: React.FC = () => {
                 </button>
                 <button
                   onClick={() =>
-                    navigate('/dashboard/prompt-templates', {
-                      state: { workspaceId: workspace.id, type: workspace.workspaceType },
-                    })
-                  }
-                  className="bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 text-sm"
-                >
-                  <FiPlus className="w-3 h-3" />
-                  Add Prompt
-                </button>
-                <button
-                  onClick={() =>
                     navigate('/dashboard/proposal-authoring', {
                       state: { workspaceId: workspace.id, workspaceType: workspace.workspaceType },
                     })
@@ -511,192 +609,315 @@ const WorkspaceView: React.FC = () => {
                 </button>
               </div>
             </div>
+            {/* Tabs */}
+            <div className="flex gap-2 border-b border-gray-200 mt-4">
+              <button
+                className={`px-6 py-2 font-semibold text-sm rounded-t-lg focus:outline-none transition-colors ${
+                  tab === 'content'
+                    ? 'bg-white border-x border-t border-primary text-primary -mb-px'
+                    : 'bg-gray-50 text-gray-600 hover:text-primary'
+                }`}
+                onClick={() => setTab('content')}
+              >
+                Content
+              </button>
+              <button
+                className={`px-6 py-2 font-semibold text-sm rounded-t-lg focus:outline-none transition-colors ${
+                  tab === 'sections'
+                    ? 'bg-white border-x border-t border-primary text-primary -mb-px'
+                    : 'bg-gray-50 text-gray-600 hover:text-primary'
+                }`}
+                onClick={() => setTab('sections')}
+              >
+                Sections
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="px-8 py-8">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-8 space-y-4">
-            <div className="relative">
-              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Search sections by content, name, source, or tags..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full md:w-96 pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-200"
-              />
-            </div>
+          {/* Tab Content */}
+          {tab === 'content' && (
+            <>
+              <div className="mb-8 space-y-4">
+                <div className="relative">
+                  <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type="text"
+                    placeholder="Search sections by content, name, source, or tags..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full md:w-96 pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-200"
+                  />
+                </div>
 
-            {allTags.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                <span className="text-sm font-medium text-gray-700 mr-2 py-2">Filter by tags:</span>
-                {allTags.map((tag) => (
-                  <button
-                    key={tag}
-                    onClick={() => toggleTag(tag)}
-                    className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
-                      selectedTags.includes(tag)
-                        ? 'bg-primary text-white border-primary'
-                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-primary/10 hover:border-primary/20'
-                    }`}
-                  >
-                    <FiTag className="inline w-3 h-3 mr-1" />
-                    {tag}
-                    {selectedTags.includes(tag) && (
-                      <span className="ml-1 text-xs">
-                        ({sections.filter((s) => s.tags?.includes(tag)).length})
-                      </span>
+                {allTags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    <span className="text-sm font-medium text-gray-700 mr-2 py-2">Filter by tags:</span>
+                    {allTags.map((tag) => (
+                      <button
+                        key={tag}
+                        onClick={() => toggleTag(tag)}
+                        className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
+                          selectedTags.includes(tag)
+                            ? 'bg-primary text-white border-primary'
+                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-primary/10 hover:border-primary/20'
+                        }`}
+                      >
+                        <FiTag className="inline w-3 h-3 mr-1" />
+                        {tag}
+                        {selectedTags.includes(tag) && (
+                          <span className="ml-1 text-xs">
+                            ({sections.filter((s) => s.tags?.includes(tag)).length})
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                    {selectedTags.length > 0 && (
+                      <button
+                        onClick={() => setSelectedTags([])}
+                        className="px-3 py-1 rounded-full text-sm font-medium text-gray-500 border border-gray-200 hover:bg-gray-50 transition-colors"
+                      >
+                        Clear filters
+                      </button>
                     )}
-                  </button>
-                ))}
+                  </div>
+                )}
+
                 {selectedTags.length > 0 && (
-                  <button
-                    onClick={() => setSelectedTags([])}
-                    className="px-3 py-1 rounded-full text-sm font-medium text-gray-500 border border-gray-200 hover:bg-gray-50 transition-colors"
-                  >
-                    Clear filters
-                  </button>
+                  <div className="text-sm text-gray-600">
+                    Showing {filteredData.length} sections
+                    {search && ` matching "${search}"`}
+                    {selectedTags.length > 0 && ` with tags: ${selectedTags.join(', ')}`}
+                  </div>
                 )}
               </div>
-            )}
 
-            {selectedTags.length > 0 && (
-              <div className="text-sm text-gray-600">
-                Showing {filteredData.length} sections
-                {search && ` matching "${search}"`}
-                {selectedTags.length > 0 && ` with tags: ${selectedTags.join(', ')}`}
-              </div>
-            )}
-          </div>
+              {filteredData.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredData.map((section) => (
+                    <div
+                      key={section.id}
+                      className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md hover:border-gray-300 transition-all duration-200 group cursor-pointer"
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          {section.tags && section.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-3">
+                              {section.tags.map((tag, index) => (
+                                <span
+                                  key={index}
+                                  className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full font-medium flex items-center"
+                                >
+                                  <FiTag className="w-3 h-3 mr-1" />
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {(() => {
+                            let parsedContent: any[] = [];
+                            let previewText = '';
+                            
+                            if (typeof section.content === 'string') {
+                              try {
+                                // Try to parse as JSON first
+                                const parsed = JSON.parse(section.content.replace(/'/g, '"'));
+                                if (Array.isArray(parsed)) {
+                                  parsedContent = parsed;
+                                } else {
+                                  // If it's not an array, treat as simple content
+                                  previewText = section.content;
+                                }
+                              } catch (e) {
+                                // If JSON parsing fails, treat as plain text
+                                previewText = section.content;
+                              }
+                            } else if (Array.isArray(section.content)) {
+                              parsedContent = section.content;
+                            } else {
+                              // Fallback to string representation
+                              previewText = String(section.content || '');
+                            }
 
-          {filteredData.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredData.map((section) => (
-                <div
-                  key={section.id}
-                  className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md hover:border-gray-300 transition-all duration-200 group cursor-pointer"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      {section.tags && section.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-3">
-                          {section.tags.map((tag, index) => (
-                            <span
-                              key={index}
-                              className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full font-medium flex items-center"
-                            >
-                              <FiTag className="w-3 h-3 mr-1" />
-                              {tag}
-                            </span>
-                          ))}
+                            // If we have parsed content array, extract text from it
+                            if (parsedContent.length > 0) {
+                              previewText = parsedContent
+                                .map((item: any) => {
+                                  if (Array.isArray(item.content)) {
+                                    return item.content.map((c: any) => c.text || c.content || '').join(' ');
+                                  } else if (item.content) {
+                                    return typeof item.content === 'string' ? item.content : JSON.stringify(item.content);
+                                  } else if (item.text) {
+                                    return item.text;
+                                  } else {
+                                    return '';
+                                  }
+                                })
+                                .join(' ');
+                            }
+
+                            // If we still don't have preview text, use the raw content
+                            if (!previewText && section.content) {
+                              if (typeof section.content === 'string') {
+                                previewText = section.content;
+                              } else {
+                                previewText = JSON.stringify(section.content);
+                              }
+                            }
+
+                            // Heading: first non-empty tag, else section.name (if not 'Chunk X'), else section.source
+                            let heading = '';
+                            if (parsedContent.length > 0) {
+                              const firstTag = parsedContent.find(
+                                (item: any) =>
+                                  item.tag &&
+                                  item.tag.trim() !== '' &&
+                                  item.tag.trim().toLowerCase() !== 'untitled section',
+                              );
+                              if (firstTag) heading = firstTag.tag;
+                            }
+                            
+                            const isChunkName =
+                              typeof section.name === 'string' &&
+                              /^chunk\s*\d+$/i.test(section.name.trim());
+                            if (
+                              (!heading ||
+                                heading.trim() === '' ||
+                                heading.toLowerCase().startsWith('chunk ')) &&
+                              section.name &&
+                              !isChunkName
+                            ) {
+                              heading = section.name;
+                            } else if (
+                              !heading ||
+                              heading.trim() === '' ||
+                              heading.toLowerCase().startsWith('chunk ') ||
+                              isChunkName
+                            ) {
+                              heading = section.content_source || 'Section';
+                            }
+
+                            return (
+                              <>
+                                <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
+                                  {heading}
+                                </h3>
+                                <p className="text-gray-700 text-sm leading-relaxed line-clamp-4">
+                                  {previewText || 'No content available'}
+                                </p>
+                              </>
+                            );
+                          })()}
                         </div>
-                      )}
-                      {(() => {
-                        let parsedContent = section.content;
-                        if (typeof parsedContent === 'string') {
-                          try {
-                            parsedContent = JSON.parse(parsedContent.replace(/'/g, '"'));
-                          } catch (e) {
-                            parsedContent = [];
-                          }
-                        }
-                        if (!Array.isArray(parsedContent)) {
-                          parsedContent = [];
-                        }
-                        // Heading: first non-empty tag, else section.name (if not 'Chunk X'), else section.source
-                        let heading = '';
-                        const firstTag = parsedContent.find(
-                          (item: any) =>
-                            item.tag &&
-                            item.tag.trim() !== '' &&
-                            item.tag.trim().toLowerCase() !== 'untitled section',
-                        );
-                        if (firstTag) heading = firstTag.tag;
-                        const isChunkName =
-                          typeof section.name === 'string' &&
-                          /^chunk\s*\d+$/i.test(section.name.trim());
-                        if (
-                          (!heading ||
-                            heading.trim() === '' ||
-                            heading.toLowerCase().startsWith('chunk ')) &&
-                          section.name &&
-                          !isChunkName
-                        ) {
-                          heading = section.name;
-                        } else if (
-                          !heading ||
-                          heading.trim() === '' ||
-                          heading.toLowerCase().startsWith('chunk ') ||
-                          isChunkName
-                        ) {
-                          heading = section.source || 'Section';
-                        }
-                        // Preview: concatenate all text fields from all minor chunks
-                        let previewText = parsedContent
-                          .map((item: any) =>
-                            Array.isArray(item.content)
-                              ? item.content.map((c: any) => c.text).join(' ')
-                              : '',
-                          )
-                          .join(' ');
-                        return (
-                          <>
-                            <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
-                              {heading}
-                            </h3>
-                            <p className="text-gray-700 text-sm leading-relaxed line-clamp-4">
-                              {previewText}
-                            </p>
-                          </>
-                        );
-                      })()}
-                    </div>
-                    <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                      <button
-                        onClick={(e) => handleViewSection(section, e)}
-                        className="p-1 text-gray-400 hover:text-primary opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-primary/10 rounded"
-                        title="View full content"
-                      >
-                        <FiEye className="w-4 h-4" />
-                      </button>
-                      <FiEdit3 className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  </div>
+                        <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                          <button
+                            onClick={(e) => handleViewSection(section, e)}
+                            className="p-1 text-gray-400 hover:text-primary opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-primary/10 rounded"
+                            title="View full content"
+                          >
+                            <FiEye className="w-4 h-4" />
+                          </button>
+                          <FiEdit3 className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </div>
 
-                  <div className="flex items-center justify-between text-xs text-gray-500 pt-4 border-t border-gray-100">
-                    <div className="flex items-center">
-                      <FiFileText className="w-4 h-4 mr-1" />
-                      {section.content_source}
+                      <div className="flex items-center justify-between text-xs text-gray-500 pt-4 border-t border-gray-100">
+                        <div className="flex items-center">
+                          <FiFileText className="w-4 h-4 mr-1" />
+                          {section.content_source}
+                        </div>
+                        <div className="flex items-center">
+                          <span>{section.content.split(' ').length} words</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center">
-                      <span>{section.content.split(' ').length} words</span>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-20">
+                  <div className="max-w-md mx-auto">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <FiFileText className="w-8 h-8 text-gray-400" />
                     </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-3">No sections found</h3>
+                    <p className="text-gray-600 mb-8">
+                      {search || selectedTags.length > 0
+                        ? 'Try adjusting your search or filters.'
+                        : 'Get started by adding some content to this workspace.'}
+                    </p>
+                    {!search && selectedTags.length === 0 && (
+                      <button
+                        onClick={() => setIsAddContentModalOpen(true)}
+                        className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors"
+                      >
+                        <FiPlus className="w-4 h-4 inline mr-2" />
+                        Add Content
+                      </button>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-20">
-              <div className="max-w-md mx-auto">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <FiFileText className="w-8 h-8 text-gray-400" />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">No sections found</h3>
-                <p className="text-gray-600 mb-8">
-                  {search || selectedTags.length > 0
-                    ? 'Try adjusting your search or filters.'
-                    : 'Get started by adding some content to this workspace.'}
-                </p>
-                {!search && selectedTags.length === 0 && (
-                  <button
-                    onClick={() => setIsAddContentModalOpen(true)}
-                    className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors"
-                  >
-                    <FiPlus className="w-4 h-4 inline mr-2" />
-                    Add Content
-                  </button>
+              )}
+            </>
+          )}
+          {tab === 'sections' && (
+            <div className="flex gap-6 min-h-[400px]">
+              {/* Left: Section List */}
+              <div className="w-64 bg-gray-50 border rounded-lg p-3 flex-shrink-0 overflow-y-auto max-h-[500px]">
+                <h3 className="text-base font-semibold mb-3 text-gray-700">Sections</h3>
+                {sectionTemplatesLoading ? (
+                  <div className="text-gray-500 text-sm">Loading...</div>
+                ) : sectionTemplates.length === 0 ? (
+                  <div className="text-gray-400 text-sm">No section templates found.</div>
+                ) : (
+                  <ul className="space-y-1">
+                    {sectionTemplates.map((section) => {
+                      const sectionIdStr = String(section.id);
+                      const isSelected = selectedSectionId === sectionIdStr;
+                      return (
+                        <li key={sectionIdStr}>
+                          <button
+                            className={`w-full text-left px-3 py-2 rounded font-medium transition-colors text-sm ${
+                              isSelected
+                                ? 'bg-primary text-white'
+                                : 'bg-white text-gray-800 hover:bg-primary/10'
+                            }`}
+                            onClick={() => {
+                              setSelectedSectionId(sectionIdStr);
+                              fetchPromptsForSection(sectionIdStr);
+                            }}
+                          >
+                            {section.name}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+
+              {/* Right: Prompts for selected section */}
+              <div className="flex-1 bg-white border rounded-lg p-6 min-h-[300px]">
+                {!selectedSectionId ? (
+                  <div className="text-gray-400 text-center mt-20">Select a section to view its prompts.</div>
+                ) : promptsLoading ? (
+                  <div className="text-gray-500 text-center mt-20">Loading prompts...</div>
+                ) : sectionPrompts[selectedSectionId] && sectionPrompts[selectedSectionId].length > 0 ? (
+                  <div>
+                    <h4 className="text-lg font-semibold mb-4 text-primary">Prompts</h4>
+                    <ul className="space-y-4">
+                      {sectionPrompts[selectedSectionId].map((prompt: any, idx: number) => (
+                        <li key={idx} className="bg-gray-50 border rounded p-4 text-gray-800">
+                          <div className="font-medium text-gray-700 mb-2">Prompt {idx + 1}</div>
+                          <div className="whitespace-pre-line text-sm">{prompt.prompt}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <div className="text-gray-400 text-center mt-20">No prompts found for this section.</div>
                 )}
               </div>
             </div>
@@ -711,10 +932,10 @@ const WorkspaceView: React.FC = () => {
               <div className="flex-1">
                 <h2 className="text-xl font-semibold text-gray-900">
                   {(() => {
-                    let parsedContent = viewingSection.content;
-                    if (typeof parsedContent === 'string') {
+                    let parsedContent: any[] = [];
+                    if (typeof viewingSection.content === 'string') {
                       try {
-                        parsedContent = JSON.parse(parsedContent.replace(/'/g, '"'));
+                        parsedContent = JSON.parse(viewingSection.content.replace(/'/g, '"'));
                       } catch (e) {
                         parsedContent = [];
                       }
@@ -761,10 +982,10 @@ const WorkspaceView: React.FC = () => {
               <div className="prose max-w-none">
                 <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">
                   {(() => {
-                    let parsedContent = viewingSection.content;
-                    if (typeof parsedContent === 'string') {
+                    let parsedContent: any[] = [];
+                    if (typeof viewingSection.content === 'string') {
                       try {
-                        parsedContent = JSON.parse(parsedContent.replace(/'/g, '"'));
+                        parsedContent = JSON.parse(viewingSection.content.replace(/'/g, '"'));
                       } catch (e) {
                         parsedContent = [];
                       }

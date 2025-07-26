@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { FiFolder, FiPlus, FiX } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { useSources } from '../../hooks/useSources';
 import { useWorkspace } from '../../hooks/useWorkspace';
+import { API } from '../../utils/constants';
 import SelectChunksModal from './SelectChunksModal';
 
 interface CreateWorkspaceProps {
@@ -27,6 +28,8 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedVertical, setSelectedVertical] = useState('');
   const [workspaceType, setWorkspaceType] = useState('');
+  const [workspaceTypes, setWorkspaceTypes] = useState<{ id: number; name: string }[]>([]);
+  const [workspaceTypesLoading, setWorkspaceTypesLoading] = useState(false);
 
   // Content selection state
   const [sources, setSources] = useState<any[]>([]);
@@ -34,7 +37,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
   const [selectedSources, setSelectedSources] = useState<number[]>([]); // source IDs
   const [expandedSource, setExpandedSource] = useState<number | null>(null);
   const [sourceChunks, setSourceChunks] = useState<{ [key: number]: any[] }>({}); // sourceId -> chunks
-  const [selectedChunks, setSelectedChunks] = useState<{ [key: number]: Set<number> }>({}); // sourceId -> chunk indices
+  const [selectedChunks, setSelectedChunks] = useState<{ [key: number]: Set<string> }>({}); // sourceId -> chunk indices
   const [selectingSourceId, setSelectingSourceId] = useState<number | null>(null);
 
   // Fetch sources on mount
@@ -49,6 +52,25 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
       .catch(() => setSources([]))
       .finally(() => setSourcesLoading(false));
   }, [listSources]);
+
+  // Fetch workspace types on mount
+  useEffect(() => {
+    setWorkspaceTypesLoading(true);
+    fetch(`${API.BASE_URL()}/api/prompt-templates/types`, {
+      headers: {
+        Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        // Accept both {workspace_types: [...]}, or just an array
+        if (Array.isArray(data)) setWorkspaceTypes(data);
+        else if (Array.isArray(data.workspace_types)) setWorkspaceTypes(data.workspace_types);
+        else setWorkspaceTypes([]);
+      })
+      .catch(() => setWorkspaceTypes([]))
+      .finally(() => setWorkspaceTypesLoading(false));
+  }, []);
 
   // Fetch chunks for a source
   const fetchChunksForSource = async (sourceId: number) => {
@@ -89,8 +111,8 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
     setSelectedSources(selectedSources.filter((id) => id !== sourceId)); // unselect full source if chunk is selected
     setSelectedChunks((prev) => {
       const set = new Set(prev[sourceId] || []);
-      if (set.has(idx)) set.delete(idx);
-      else set.add(idx);
+      if (set.has(idx.toString())) set.delete(idx.toString());
+      else set.add(idx.toString());
       return { ...prev, [sourceId]: set };
     });
   };
@@ -149,27 +171,49 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
       Object.entries(selectedChunks).forEach(([sourceId, idxSet]) => {
         const sid = Number(sourceId);
         const chunkArr = sourceChunks[sid] || [];
-        idxSet.forEach((idx) => {
-          const chunk = chunkArr[idx];
-          if (chunk) {
-            // Use the first non-empty tag in chunk.content as the name, if available
-            let heading = chunk.name || chunk.title || '';
-            try {
-              const parsed =
-                typeof chunk.content === 'string' ? JSON.parse(chunk.content) : chunk.content;
-              if (Array.isArray(parsed)) {
-                const firstTag = parsed.find((item: any) => item.tag && item.tag.trim() !== '');
-                if (firstTag && firstTag.tag) heading = firstTag.tag;
+        // Track which major chunks are fully selected to avoid duplicate minors
+        const majorSelected = new Set<string>();
+        idxSet.forEach((key) => {
+          if (/^\d+$/.test(key)) {
+            // Major chunk selected
+            const idx = Number(key);
+            const chunk = chunkArr[idx];
+            if (chunk) {
+              let heading = chunk.name || chunk.title || '';
+              try {
+                const parsed = typeof chunk.content === 'string' ? JSON.parse(chunk.content) : chunk.content;
+                if (Array.isArray(parsed)) {
+                  const firstTag = parsed.find((item: any) => item.tag && item.tag.trim() !== '');
+                  if (firstTag && firstTag.tag) heading = firstTag.tag;
+                }
+              } catch {}
+              chunks.push({
+                name: heading || `Chunk ${idx + 1}`,
+                content: typeof chunk.content === 'string' ? chunk.content : JSON.stringify(chunk.content),
+                source: sources.find((s) => s.id === sid)?.name || '',
+                tags: chunk.tags || [],
+                content_source_id: sid,
+              });
+              majorSelected.add(key);
+            }
+          } else if (/^\d+-\d+$/.test(key)) {
+            // Minor chunk selected
+            const [majorIdx, minorIdx] = key.split('-').map(Number);
+            // If the major chunk is also selected, skip this minor to avoid duplicate
+            if (majorSelected.has(String(majorIdx))) return;
+            const majorChunk = chunkArr[majorIdx];
+            if (majorChunk && Array.isArray(majorChunk.content)) {
+              const minor = majorChunk.content[minorIdx];
+              if (minor) {
+                chunks.push({
+                  name: minor.tag || minor.title || minor.name || `Minor Chunk ${minorIdx + 1}`,
+                  content: minor.content ? (typeof minor.content === 'string' ? minor.content : JSON.stringify(minor.content)) : '',
+                  source: sources.find((s) => s.id === sid)?.name || '',
+                  tags: minor.tags || [],
+                  content_source_id: sid,
+                });
               }
-            } catch {}
-            chunks.push({
-              name: heading || `Chunk ${idx + 1}`,
-              content:
-                typeof chunk.content === 'string' ? chunk.content : JSON.stringify(chunk.content),
-              source: sources.find((s) => s.id === sid)?.name || '',
-              tags: chunk.tags || [],
-              content_source_id: sid,
-            });
+            }
           }
         });
       });
@@ -183,6 +227,9 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
       });
 
       toast.success('Workspace created successfully!');
+      if (onWorkspaceCreated) {
+        onWorkspaceCreated(newWorkspace);
+      }
       if (onClose) {
         onClose();
       } else {
@@ -231,7 +278,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
         >
           <FiX className="w-6 h-6" />
         </button>
-        <div className="p-4">
+        <div className="p-6">
           <div className="flex items-center mb-4">
             <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center mr-3">
               <FiFolder className="w-5 h-5 text-primary" />
@@ -243,16 +290,14 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
               </p>
             </div>
           </div>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-6">
             {/* Workspace Details */}
-            <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-              <h3 className="text-base font-semibold text-gray-900 mb-2">Workspace Details</h3>
-              <div className="space-y-3">
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+              <h3 className="text-base font-semibold text-gray-900 mb-3">Workspace Details</h3>
+              <div className="space-y-4">
+                {/* Vertical */}
                 <div>
-                  <label
-                    htmlFor="vertical"
-                    className="block text-xs font-medium text-gray-700 mb-1"
-                  >
+                  <label htmlFor="vertical" className="block text-xs font-medium text-gray-700 mb-1">
                     Vertical <span className="text-red-500">*</span>
                   </label>
                   <select
@@ -273,6 +318,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                     <option value="OTHERS">OTHERS</option>
                   </select>
                 </div>
+                {/* Workspace Name */}
                 <div>
                   <label htmlFor="name" className="block text-xs font-medium text-gray-700 mb-1">
                     Workspace Name <span className="text-red-500">*</span>
@@ -288,11 +334,9 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                     required
                   />
                 </div>
+                {/* Client Name */}
                 <div>
-                  <label
-                    htmlFor="clientName"
-                    className="block text-xs font-medium text-gray-700 mb-1"
-                  >
+                  <label htmlFor="clientName" className="block text-xs font-medium text-gray-700 mb-1">
                     Client Name <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -316,11 +360,9 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                     <option value="MetLife" />
                   </datalist>
                 </div>
+                {/* Workspace Type */}
                 <div>
-                  <label
-                    htmlFor="workspaceType"
-                    className="block text-xs font-medium text-gray-700 mb-1"
-                  >
+                  <label htmlFor="workspaceType" className="block text-xs font-medium text-gray-700 mb-1">
                     Workspace Type
                   </label>
                   <select
@@ -331,16 +373,13 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
                     required
                   >
-                    <option value="">Select Type</option>
-                    <option value="Proposal">Proposal</option>
-                    <option value="Blog">Blog</option>
-                    <option value="Service Agreement">Service Agreement</option>
-                    <option value="Template">Template</option>
-                    <option value="Report">Report</option>
-                    <option value="Research">Research</option>
-                    <option value="Other">Other</option>
+                    <option value="">{workspaceTypesLoading ? 'Loading...' : 'Select Type'}</option>
+                    {workspaceTypes.map((type) => (
+                      <option key={type.id} value={type.id}>{type.name}</option>
+                    ))}
                   </select>
                 </div>
+                {/* Tags */}
                 <div>
                   <label htmlFor="tags" className="block text-xs font-medium text-gray-700 mb-1">
                     Tags / Keywords
@@ -385,10 +424,9 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                 </div>
               </div>
             </div>
-
             {/* Content Selection */}
-            <div className="bg-gray-50 rounded-lg p-3 border border-gray-100 mt-4">
-              <h3 className="text-base font-semibold mb-2 text-gray-900">
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-100 mt-6">
+              <h3 className="text-base font-semibold mb-3 text-gray-900">
                 Add Content from Existing Sources
               </h3>
               {sourcesLoading ? (
@@ -422,10 +460,9 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                 </div>
               )}
             </div>
-
             {/* Selected Chunks Summary */}
             {Object.entries(selectedChunks).length > 0 && (
-              <div className="bg-blue-50 rounded-lg p-3 border border-blue-100 mt-4">
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100 mt-6">
                 <h3 className="text-base font-semibold mb-2 text-blue-900">
                   Selected Chunks Summary
                 </h3>
@@ -440,7 +477,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                       </div>
                       <ul className="list-disc ml-6 mt-1">
                         {[...idxSet].map((idx) => {
-                          const chunk = chunkArr[idx];
+                          const chunk = chunkArr[Number(idx)];
                           if (!chunk) return null;
                           // Find the first non-empty tag in chunk.content
                           let chunkTitle = '';
@@ -467,9 +504,8 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                 })}
               </div>
             )}
-
             {/* Action Buttons */}
-            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-100 mt-4 sticky bottom-0 bg-white z-10">
+            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-100 mt-6 sticky bottom-0 bg-white z-10">
               <button
                 type="button"
                 onClick={() => {
@@ -518,7 +554,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
               return sourceChunks[sourceId];
             }}
             selected={selectedChunks[selectingSourceId as number] || new Set()}
-            onSave={(selectedSet: Set<number>) => {
+            onSave={(selectedSet: Set<string>) => {
               setSelectedChunks((prev) => ({
                 ...prev,
                 [selectingSourceId as number]: selectedSet,

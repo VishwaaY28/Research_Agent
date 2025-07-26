@@ -1,4 +1,4 @@
-from database.models import Workspace, Tag, WorkspaceTag, Section, Prompt, GeneratedContent
+from database.models import Workspace, Tag, WorkspaceTag, Section, Prompt, GeneratedContent, WorkspaceType
 from tortoise.exceptions import DoesNotExist
 from tortoise.transactions import in_transaction
 
@@ -9,7 +9,19 @@ class WorkspaceRepository:
         Create a workspace. Content association (sources/chunks) is handled in the handler, not here.
         """
         async with in_transaction():
-            workspace = await Workspace.create(name=name, client=client, workspace_type=workspace_type)
+            workspace_type_id = None
+            if workspace_type:
+                # If workspace_type is a string (name), fetch the id
+                if isinstance(workspace_type, str) and not workspace_type.isdigit():
+                    try:
+                        ws_type_obj = await WorkspaceType.get(name=workspace_type)
+                        workspace_type_id = ws_type_obj.id
+                    except WorkspaceType.DoesNotExist:
+                        workspace_type_id = None
+                else:
+                    # If it's already an int or string id
+                    workspace_type_id = int(workspace_type)
+            workspace = await Workspace.create(name=name, client=client, workspace_type_id=workspace_type_id)
 
             for tag_name in tag_names:
                 if tag_name.strip():
