@@ -12,17 +12,21 @@ class User(TimestampMixin):
   email = fields.CharField(max_length=100, unique=True)
   password_hash = fields.CharField(max_length=128)
 
+class WorkspaceType(TimestampMixin):
+    id = fields.IntField(pk=True)
+    name = fields.CharField(max_length=255, unique=True)
+    is_default = fields.BooleanField(default=False)
+
 class Workspace(TimestampMixin):
   id = fields.IntField(pk=True)
   name = fields.CharField(max_length=255)
   client = fields.CharField(max_length=255)
-  workspace_type = fields.CharField(max_length=50, null=True)
+  workspace_type = fields.ForeignKeyField('models.WorkspaceType', related_name='workspaces', null=True)
   last_used_at = fields.DatetimeField(null=True)
 
 class Tag(TimestampMixin):
   id = fields.IntField(pk=True)
   name = fields.CharField(max_length=255)
-
 
 class WorkspaceTag(TimestampMixin):
     id = fields.IntField(pk=True)
@@ -86,63 +90,14 @@ class GeneratedContentSection(TimestampMixin):
     generated_content = fields.ForeignKeyField('models.GeneratedContent', related_name='sections')
     section = fields.ForeignKeyField('models.Section', related_name='generated_contents')
 
-# class SourceImage(TimestampMixin):
-#     id = fields.IntField(pk=True)
-#     content_source = fields.ForeignKeyField('models.ContentSources', related_name='images')
-#     path = fields.CharField(max_length=1024)
-#     page_number = fields.IntField(null=True)
-#     caption = fields.TextField(null=True)
-#     ocr_text = fields.TextField(null=True)
-
-# class SourceTable(TimestampMixin):
-#     id = fields.IntField(pk=True)
-#     content_source = fields.ForeignKeyField('models.ContentSources', related_name='tables')
-#     path = fields.CharField(max_length=1024)
-#     page_number = fields.IntField(null=True)
-#     caption = fields.TextField(null=True)
-#     data = fields.TextField(null=True)
-#     extraction_method = fields.CharField(max_length=50, null=True)
-
-# class WorkspaceImage(TimestampMixin):
-#     id = fields.IntField(pk=True)
-#     workspace = fields.ForeignKeyField('models.Workspace', related_name='workspace_images')
-#     source_image = fields.ForeignKeyField('models.SourceImage', related_name='workspace_images')
-
-# class WorkspaceImageTag(TimestampMixin):
-#     id = fields.IntField(pk=True)
-#     workspace_image = fields.ForeignKeyField('models.WorkspaceImage', related_name='tags')
-#     tag = fields.ForeignKeyField('models.Tag', related_name='workspace_images')
-
-# class WorkspaceTable(TimestampMixin):
-#     id = fields.IntField(pk=True)
-#     workspace = fields.ForeignKeyField('models.Workspace', related_name='workspace_tables')
-#     source_table = fields.ForeignKeyField('models.SourceTable', related_name='workspace_tables')
-
-# class WorkspaceTableTag(TimestampMixin):
-#     id = fields.IntField(pk=True)
-#     workspace_table = fields.ForeignKeyField('models.WorkspaceTable', related_name='tags')
-#     tag = fields.ForeignKeyField('models.Tag', related_name='workspace_tables')
-
-# class GeneratedContentImage(TimestampMixin):
-#     id = fields.IntField(pk=True)
-#     generated_content = fields.ForeignKeyField('models.GeneratedContent', related_name='images')
-#     image = fields.ForeignKeyField('models.WorkspaceImage', related_name='generated_contents')
-
-# class GeneratedContentTable(TimestampMixin):
-#     id = fields.IntField(pk=True)
-#     generated_content = fields.ForeignKeyField('models.GeneratedContent', related_name='tables')
-#     table = fields.ForeignKeyField('models.WorkspaceTable', related_name='generated_contents')
-
-class WorkspaceType(TimestampMixin):
-    id = fields.IntField(pk=True)
-    name = fields.CharField(max_length=255, unique=True)
-
 class SectionTemplate(TimestampMixin):
     id = fields.IntField(pk=True)
     workspace_type = fields.ForeignKeyField('models.WorkspaceType', related_name='sections')
     name = fields.CharField(max_length=255)
+    order = fields.IntField(default=0)
 
 class PromptTemplate(TimestampMixin):
     id = fields.IntField(pk=True)
     section_template = fields.ForeignKeyField('models.SectionTemplate', related_name='prompts')
     prompt = fields.TextField()
+    is_default = fields.BooleanField(default=False)

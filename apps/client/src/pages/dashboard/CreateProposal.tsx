@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-  FiArrowLeft,
-  FiChevronDown,
-  FiCopy,
-  FiEye,
-  FiFileText,
-  FiLoader,
-  FiRefreshCw,
-  FiSave,
-  FiTag,
-  FiX,
-  FiZap,
+    FiArrowLeft,
+    FiChevronDown,
+    FiCopy,
+    FiEye,
+    FiFileText,
+    FiLoader,
+    FiRefreshCw,
+    FiSave,
+    FiTag,
+    FiX,
+    FiZap,
 } from 'react-icons/fi';
 import ReactMarkdown from 'react-markdown';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -41,6 +41,16 @@ const CreateProposal: React.FC = () => {
   const [tags, setTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState('');
   const [viewingSection, setViewingSection] = useState<Section | null>(null);
+
+  // Token calculation for selected sections
+  const calculateTokens = () => {
+    if (!workspaceContent) return 0;
+    const selected = workspaceContent.sections.filter(section =>
+      selectedSections.includes(section.id)
+    );
+    const totalChars = selected.reduce((sum, section) => sum + (section.content?.length || 0), 0);
+    return Math.ceil(totalChars / 4);
+  };
 
   useEffect(() => {
     fetchWorkspaces();
@@ -252,6 +262,11 @@ const CreateProposal: React.FC = () => {
               </button>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Generate Content</h1>
+                <div className="flex items-center gap-4 mt-2">
+                  <span className="text-sm font-medium px-3 py-1 rounded-lg border border-yellow-400 bg-yellow-100 text-yellow-800 shadow-sm">
+                    Tokens for selected context: <span className="font-bold">{calculateTokens()}</span>
+                  </span>
+                </div>
                 <p className="text-gray-600 mt-1">
                   Create AI-powered content using your workspace resources
                 </p>
