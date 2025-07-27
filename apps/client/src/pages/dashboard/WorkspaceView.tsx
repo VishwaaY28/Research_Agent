@@ -1,17 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import {
-    FiArrowLeft,
-    FiEdit3,
-    FiEye,
-    FiFile,
-    FiFileText,
-    FiGlobe,
-    FiLoader,
-    FiPlus,
-    FiSearch,
-    FiTag,
-    FiX,
-    FiZap,
+  FiArrowLeft,
+  FiEye,
+  FiFile,
+  FiFileText,
+  FiGlobe,
+  FiLoader,
+  FiPlus,
+  FiSearch,
+  FiTag,
+  FiX,
+  FiZap
 } from 'react-icons/fi';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -820,7 +819,29 @@ const WorkspaceView: React.FC = () => {
                           >
                             <FiEye className="w-4 h-4" />
                           </button>
-                          <FiEdit3 className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <button
+                            onClick={async () => {
+                              if (window.confirm('Are you sure you want to delete this content chunk?')) {
+                                try {
+                                  await fetch(`${API.BASE_URL()}/api/sections/hard/${section.id}`, {
+                                    method: 'DELETE',
+                                    headers: {
+                                      'Content-Type': 'application/json',
+                                      Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
+                                    },
+                                  });
+                                  setSections((prev) => prev.filter((s) => s.id !== section.id));
+                                  setAllSections((prev) => prev.filter((s) => s.id !== section.id));
+                                } catch (err) {
+                                  alert('Failed to delete section.');
+                                }
+                              }
+                            }}
+                            className="p-1 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-red-100 rounded"
+                            title="Delete content chunk"
+                          >
+                            <FiX className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
 
@@ -982,6 +1003,13 @@ const WorkspaceView: React.FC = () => {
               <div className="prose max-w-none">
                 <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">
                   {(() => {
+                    // Debug: log the content
+                    console.log('Modal viewingSection.content:', viewingSection.content);
+
+                    if (!viewingSection.content || (typeof viewingSection.content === 'string' && viewingSection.content.trim() === '')) {
+                      return <span className="text-gray-400">No content available</span>;
+                    }
+
                     let parsedContent: any[] = [];
                     if (typeof viewingSection.content === 'string') {
                       try {
@@ -990,21 +1018,27 @@ const WorkspaceView: React.FC = () => {
                         parsedContent = [];
                       }
                     }
-                    if (!Array.isArray(parsedContent)) {
-                      parsedContent = [];
-                    }
-                    return parsedContent
-                      .map((item: any) =>
-                        Array.isArray(item.content)
-                          ? item.content
+
+                    if (Array.isArray(parsedContent) && parsedContent.length > 0) {
+                      return parsedContent
+                        .map((item: any) => {
+                          // If item has a content array, use the old logic
+                          if (Array.isArray(item.content)) {
+                            return item.content
                               .map(
                                 (c: any) =>
                                   (c.page_number ? `Page ${c.page_number}\n` : '') + (c.text || ''),
                               )
-                              .join('\n\n')
-                          : '',
-                      )
-                      .join('\n\n');
+                              .join('\n\n');
+                          }
+                          // Otherwise, just show text and page_number if present
+                          return (item.page_number ? `Page ${item.page_number}\n` : '') + (item.text || '');
+                        })
+                        .join('\n\n');
+                    }
+
+                    // Otherwise, just show the raw content as plain text
+                    return viewingSection.content;
                   })()}
                 </div>
               </div>
@@ -1014,8 +1048,28 @@ const WorkspaceView: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div className="text-sm text-gray-500">Source: {viewingSection.content_source}</div>
                 <div className="flex gap-3">
-                  <button className="px-4 py-2 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                    Edit
+                  <button
+                    onClick={async () => {
+                      if (window.confirm('Are you sure you want to delete this content chunk?')) {
+                        try {
+                          await fetch(`${API.BASE_URL()}/api/sections/hard/${viewingSection.id}`, {
+                            method: 'DELETE',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
+                            },
+                          });
+                          setSections((prev) => prev.filter((s) => s.id !== viewingSection.id));
+                          setAllSections((prev) => prev.filter((s) => s.id !== viewingSection.id));
+                          closeModal();
+                        } catch (err) {
+                          alert('Failed to delete section.');
+                        }
+                      }
+                    }}
+                    className="px-4 py-2 text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                  >
+                    Delete
                   </button>
                   <button
                     onClick={closeModal}
