@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { FiFolder, FiPlus, FiX } from 'react-icons/fi';
+import { FiCheck, FiFileText, FiFolder, FiPlus, FiTag, FiX } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { useSources } from '../../hooks/useSources';
 import { useWorkspace } from '../../hooks/useWorkspace';
@@ -261,66 +261,112 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-2 max-h-[90vh] overflow-y-auto relative">
-        {/* Close button at top right */}
-        <button
-          onClick={() => {
-            if (onClose) {
-              onClose();
-            } else {
-              const navFn = internalNavigate;
-              if (navFn) navFn('/dashboard/workspaces');
-            }
-          }}
-          className="absolute top-3 right-3 p-2 text-gray-400 hover:text-gray-600 transition-colors z-10"
-          aria-label="Close"
-        >
-          <FiX className="w-6 h-6" />
-        </button>
-        <div className="p-6">
-          <div className="flex items-center mb-4">
-            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center mr-3">
-              <FiFolder className="w-5 h-5 text-primary" />
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl mx-auto max-h-[95vh] overflow-y-auto relative border border-gray-100">
+        {/* Header */}
+        <div className="sticky top-0 bg-white rounded-t-3xl border-b border-gray-100 px-8 py-6 z-20">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <FiFolder className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Create New Workspace</h2>
+                <p className="text-gray-600 text-sm mt-1">
+                  Set up your workspace with details and content
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">Create New Workspace</h2>
-              <p className="text-gray-600 text-xs mt-1">
-                Fill in the details and add content to get started.
-              </p>
-            </div>
+            <button
+              onClick={() => {
+                if (onClose) {
+                  onClose();
+                } else {
+                  const navFn = internalNavigate;
+                  if (navFn) navFn('/dashboard/workspaces');
+                }
+              }}
+              className="p-3 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all duration-200"
+              aria-label="Close"
+            >
+              <FiX className="w-6 h-6" />
+            </button>
           </div>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Workspace Details */}
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
-              <h3 className="text-base font-semibold text-gray-900 mb-3">Workspace Details</h3>
-              <div className="space-y-4">
+        </div>
+
+        <div className="px-8 py-6">
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Workspace Details Section */}
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border border-gray-200">
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <FiFileText className="w-4 h-4 text-blue-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Workspace Details</h3>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Vertical */}
-                <div>
-                  <label htmlFor="vertical" className="block text-xs font-medium text-gray-700 mb-1">
+                <div className="space-y-2">
+                  <label htmlFor="vertical" className="block text-sm font-medium text-gray-700">
                     Vertical <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    id="vertical"
-                    value={selectedVertical}
-                    onChange={(e) => setSelectedVertical(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
-                    required
-                  >
-                    <option value="">Select Vertical</option>
-                    <option value="FS">FS</option>
-                    <option value="GEN-AI">GEN-AI</option>
-                    <option value="H&I">H&I</option>
-                    <option value="TT">TT</option>
-                    <option value="M&C">M&C</option>
-                    <option value="RE">RE</option>
-                    <option value="STG">STG</option>
-                    <option value="OTHERS">OTHERS</option>
-                  </select>
+                  <div className="relative">
+                    <select
+                      id="vertical"
+                      value={selectedVertical}
+                      onChange={(e) => setSelectedVertical(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all duration-200 appearance-none"
+                      required
+                    >
+                      <option value="">Select Vertical</option>
+                      <option value="FS">FS</option>
+                      <option value="GEN-AI">GEN-AI</option>
+                      <option value="H&I">H&I</option>
+                      <option value="TT">TT</option>
+                      <option value="M&C">M&C</option>
+                      <option value="RE">RE</option>
+                      <option value="STG">STG</option>
+                      <option value="OTHERS">OTHERS</option>
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Workspace Type */}
+                <div className="space-y-2">
+                  <label htmlFor="workspaceType" className="block text-sm font-medium text-gray-700">
+                    Workspace Type
+                  </label>
+                  <div className="relative">
+                    <select
+                      id="workspaceType"
+                      name="workspaceType"
+                      value={workspaceType}
+                      onChange={(e) => setWorkspaceType(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all duration-200 appearance-none"
+                      required
+                    >
+                      <option value="">{workspaceTypesLoading ? 'Loading...' : 'Select Type'}</option>
+                      {workspaceTypes.map((type) => (
+                        <option key={type.id} value={type.id}>{type.name}</option>
+                      ))}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Workspace Name */}
-                <div>
-                  <label htmlFor="name" className="block text-xs font-medium text-gray-700 mb-1">
+                <div className="space-y-2">
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-700">
                     Workspace Name <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -329,14 +375,15 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all duration-200"
                     placeholder="Enter workspace name or title"
                     required
                   />
                 </div>
+
                 {/* Client Name */}
-                <div>
-                  <label htmlFor="clientName" className="block text-xs font-medium text-gray-700 mb-1">
+                <div className="space-y-2">
+                  <label htmlFor="clientName" className="block text-sm font-medium text-gray-700">
                     Client Name <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -346,7 +393,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                     list="client-suggestions"
                     value={formData.clientName}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all duration-200"
                     placeholder="Who is this workspace being prepared for?"
                     required
                   />
@@ -360,152 +407,175 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                     <option value="MetLife" />
                   </datalist>
                 </div>
-                {/* Workspace Type */}
-                <div>
-                  <label htmlFor="workspaceType" className="block text-xs font-medium text-gray-700 mb-1">
-                    Workspace Type
-                  </label>
-                  <select
-                    id="workspaceType"
-                    name="workspaceType"
-                    value={workspaceType}
-                    onChange={(e) => setWorkspaceType(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
-                    required
-                  >
-                    <option value="">{workspaceTypesLoading ? 'Loading...' : 'Select Type'}</option>
-                    {workspaceTypes.map((type) => (
-                      <option key={type.id} value={type.id}>{type.name}</option>
-                    ))}
-                  </select>
-                </div>
-                {/* Tags */}
-                <div>
-                  <label htmlFor="tags" className="block text-xs font-medium text-gray-700 mb-1">
-                    Tags / Keywords
-                  </label>
-                  <div className="flex gap-2 mb-2">
+              </div>
+
+              {/* Tags */}
+              <div className="mt-6 space-y-3">
+                <label htmlFor="tags" className="block text-sm font-medium text-gray-700">
+                  Tags / Keywords
+                </label>
+                <div className="flex gap-3">
+                  <div className="relative flex-1">
                     <input
                       type="text"
                       value={currentTag}
                       onChange={(e) => setCurrentTag(e.target.value)}
                       onKeyPress={handleTagKeyPress}
-                      className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
+                      className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all duration-200"
                       placeholder="Enter a tag and press Enter"
                     />
-                    <button
-                      type="button"
-                      onClick={addTag}
-                      disabled={!currentTag.trim()}
-                      className="px-3 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center text-sm"
-                    >
-                      <FiPlus className="w-4 h-4" />
-                    </button>
+                    <FiTag className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                   </div>
-                  {formData.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {formData.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="inline-flex items-center px-3 py-1 bg-primary/10 text-primary text-xs rounded-full font-medium"
-                        >
-                          {tag}
-                          <button
-                            type="button"
-                            onClick={() => removeTag(tag)}
-                            className="ml-2 text-primary/60 hover:text-primary transition-colors"
-                          >
-                            <FiX className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={addTag}
+                    disabled={!currentTag.trim()}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 shadow-lg hover:shadow-xl"
+                  >
+                    <FiPlus className="w-4 h-4" />
+                    <span>Add</span>
+                  </button>
                 </div>
+                {formData.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {formData.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center px-3 py-2 bg-blue-100 text-blue-800 text-sm rounded-lg font-medium shadow-sm"
+                      >
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => removeTag(tag)}
+                          className="ml-2 text-blue-600 hover:text-blue-800 transition-colors"
+                        >
+                          <FiX className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
-            {/* Content Selection */}
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-100 mt-6">
-              <h3 className="text-base font-semibold mb-3 text-gray-900">
-                Add Content from Existing Sources
-              </h3>
+
+            {/* Content Selection Section */}
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-6 border border-green-200">
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                  <FiFileText className="w-4 h-4 text-green-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Add Content from Existing Sources
+                </h3>
+              </div>
+              
               {sourcesLoading ? (
-                <div className="text-gray-500">Loading sources...</div>
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                  <span className="ml-3 text-gray-600">Loading sources...</span>
+                </div>
               ) : sources.length === 0 ? (
-                <div className="text-gray-500">No sources found.</div>
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <FiFileText className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <p className="text-gray-500">No sources found.</p>
+                </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {sources.map((source) => (
                     <div
                       key={source.id}
-                      className="border rounded-lg p-2 bg-white flex items-center justify-between hover:shadow transition-shadow"
+                      className="border border-gray-200 rounded-xl p-4 bg-white hover:shadow-lg transition-all duration-200 flex items-center justify-between"
                     >
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          className="font-medium underline text-primary text-sm text-left"
-                          onClick={() => setSelectingSourceId(source.id)}
-                        >
-                          {source.name}
-                        </button>
-                        <span className="text-xs text-gray-500 ml-2">({source.type})</span>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                          <FiFileText className="w-5 h-5 text-green-600" />
+                        </div>
+                        <div>
+                          <button
+                            type="button"
+                            className="font-semibold text-gray-900 hover:text-blue-600 transition-colors text-left"
+                            onClick={() => setSelectingSourceId(source.id)}
+                          >
+                            {source.name}
+                          </button>
+                          <p className="text-xs text-gray-500 mt-1">{source.type}</p>
+                        </div>
                       </div>
                       {selectedChunks[source.id] && selectedChunks[source.id].size > 0 && (
-                        <span className="text-xs text-green-600">
-                          {selectedChunks[source.id].size} chunk(s) selected
-                        </span>
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-sm text-green-700 font-medium">
+                            {selectedChunks[source.id].size} chunk(s) selected
+                          </span>
+                        </div>
                       )}
                     </div>
                   ))}
                 </div>
               )}
             </div>
+
             {/* Selected Chunks Summary */}
             {Object.entries(selectedChunks).length > 0 && (
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100 mt-6">
-                <h3 className="text-base font-semibold mb-2 text-blue-900">
-                  Selected Chunks Summary
-                </h3>
-                {Object.entries(selectedChunks).map(([sourceId, idxSet]) => {
-                  const sid = Number(sourceId);
-                  const chunkArr = sourceChunks[sid] || [];
-                  const source = sources.find((s) => s.id === sid);
-                  return (
-                    <div key={sid} className="mb-2">
-                      <div className="font-bold text-sm text-blue-900 text-left">
-                        {source?.name || source?.title || 'Untitled Section'}
-                      </div>
-                      <ul className="list-disc ml-6 mt-1">
-                        {[...idxSet].map((idx) => {
-                          const chunk = chunkArr[Number(idx)];
-                          if (!chunk) return null;
-                          // Find the first non-empty tag in chunk.content
-                          let chunkTitle = '';
-                          if (Array.isArray(chunk.content)) {
-                            const firstTag = chunk.content.find(
-                              (item: any) => item.tag && item.tag.trim() !== '',
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-6 border border-blue-200">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <FiCheck className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Selected Chunks Summary
+                  </h3>
+                </div>
+                
+                <div className="space-y-4">
+                  {Object.entries(selectedChunks).map(([sourceId, idxSet]) => {
+                    const sid = Number(sourceId);
+                    const chunkArr = sourceChunks[sid] || [];
+                    const source = sources.find((s) => s.id === sid);
+                    return (
+                      <div key={sid} className="bg-white rounded-xl p-4 border border-blue-200">
+                        <div className="font-semibold text-blue-900 mb-3 flex items-center space-x-2">
+                          <FiFileText className="w-4 h-4" />
+                          <span>{source?.name || source?.title || 'Untitled Section'}</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {[...idxSet].map((idx) => {
+                            const chunk = chunkArr[Number(idx)];
+                            if (!chunk) return null;
+                            // Find the first non-empty tag in chunk.content
+                            let chunkTitle = '';
+                            if (Array.isArray(chunk.content)) {
+                              const firstTag = chunk.content.find(
+                                (item: any) => item.tag && item.tag.trim() !== '',
+                              );
+                              if (firstTag) chunkTitle = firstTag.tag;
+                            }
+                            if (!chunkTitle)
+                              chunkTitle = chunk.name || chunk.title || 'Untitled Chunk';
+                            return (
+                              <div
+                                key={idx}
+                                className="flex items-center space-x-2 p-2 bg-blue-50 rounded-lg"
+                              >
+                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                <span className="text-sm text-blue-800 font-medium">
+                                  {chunkTitle}
+                                </span>
+                              </div>
                             );
-                            if (firstTag) chunkTitle = firstTag.tag;
-                          }
-                          if (!chunkTitle)
-                            chunkTitle = chunk.name || chunk.title || 'Untitled Chunk';
-                          return (
-                            <li
-                              key={idx}
-                              className="text-xs text-blue-800 mb-1 text-left font-semibold"
-                            >
-                              {chunkTitle}
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  );
-                })}
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
+
             {/* Action Buttons */}
-            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-100 mt-6 sticky bottom-0 bg-white z-10">
+            <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200 sticky bottom-0 bg-white z-10">
               <button
                 type="button"
                 onClick={() => {
@@ -516,30 +586,31 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                     if (navFn) navFn('/dashboard/workspaces');
                   }
                 }}
-                className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors text-xs"
+                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-200 shadow-sm hover:shadow-md"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-4 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center text-xs"
+                className="px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-medium hover:from-blue-700 hover:to-blue-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 shadow-lg hover:shadow-xl"
               >
                 {isSubmitting ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
-                    Creating...
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Creating...</span>
                   </>
                 ) : (
                   <>
-                    <FiFolder className="w-4 h-4 mr-2" />
-                    Create Workspace
+                    <FiFolder className="w-5 h-5" />
+                    <span>Create Workspace</span>
                   </>
                 )}
               </button>
             </div>
           </form>
         </div>
+
         {selectingSourceId !== null && (
           <SelectChunksModal
             source={sources.find((s) => s.id === selectingSourceId)}
