@@ -131,14 +131,14 @@ const PromptTemplatePage: React.FC = () => {
   // Fetch and set sections+prompts for the selected type
   const loadSectionsForType = async (typeObj: WorkspaceType) => {
     if (!typeObj || !typeObj.id) return;
-    
+
     const sectionsWithPrompts = await fetchSectionsWithPrompts(typeObj.id);
     const updatedType = {
       ...typeObj,
       sections: sectionsWithPrompts,
     };
-    
-    setWorkspaceTypes(prev => 
+
+    setWorkspaceTypes(prev =>
       prev.map(t => t.id === typeObj.id ? updatedType : t)
     );
     setSelectedType(updatedType);
@@ -209,22 +209,22 @@ const PromptTemplatePage: React.FC = () => {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${localStorage.getItem('token')}`,
             },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
               name: newSectionName.trim(),
               order: selectedType.sections.length
             }),
           },
         );
-        
+
         if (!response.ok) {
           const error = await response.text();
           toast.error(error || 'Failed to add section');
           return;
         }
-        
+
         const sectionData = await response.json();
         const sectionId = sectionData.id;
-        
+
         // 2. Create the prompt for the section
         const promptResp = await fetch(
           `${API.BASE_URL()}/api/prompt-templates/sections/${sectionId}/prompts`,
@@ -234,22 +234,22 @@ const PromptTemplatePage: React.FC = () => {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${localStorage.getItem('token')}`,
             },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
               prompt: newSectionPrompt.trim(),
               is_default: true
             }),
           },
         );
-        
+
         if (!promptResp.ok) {
           const error = await promptResp.text();
           toast.error(error || 'Failed to add prompt');
           return;
         }
-        
+
         // 3. Refresh the sections for this type
         await loadSectionsForType(selectedType);
-        
+
         setNewSectionName('');
         setNewSectionPrompt('');
         setShowAddSectionModal(false);
@@ -272,7 +272,7 @@ const PromptTemplatePage: React.FC = () => {
           Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
       });
-      
+
       if (response.ok) {
         const result = await response.json();
         toast.success(result.message);
@@ -301,7 +301,7 @@ const PromptTemplatePage: React.FC = () => {
               Seed Demo Data
             </button>
           </div>
-          
+
           {/* Workspace Type Card Selector */}
           <div className="flex items-center gap-4 mb-8 justify-center flex-wrap overflow-x-auto pb-2">
             {typesLoading ? (
@@ -338,7 +338,7 @@ const PromptTemplatePage: React.FC = () => {
               <span className="font-semibold text-base">Add Workspace Type</span>
             </button>
           </div>
-          
+
           {/* Section Selector for Selected Type */}
           {selectedType && (
             <div className="flex flex-col gap-3 mb-8 justify-center items-center w-full">
@@ -373,7 +373,7 @@ const PromptTemplatePage: React.FC = () => {
                   + Add Section
                 </button>
               </div>
-              
+
               {/* Inline Add Section Form */}
               {showAddSectionModal && (
                 <form
@@ -422,7 +422,7 @@ const PromptTemplatePage: React.FC = () => {
               )}
             </div>
           )}
-          
+
           {/* Prompt for Selected Section */}
           {selectedType && selectedSection ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -470,7 +470,7 @@ const PromptTemplatePage: React.FC = () => {
             </div>
           )}
         </div>
-        
+
         {/* Add Workspace Type Modal */}
         {showAddTypeModal && !showAddSectionModal && (
           <ReactModal

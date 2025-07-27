@@ -1,24 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-    FiArrowLeft,
-    FiCopy,
-    FiFileText,
-    FiLoader,
-    FiPlus,
-    FiRefreshCw,
-    FiSave,
-    FiTag,
-    FiX,
-    FiZap,
+  FiArrowLeft,
+  FiCopy,
+  FiFileText,
+  FiLoader,
+  FiPlus,
+  FiRefreshCw,
+  FiSave,
+  FiTag,
+  FiX,
+  FiZap,
 } from 'react-icons/fi';
 import ReactMarkdown from 'react-markdown';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
-    useContent,
-    type Prompt,
-    type Section,
-    type WorkspaceContent,
+  useContent,
+  type Prompt,
+  type Section,
+  type WorkspaceContent,
 } from '../../hooks/useContent';
 import type { Workspace } from '../../hooks/useWorkspace';
 import { useWorkspace } from '../../hooks/useWorkspace';
@@ -60,7 +60,7 @@ const ProposalAuthoring: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'prompts' | 'generated'>('prompts');
   const [generatedPrompts, setGeneratedPrompts] = useState<any[]>([]);
   const [fallbackWorkspace, setFallbackWorkspace] = useState<Workspace | null>(null);
-  const [sectionTemplates, setSectionTemplates] = useState<{ id: number; name: string }[]>([]);
+  const [sectionTemplates, setSectionTemplates] = useState<{ id: number; name: string; order: number; prompt?: string }[]>([]);
   const [sectionTemplatesLoading, setSectionTemplatesLoading] = useState(false);
   const [workspaceTypes, setWorkspaceTypes] = useState<{ id: number; name: string }[]>([]);
 
@@ -104,11 +104,48 @@ const ProposalAuthoring: React.FC = () => {
   useEffect(() => {
     async function fetchTemplates() {
       let wsTypeId = selectedWorkspaceObj?.workspaceType;
+      console.log('Debug: selectedWorkspaceObj:', selectedWorkspaceObj);
+      console.log('Debug: workspaceType:', wsTypeId);
+      
       if (wsTypeId && isNaN(Number(wsTypeId))) {
         // If it's a name, look up the ID
         const found = workspaceTypes.find((t) => t.name === wsTypeId);
         wsTypeId = found ? String(found.id) : undefined;
+        console.log('Debug: found workspace type by name:', found);
       }
+      
+      // If we still don't have a valid workspace type ID, try to get it from the workspace name
+      if (!wsTypeId && selectedWorkspaceObj?.name) {
+        const workspaceName = selectedWorkspaceObj.name.toLowerCase();
+        if (workspaceName.includes('proposal')) {
+          wsTypeId = '1'; // Default to Proposal type
+        } else if (workspaceName.includes('blog')) {
+          wsTypeId = '2'; // Default to Blog type
+        } else {
+          wsTypeId = '1'; // Default to Proposal type
+        }
+        console.log('Debug: inferred workspace type ID:', wsTypeId);
+      }
+      
+      // If we still don't have a workspace type ID, create default sections
+      if (!wsTypeId) {
+        console.log('Debug: no workspace type found, using default sections');
+        const defaultSections = [
+          { id: 1, name: 'Executive Summary', order: 0, prompt: 'Provide a concise summary of the proposal, highlighting the business context, objectives, and value proposition.' },
+          { id: 2, name: 'Problem Statement', order: 1, prompt: 'Explain the core business challenges the client is facing and why addressing them is critical.' },
+          { id: 3, name: 'Proposed Solution', order: 2, prompt: 'Describe the proposed solution in detail, including key features, components, and how it addresses the client\'s needs.' },
+          { id: 4, name: 'Scope of Work', order: 3, prompt: 'Outline the specific deliverables, services, and responsibilities covered under this proposal.' },
+          { id: 5, name: 'Project Approach and Methodology', order: 4, prompt: 'Describe the overall approach, phases, and methodology that will be used to execute the project.' },
+          { id: 6, name: 'Project Plan and Timeline', order: 5, prompt: 'Provide a high-level timeline with major milestones and estimated completion dates for key phases.' },
+          { id: 7, name: 'Team Composition and Roles', order: 6, prompt: 'List the proposed team members, their roles, responsibilities, and relevant experience.' }
+        ];
+        setSectionTemplates(defaultSections);
+        setSectionTemplatesLoading(false);
+        return;
+      }
+      
+      console.log('Debug: final wsTypeId:', wsTypeId);
+      
       if (!wsTypeId) {
         setSectionTemplates([]);
         return;
@@ -123,17 +160,47 @@ const ProposalAuthoring: React.FC = () => {
             },
           },
         );
-        if (!res.ok) throw new Error('Failed to fetch section templates');
+        console.log('Debug: API response status:', res.status);
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error('Debug: API error response:', errorText);
+          throw new Error(`Failed to fetch section templates: ${res.status} ${errorText}`);
+        }
         const data = await res.json();
+        console.log('Debug: fetched section templates:', data);
         setSectionTemplates(Array.isArray(data) ? data : []);
-      } catch {
-        setSectionTemplates([]);
+      } catch (error) {
+        console.error('Debug: error fetching section templates:', error);
+        // Use fallback sections when API fails
+        console.log('Debug: using fallback sections due to API error');
+        const fallbackSections = [
+          { id: 1, name: 'Executive Summary', order: 0, prompt: 'Provide a concise summary of the proposal, highlighting the business context, objectives, and value proposition.' },
+          { id: 2, name: 'Problem Statement', order: 1, prompt: 'Explain the core business challenges the client is facing and why addressing them is critical.' },
+          { id: 3, name: 'Proposed Solution', order: 2, prompt: 'Describe the proposed solution in detail, including key features, components, and how it addresses the client\'s needs.' },
+          { id: 4, name: 'Scope of Work', order: 3, prompt: 'Outline the specific deliverables, services, and responsibilities covered under this proposal.' },
+          { id: 5, name: 'Project Approach and Methodology', order: 4, prompt: 'Describe the overall approach, phases, and methodology that will be used to execute the project.' },
+          { id: 6, name: 'Project Plan and Timeline', order: 5, prompt: 'Provide a high-level timeline with major milestones and estimated completion dates for key phases.' },
+          { id: 7, name: 'Team Composition and Roles', order: 6, prompt: 'List the proposed team members, their roles, responsibilities, and relevant experience.' }
+        ];
+        setSectionTemplates(fallbackSections);
       } finally {
         setSectionTemplatesLoading(false);
       }
     }
     fetchTemplates();
-  }, [selectedWorkspaceObj?.workspaceType, workspaceTypes]);
+  }, [selectedWorkspaceObj?.workspaceType, selectedWorkspaceObj?.name, workspaceTypes]);
+
+  // Debug logging for section dropdown
+  useEffect(() => {
+    console.log('Debug: rendering section dropdown with:', { 
+      selectedWorkspace, 
+      sectionTemplatesLoading, 
+      sectionTemplates: sectionTemplates.length, 
+      selectedSectionId,
+      selectedWorkspaceObj: selectedWorkspaceObj?.name,
+      workspaceType: selectedWorkspaceObj?.workspaceType
+    });
+  }, [selectedWorkspace, sectionTemplatesLoading, sectionTemplates.length, selectedSectionId, selectedWorkspaceObj]);
 
   useEffect(() => {
     fetchWorkspaces();
@@ -213,29 +280,22 @@ const ProposalAuthoring: React.FC = () => {
 
   // When a section is selected, auto-fill the prompt input
   useEffect(() => {
-    if (selectedWorkspaceObj && selectedSectionName) {
-      // Get the workspace type (either from the object or infer it)
-      let workspaceType = selectedWorkspaceObj.workspaceType;
-      if (!workspaceType && 'name' in selectedWorkspaceObj && selectedWorkspaceObj.name) {
-        const name = selectedWorkspaceObj.name.toLowerCase();
-        if (name.includes('proposal')) workspaceType = 'Proposal';
-        else if (name.includes('service') || name.includes('agreement'))
-          workspaceType = 'Service Agreement';
-        else if (name.includes('report')) workspaceType = 'Report';
-        else if (name.includes('research')) workspaceType = 'Research';
-        else if (name.includes('template')) workspaceType = 'Template';
-        else if (name.includes('blog')) workspaceType = 'Blog';
-        else workspaceType = 'Proposal';
+    if (selectedSectionId && sectionTemplates.length > 0) {
+      const selectedTemplate = sectionTemplates.find(template => String(template.id) === selectedSectionId);
+      console.log('Debug: selected section template:', selectedTemplate);
+      if (selectedTemplate) {
+        setSelectedSectionName(selectedTemplate.name);
+        if (selectedTemplate.prompt) {
+          setPrompt(selectedTemplate.prompt);
+          console.log('Debug: set prompt to:', selectedTemplate.prompt);
+        } else {
+          setPrompt(''); // Clear prompt if no default prompt is available
+          console.log('Debug: no prompt available for section');
+        }
+        setUserPrompt(''); // Clear any user-added prompt when changing sections
       }
-
-      // Get the prompt for this section from our mapping
-      // REMOVE WORKSPACE_SECTION_PROMPTS
-      const promptText = ''; // No longer using static prompts
-
-      setPrompt(promptText); // Always set the prompt state to the pre-defined prompt
-      setUserPrompt(''); // Clear any user-added prompt when changing sections
     }
-  }, [selectedWorkspaceObj, selectedSectionName]);
+  }, [selectedSectionId, sectionTemplates]);
 
   // When a section is selected, fetch its prompt(s) dynamically
   useEffect(() => {
@@ -579,7 +639,39 @@ const ProposalAuthoring: React.FC = () => {
                   ))}
                 </select>
                 {!sectionTemplatesLoading && sectionTemplates.length === 0 && (
-                  <div className="text-xs text-gray-500 mt-2">No sections found for this workspace type.</div>
+                  <div className="text-xs text-gray-500 mt-2">
+                    No sections found for this workspace type.
+                    <button 
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`${API.BASE_URL()}/api/prompt-templates/seed`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
+                            },
+                          });
+                          if (res.ok) {
+                            console.log('Database seeded successfully');
+                            // Retry fetching templates
+                            window.location.reload();
+                          } else {
+                            console.error('Failed to seed database');
+                          }
+                        } catch (error) {
+                          console.error('Error seeding database:', error);
+                        }
+                      }}
+                      className="ml-2 text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Seed Database
+                    </button>
+                  </div>
+                )}
+                {sectionTemplates.length > 0 && (
+                  <div className="text-xs text-gray-500 mt-2">
+                    Found {sectionTemplates.length} sections for workspace type: {selectedWorkspaceObj?.workspaceType}
+                  </div>
                 )}
               </div>
             )}
@@ -728,9 +820,9 @@ const ProposalAuthoring: React.FC = () => {
           {/* Section heading */}
           <div className="px-8 pt-8 pb-2">
             <h2 className="text-xl font-bold text-gray-900">{selectedSectionName || 'Section'}</h2>
-            {selectedSectionName && (
+            {selectedSectionName && prompt && (
               <div className="bg-gray-50 rounded-md p-3 text-gray-800 whitespace-pre-line select-none border border-gray-200 text-sm mt-2">
-                {/* REMOVE WORKSPACE_SECTION_PROMPTS */}
+                {prompt}
               </div>
             )}
             {/* User prompt input moved here */}
