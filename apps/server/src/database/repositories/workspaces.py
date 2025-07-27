@@ -9,19 +9,36 @@ class WorkspaceRepository:
         Create a workspace. Content association (sources/chunks) is handled in the handler, not here.
         """
         async with in_transaction():
-            workspace_type_id = None
+            workspace_type_obj = None
+            print(f"DEBUG: Received workspace_type: {workspace_type} (type: {type(workspace_type)})")
+            
+            # Debug: List all available workspace types
+            all_workspace_types = await WorkspaceType.all()
+            print(f"DEBUG: Available workspace types in database: {[(wt.id, wt.name) for wt in all_workspace_types]}")
+            
             if workspace_type:
-                # If workspace_type is a string (name), fetch the id
+                # If workspace_type is a string (name), fetch the object
                 if isinstance(workspace_type, str) and not workspace_type.isdigit():
                     try:
-                        ws_type_obj = await WorkspaceType.get(name=workspace_type)
-                        workspace_type_id = ws_type_obj.id
+                        workspace_type_obj = await WorkspaceType.get(name=workspace_type)
+                        print(f"DEBUG: Found workspace type by name: {workspace_type} -> ID: {workspace_type_obj.id}")
                     except WorkspaceType.DoesNotExist:
-                        workspace_type_id = None
+                        workspace_type_obj = None
+                        print(f"DEBUG: Workspace type not found by name: {workspace_type}")
                 else:
-                    # If it's already an int or string id
-                    workspace_type_id = int(workspace_type)
-            workspace = await Workspace.create(name=name, client=client, workspace_type_id=workspace_type_id)
+                    # If it's already an int or string id, fetch the object
+                    try:
+                        workspace_type_obj = await WorkspaceType.get(id=int(workspace_type))
+                        print(f"DEBUG: Found workspace type by ID: {workspace_type} -> ID: {workspace_type_obj.id}")
+                    except WorkspaceType.DoesNotExist:
+                        workspace_type_obj = None
+                        print(f"DEBUG: Workspace type not found by ID: {workspace_type}")
+            else:
+                print(f"DEBUG: No workspace_type provided")
+            
+            print(f"DEBUG: Final workspace_type_obj: {workspace_type_obj}")
+            workspace = await Workspace.create(name=name, client=client, workspace_type=workspace_type_obj)
+            print(f"DEBUG: Created workspace with ID: {workspace.id}, workspace_type: {workspace.workspace_type_id}")
 
             for tag_name in tag_names:
                 if tag_name.strip():
