@@ -8,7 +8,7 @@ export type Workspace = {
   name: string;
   clientName?: string;
   tags: string[];
-  workspaceType?: string;
+  workspace_type?: string;
   createdAt?: string;
 };
 

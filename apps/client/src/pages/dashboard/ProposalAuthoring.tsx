@@ -71,7 +71,7 @@ const ProposalAuthoring: React.FC = () => {
   const workspaceNameFromState = location.state?.workspaceName;
 
   // Compute selectedWorkspaceObj after all hooks and state
-  let selectedWorkspaceObj: Workspace | { workspaceType: string; name: string };
+  let selectedWorkspaceObj: Workspace | { workspace_type: string; name: string };
   const foundWorkspace = workspaces.find((w) => w.id === selectedWorkspace);
   if (foundWorkspace) {
     selectedWorkspaceObj = foundWorkspace;
@@ -79,7 +79,7 @@ const ProposalAuthoring: React.FC = () => {
     selectedWorkspaceObj = fallbackWorkspace;
   } else {
     selectedWorkspaceObj = {
-      workspaceType: '',
+      workspace_type: '',
       name: workspaceNameFromState || 'Workspace',
     };
   }
@@ -103,7 +103,7 @@ const ProposalAuthoring: React.FC = () => {
   // Fetch section templates for the workspace type (by ID)
   useEffect(() => {
     async function fetchTemplates() {
-      let wsTypeId = selectedWorkspaceObj?.workspaceType;
+      let wsTypeId = selectedWorkspaceObj?.workspace_type;
       console.log('Debug: selectedWorkspaceObj:', selectedWorkspaceObj);
       console.log('Debug: workspaceType:', wsTypeId);
       
@@ -188,7 +188,7 @@ const ProposalAuthoring: React.FC = () => {
       }
     }
     fetchTemplates();
-  }, [selectedWorkspaceObj?.workspaceType, selectedWorkspaceObj?.name, workspaceTypes]);
+  }, [selectedWorkspaceObj?.workspace_type, selectedWorkspaceObj?.name, workspaceTypes]);
 
   // Debug logging for section dropdown
   useEffect(() => {
@@ -198,7 +198,7 @@ const ProposalAuthoring: React.FC = () => {
       sectionTemplates: sectionTemplates.length, 
       selectedSectionId,
       selectedWorkspaceObj: selectedWorkspaceObj?.name,
-      workspaceType: selectedWorkspaceObj?.workspaceType
+      workspaceType: selectedWorkspaceObj?.workspace_type
     });
   }, [selectedWorkspace, sectionTemplatesLoading, sectionTemplates.length, selectedSectionId, selectedWorkspaceObj]);
 
@@ -221,7 +221,7 @@ const ProposalAuthoring: React.FC = () => {
             setFallbackWorkspace({
               id: fw.id?.toString?.() || workspaceId,
               name: fw.name,
-              workspaceType: fw.workspaceType || fw.workspace_type || '',
+              workspace_type: fw.workspace_type || '',
               clientName: fw.clientName || fw.client || '',
               tags: fw.tags || [],
             });
@@ -254,7 +254,7 @@ const ProposalAuthoring: React.FC = () => {
       }
       // Handle workspace type selection (from prompt template)
       else if (location.state.type && workspaces.length > 0) {
-        const ws = workspaces.find((w) => w.workspaceType === location.state.type);
+        const ws = workspaces.find((w) => w.workspace_type === location.state.type);
         if (ws) setSelectedWorkspace(ws.id);
       }
 
@@ -342,7 +342,7 @@ const ProposalAuthoring: React.FC = () => {
   console.log('Debug section dropdown:', {
     selectedWorkspace,
     selectedWorkspaceObj,
-    workspaceType: selectedWorkspaceObj?.workspaceType,
+    workspaceType: selectedWorkspaceObj?.workspace_type,
     workspaceName: 'name' in selectedWorkspaceObj ? selectedWorkspaceObj.name : undefined,
     sectionList,
   });
@@ -393,7 +393,7 @@ const ProposalAuthoring: React.FC = () => {
       } else {
         // If no chunks selected, use the section name and workspace type as a heading
         const sectionHeading = selectedSectionName
-          ? `Section: ${selectedSectionName} (Type: ${selectedWorkspaceObj.workspaceType || 'Proposal'})\n\n`
+          ? `Section: ${selectedSectionName} (Type: ${selectedWorkspaceObj.workspace_type || 'Proposal'})\n\n`
           : '';
         content = await generateContent(selectedWorkspace, sectionHeading + combinedPrompt, []);
       }
@@ -670,7 +670,7 @@ const ProposalAuthoring: React.FC = () => {
                 )}
                 {sectionTemplates.length > 0 && (
                   <div className="text-xs text-gray-500 mt-2">
-                    Found {sectionTemplates.length} sections for workspace type: {selectedWorkspaceObj?.workspaceType}
+                    Found {sectionTemplates.length} sections for workspace type: {selectedWorkspaceObj?.workspace_type}
                   </div>
                 )}
               </div>

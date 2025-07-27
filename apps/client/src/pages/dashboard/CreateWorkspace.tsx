@@ -67,6 +67,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
         if (Array.isArray(data)) setWorkspaceTypes(data);
         else if (Array.isArray(data.workspace_types)) setWorkspaceTypes(data.workspace_types);
         else setWorkspaceTypes([]);
+        console.log('DEBUG: Loaded workspace types:', data);
       })
       .catch(() => setWorkspaceTypes([]))
       .finally(() => setWorkspaceTypesLoading(false));
@@ -161,6 +162,11 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
       return;
     }
 
+    if (!workspaceType) {
+      toast.error('Workspace type is required');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -225,6 +231,17 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
         source_ids: source_ids.length > 0 ? source_ids : undefined,
         chunks: chunks.length > 0 ? chunks : undefined,
       });
+      
+      console.log('DEBUG: Created workspace with data:', {
+        name: workspaceName,
+        client: formData.clientName.trim(),
+        tags: formData.tags,
+        workspace_type: workspaceType,
+        workspace_type_type: typeof workspaceType,
+        source_ids: source_ids.length > 0 ? source_ids : undefined,
+        chunks: chunks.length > 0 ? chunks : undefined,
+      });
+      console.log('DEBUG: New workspace response:', newWorkspace);
 
       toast.success('Workspace created successfully!');
       if (onWorkspaceCreated) {
