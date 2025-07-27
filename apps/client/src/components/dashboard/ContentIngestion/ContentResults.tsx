@@ -2,15 +2,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-  FiCheck,
-  FiChevronDown,
-  FiChevronRight,
-  FiEye,
-  FiPlus,
-  FiSave,
-  FiSearch,
-  FiTag,
-  FiX,
+    FiCheck,
+    FiChevronDown,
+    FiChevronRight,
+    FiEye,
+    FiPlus,
+    FiSave,
+    FiSearch,
+    FiTag,
+    FiX,
 } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '../../../hooks/useDebounce';
@@ -1098,7 +1098,15 @@ const ContentResults: React.FC<ContentResultsProps> = ({
               <div className="flex items-center space-x-3">
                 <span className="text-sm text-gray-500">{totalItems} items extracted</span>
                 <button
+                  onClick={() => navigate('/dashboard')}
+                  type="button"
+                  className="px-4 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
+                >
+                  Done
+                </button>
+                <button
                   onClick={onReset}
+                  type="button"
                   className="px-4 py-2 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Start Over
