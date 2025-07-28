@@ -219,10 +219,14 @@ async def get_source_details(content_source_id: int):
         # images = await source_image_repository.get_by_source(content_source_id)
         # tables = await source_table_repository.get_by_source(content_source_id)
 
-        chunks_response = await get_source_chunks(content_source_id)
-        chunks_data = chunks_response.body.decode() if hasattr(chunks_response, 'body') else '{"chunks": []}'
-        chunks_json = json.loads(chunks_data) if isinstance(chunks_data, str) else chunks_data
-        chunks = chunks_json.get('chunks', [])
+        # Get chunks directly from the source file
+        try:
+            with open(content_source.extracted_url, 'r') as f:
+                extracted_data = json.load(f)
+                chunks = extracted_data.get('chunks', [])
+        except Exception as e:
+            logger.warning(f"Could not load chunks from {content_source.extracted_url}: {e}")
+            chunks = []
 
         return JSONResponse(content={
             "success": True,
