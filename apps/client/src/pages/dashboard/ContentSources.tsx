@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { FiCalendar, FiEye, FiFile, FiFileText, FiGlobe, FiTrash } from 'react-icons/fi';
+import { FiCalendar, FiEye, FiFile, FiFileText, FiGlobe, FiTrash, FiX } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { API } from '../../utils/constants';
 
@@ -17,6 +17,7 @@ const ContentSources: React.FC = () => {
   const [sources, setSources] = useState<ContentSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedType, setSelectedType] = useState<'all' | 'pdf' | 'docx' | 'web'>('all');
+  const [deleteTarget, setDeleteTarget] = useState<null | { id: number; name: string }>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -40,22 +41,8 @@ const ContentSources: React.FC = () => {
     }
   };
 
-  const handleDeleteSource = async (sourceId: number) => {
-    if (confirm('Are you sure you want to delete this content source?')) {
-      try {
-        const response = await fetch(
-          `${API.BASE_URL()}${API.ENDPOINTS.SOURCES.BASE_URL()}${API.ENDPOINTS.SOURCES.DELETE_SOFT(sourceId)}`,
-          { method: 'DELETE' },
-        );
-        if (response.ok) {
-          setSources((prev) => prev.filter((s) => s.id !== sourceId));
-          toast.success('Content source deleted');
-        }
-      } catch (error) {
-        console.error('Error deleting source:', error);
-        toast.error('Failed to delete content source');
-      }
-    }
+  const handleDeleteSource = async (sourceId: number, sourceName: string) => {
+    setDeleteTarget({ id: sourceId, name: sourceName });
   };
 
   const getSourceIcon = (type: string) => {
@@ -163,7 +150,7 @@ const ContentSources: React.FC = () => {
                     <FiEye className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => handleDeleteSource(source.id)}
+                    onClick={() => handleDeleteSource(source.id, source.name)}
                     className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                     title="Delete source"
                   >
@@ -187,6 +174,57 @@ const ContentSources: React.FC = () => {
           ))}
         </div>
       )}
+ 
+{deleteTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-black">Delete Content Source</h3>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="mb-6 text-neutral-700">
+              Are you sure you want to delete <span className="font-semibold">{deleteTarget.name}</span>? This action cannot be undone.
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="flex-1 py-3 px-4 border border-gray-300 rounded-lg text-neutral-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await fetch(
+                      `${API.BASE_URL()}${API.ENDPOINTS.SOURCES.BASE_URL()}${API.ENDPOINTS.SOURCES.DELETE_SOFT(deleteTarget.id)}`,
+                      { method: 'DELETE' },
+                    );
+                    if (response.ok) {
+                      setSources((prev) => prev.filter((s) => s.id !== deleteTarget.id));
+                      toast.success('Content source deleted');
+                    } else {
+                      toast.error('Failed to delete content source');
+                    }
+                  } catch (error) {
+                    toast.error('Failed to delete content source');
+                  } finally {
+                    setDeleteTarget(null);
+                  }
+                }}
+                className="flex-1 py-3 px-4 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+ 
     </div>
   );
 };

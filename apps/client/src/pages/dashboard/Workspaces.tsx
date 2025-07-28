@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { FiFolder, FiPlus, FiSearch, FiTag, FiTrash2 } from 'react-icons/fi';
+import { toast } from 'react-hot-toast';
+import { FiFolder, FiPlus, FiSearch, FiTag, FiTrash2, FiX } from 'react-icons/fi';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useSections } from '../../hooks/useSections';
@@ -16,6 +17,7 @@ const Workspaces: React.FC = () => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [sectionCounts, setSectionCounts] = useState<{ [workspaceId: string]: number }>({});
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<null | {id: string; name: string }>(null);
 
   const debouncedSearch = useDebounce(search, 500);
 
@@ -174,9 +176,7 @@ const Workspaces: React.FC = () => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (window.confirm('Are you sure you want to delete this workspace?')) {
-                        deleteWorkspace(workspace.id);
-                      }
+                      setDeleteTarget({ id: workspace.id, name: workspace.name });
                     }}
                     className="absolute top-3 right-3 p-1 bg-red-100 hover:bg-red-200 text-red-600 rounded-full focus:outline-none focus:ring-2 focus:ring-red-300 z-10"
                     title="Delete workspace"
@@ -261,6 +261,48 @@ const Workspaces: React.FC = () => {
               onWorkspaceCreated={handleWorkspaceCreated}
               onClose={() => setShowCreateModal(false)}
             />
+          </div>
+        </div>
+      )}
+       {deleteTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-black">Delete Workspace</h3>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="mb-6 text-neutral-700">
+              Are you sure you want to delete <span className="font-semibold">{deleteTarget.name}</span>? This action cannot be undone.
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="flex-1 py-3 px-4 border border-gray-300 rounded-lg text-neutral-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    await deleteWorkspace(deleteTarget.id);
+                    toast.success('Workspace deleted successfully!');
+                  } catch (err) {
+                    toast.error('Failed to delete workspace.');
+                  } finally {
+                    setDeleteTarget(null);
+                    fetchWorkspaces();
+                  }
+                }}
+                className="flex-1 py-3 px-4 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}
