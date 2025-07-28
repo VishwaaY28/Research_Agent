@@ -3,9 +3,20 @@ from openai import AzureOpenAI, OpenAI
 from azure.identity import DefaultAzureCredential
 from azure.keyvault.secrets import SecretClient
 from typing import List, Dict, Any, Optional
+import tiktoken
 from config.env import env
 
 logger = logging.getLogger(__name__)
+
+def count_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
+    """Count tokens in text using tiktoken"""
+    try:
+        encoding = tiktoken.encoding_for_model(model)
+        return len(encoding.encode(text))
+    except Exception as e:
+        logger.warning(f"Failed to count tokens with tiktoken: {e}")
+        # Fallback: rough estimation (1 token ≈ 4 characters)
+        return len(text) // 4
 
 class AzureOpenAIClient:
     def __init__(self):
@@ -66,7 +77,7 @@ class AzureOpenAIClient:
         context_images: List[Dict[str, Any]] = None,
         context_tables: List[Dict[str, Any]] = None,
         section_name: str = "Generated Content"
-    ) -> str:
+    ) -> Dict[str, Any]:
         """
         Generate proposal content based on prompt and context using Azure OpenAI
         """
@@ -136,8 +147,20 @@ Your response must follow these principles:
             )
 
             generated_content = response.choices[0].message.content.strip()
+            
+            # Calculate token counts
+            full_context = system_prompt + "\n" + user_message
+            context_tokens = count_tokens(workspace_content)
+            response_tokens = count_tokens(generated_content)
+            
             logger.info(f"Successfully generated content for section: {section_name}")
-            return generated_content
+            logger.info(f"Context tokens: {context_tokens}, Response tokens: {response_tokens}")
+            
+            return {
+                "content": generated_content,
+                "context_tokens": context_tokens,
+                "response_tokens": response_tokens
+            }
 
         except Exception as e:
             logger.error(f"Error generating content with Azure OpenAI: {str(e)}")
@@ -182,7 +205,7 @@ class OllamaClient:
         context_images: List[Dict[str, Any]] = None,
         context_tables: List[Dict[str, Any]] = None,
         section_name: str = "Generated Content"
-    ) -> str:
+    ) -> Dict[str, Any]:
         """
         Generate proposal content based on prompt and context using Ollama
         """
@@ -252,8 +275,20 @@ Your response must follow these principles:
             )
 
             generated_content = response.choices[0].message.content.strip()
+            
+            # Calculate token counts
+            full_context = system_prompt + "\n" + user_message
+            context_tokens = count_tokens(workspace_content)
+            response_tokens = count_tokens(generated_content)
+            
             logger.info(f"Successfully generated content using Ollama for section: {section_name}")
-            return generated_content
+            logger.info(f"Context tokens: {context_tokens}, Response tokens: {response_tokens}")
+            
+            return {
+                "content": generated_content,
+                "context_tokens": context_tokens,
+                "response_tokens": response_tokens
+            }
 
         except Exception as e:
             logger.error(f"Error generating content with Ollama: {str(e)}")

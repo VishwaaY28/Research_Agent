@@ -78,7 +78,7 @@ export function useContent() {
       workspaceId: string | number,
       prompt: string,
       sectionIds: number[] = [],
-    ): Promise<string> => {
+    ): Promise<{ content: string; context_tokens: number; response_tokens: number }> => {
       setLoading(true);
       try {
         const response = await fetch(
@@ -101,7 +101,11 @@ export function useContent() {
         }
 
         const data = await response.json();
-        return data.generated_content;
+        return {
+          content: data.generated_content,
+          context_tokens: data.context_tokens,
+          response_tokens: data.response_tokens
+        };
       } finally {
         setLoading(false);
       }
