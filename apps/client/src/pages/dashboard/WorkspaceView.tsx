@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import {
   FiArrowLeft,
+  FiCheck,
   FiEye,
   FiFile,
   FiFileText,
-  FiGlobe,
-  FiLoader,
   FiPlus,
   FiSearch,
   FiTag,
@@ -19,6 +19,7 @@ import { useSources } from '../../hooks/useSources';
 import { useTags } from '../../hooks/useTags';
 import { useWorkspace } from '../../hooks/useWorkspace';
 import { API } from '../../utils/constants';
+import SelectChunksModal from './SelectChunksModal';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -42,7 +43,7 @@ const WorkspaceView: React.FC = () => {
   const [viewingSection, setViewingSection] = useState<Section | null>(null);
   const [currentTags, setCurrentTags] = useState<any[]>([]);
   const { listSources } = useSources();
-  const [sourceChunks, setSourceChunks] = useState<any[]>([]);
+  const [sourceChunks, setSourceChunks] = useState<{ [key: number]: any[] }>({}); // sourceId -> chunks
   const [sourceText, setSourceText] = useState('');
   const [extractedResults, setExtractedResults] = useState<any[]>([]);
   const [isAddContentModalOpen, setIsAddContentModalOpen] = useState(false);
@@ -53,7 +54,8 @@ const WorkspaceView: React.FC = () => {
   const [selectedSources, setSelectedSources] = useState<any[]>([]);
   const [selectedSourceForChunks, setSelectedSourceForChunks] = useState<any | null>(null);
   const [chunksLoading, setChunksLoading] = useState(false);
-  const [selectedChunks, setSelectedChunks] = useState<number[]>([]); // store chunk indices
+  const [selectedChunks, setSelectedChunks] = useState<{ [key: number]: Set<string> }>({}); // sourceId -> chunk indices
+  const [selectingSourceId, setSelectingSourceId] = useState<number | null>(null);
   const [tab, setTab] = useState<'content' | 'sections'>('content');
   const [sectionPrompts, setSectionPrompts] = useState<{ [sectionId: string]: any[] }>({});
   const [promptsLoading, setPromptsLoading] = useState(false);
@@ -62,6 +64,7 @@ const WorkspaceView: React.FC = () => {
   const [sectionTemplates, setSectionTemplates] = useState<any[]>([]);
   const [sectionTemplatesLoading, setSectionTemplatesLoading] = useState(false);
   const [workspaceTypeName, setWorkspaceTypeName] = useState<string | null>(null);
+const [deleteTarget, setDeleteTarget] = useState<null | { id: string | number; name: string; type: 'section'; closeModal?: () => void }>(null);  
 
   const { createSections } = useSections();
 
@@ -245,6 +248,20 @@ const WorkspaceView: React.FC = () => {
     }
   }, [isAddContentModalOpen, listSources]);
 
+  // Fix fetchChunksForSource to return Promise<any[]>
+  const fetchChunksForSource = async (sourceId: number): Promise<any[]> => {
+    if (sourceChunks[sourceId]) return sourceChunks[sourceId]; // already fetched
+    try {
+      const res = await fetch(`http://localhost:8000/api/sources/${sourceId}/chunks`);
+      const data = await res.json();
+      setSourceChunks((prev) => ({ ...prev, [sourceId]: data.chunks || [] }));
+      return data.chunks || [];
+    } catch {
+      setSourceChunks((prev) => ({ ...prev, [sourceId]: [] }));
+      return [];
+    }
+  };
+
   // Filtered sources logic
   const filteredSources = sources.filter(
     (source) =>
@@ -270,33 +287,96 @@ const WorkspaceView: React.FC = () => {
   };
 
   const handleToggleChunk = (idx: number) => {
-    setSelectedChunks((prev) =>
-      prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx],
-    );
+    setSelectedChunks((prev) => {
+      const sourceId = selectingSourceId || 0; // Default to 0 if selectingSourceId is null
+      const currentSet = prev[sourceId] || new Set();
+      const newSet = new Set(currentSet);
+      if (newSet.has(idx.toString())) {
+        newSet.delete(idx.toString());
+      } else {
+        newSet.add(idx.toString());
+      }
+      return { ...prev, [sourceId]: newSet };
+    });
   };
 
   const handleSaveChunksToWorkspace = async () => {
-    if (!selectedSourceForChunks || selectedChunks.length === 0 || !workspace) return;
-    // Prepare sections payload
-    const sections = selectedChunks.map((idx) => {
-      const chunk = sourceChunks[idx];
-      return {
-        content: chunk.content,
-        name: chunk.label || chunk.content.substring(0, 50) + '...',
-        tags: [],
-      };
+    if (!workspace) {
+      toast.error('No workspace loaded');
+      return;
+    }
+    // Debug: log selectedChunks and sourceChunks
+    console.log('selectedChunks:', selectedChunks);
+    console.log('sourceChunks:', sourceChunks);
+    // Prepare content selection payload
+    const chunks: any[] = [];
+    Object.entries(selectedChunks).forEach(([sourceId, idxSet]) => {
+      const sid = Number(sourceId);
+      const chunkArr = sourceChunks[sid] || [];
+      // Track which major chunks are fully selected to avoid duplicate minors
+      const majorSelected = new Set<string>();
+      idxSet.forEach((key) => {
+        if (/^\d+$/.test(key)) {
+          // Major chunk selected
+          const idx = Number(key);
+          const chunk = chunkArr[idx];
+          if (chunk) {
+            let heading = chunk.name || chunk.title || '';
+            try {
+              const parsed = typeof chunk.content === 'string' ? JSON.parse(chunk.content) : chunk.content;
+              if (Array.isArray(parsed)) {
+                const firstTag = parsed.find((item: any) => item.tag && item.tag.trim() !== '');
+                if (firstTag && firstTag.tag) heading = firstTag.tag;
+              }
+            } catch {}
+            chunks.push({
+              name: heading || `Chunk ${idx + 1}`,
+              content: typeof chunk.content === 'string' ? chunk.content : JSON.stringify(chunk.content),
+              source: sources.find((s) => s.id === sid)?.name || '',
+              tags: chunk.tags || [],
+              content_source_id: sid,
+            });
+            majorSelected.add(key);
+          }
+        } else if (/^\d+-\d+$/.test(key)) {
+          // Minor chunk selected
+          const [majorIdx, minorIdx] = key.split('-').map(Number);
+          // If the major chunk is also selected, skip this minor to avoid duplicate
+          if (majorSelected.has(String(majorIdx))) return;
+          const majorChunk = chunkArr[majorIdx];
+          if (majorChunk && Array.isArray(majorChunk.content)) {
+            const minor = majorChunk.content[minorIdx];
+            if (minor) {
+              chunks.push({
+                name: minor.tag || minor.title || minor.name || `Minor Chunk ${minorIdx + 1}`,
+                content: minor.content ? (typeof minor.content === 'string' ? minor.content : JSON.stringify(minor.content)) : '',
+                source: sources.find((s) => s.id === sid)?.name || '',
+                tags: minor.tags || [],
+                content_source_id: sid,
+              });
+            }
+          }
+        }
+      });
     });
-    // Save to workspace
+    // Debug: log chunks
+    console.log('chunks to save:', chunks);
+    if (chunks.length === 0) {
+      toast.error('No chunks selected to save');
+      return;
+    }
     try {
-      await createSections(parseInt(workspace.id), selectedSourceForChunks.name, sections);
-      // Reset modal state
-      setSelectedSourceForChunks(null);
-      setSourceChunks([]);
-      setSelectedChunks([]);
+      await createSections(parseInt(workspace.id), 'Imported Content', chunks);
       setIsAddContentModalOpen(false);
-      // Optionally, show a toast or reload workspace sections
+      setSelectedChunks({});
+      setSourceChunks({});
+      setSelectingSourceId(null);
+      setSources([]);
+      setSections((prev) => [...prev, ...chunks]);
+      toast.success('Content added to workspace');
     } catch (err) {
-      // Optionally, show error toast
+      toast.error('Failed to save content to workspace');
+      console.error('Save to workspace error:', err);
     }
   };
 
@@ -418,11 +498,9 @@ const WorkspaceView: React.FC = () => {
       {/* Add Content Modal */}
       {isAddContentModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-3xl mx-4 max-h-[80vh] overflow-y-auto">
+          <div className="bg-white rounded-xl p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-semibold text-black">
-                Add Content from Existing Sources
-              </h3>
+              <h3 className="text-xl font-semibold text-black">Add Content from Existing Sources</h3>
               <button
                 onClick={() => setIsAddContentModalOpen(false)}
                 className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
@@ -446,119 +524,213 @@ const WorkspaceView: React.FC = () => {
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
               </div>
-            ) : filteredSources.length === 0 ? (
+            ) : sources.length === 0 ? (
               <div className="text-center py-12">
                 <FiFile className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No content sources found</h3>
                 <p className="text-gray-500 mb-4">You haven't uploaded any content sources yet.</p>
               </div>
             ) : (
-              <div className="max-h-96 overflow-y-auto space-y-2">
-                {filteredSources.map((source) => (
-                  <div
-                    key={source.id}
-                    className={`p-3 border rounded-lg flex items-center justify-between transition-all ${
-                      selectedSourceForChunks && selectedSourceForChunks.id === source.id
-                        ? 'border-primary bg-primary/5'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      {source.type === 'pdf' && <FiFile className="w-4 h-4 text-red-500" />}
-                      {source.type === 'docx' && <FiFile className="w-4 h-4 text-blue-500" />}
-                      {source.type === 'web' && <FiGlobe className="w-4 h-4 text-green-500" />}
-                      {!['pdf', 'docx', 'web'].includes(source.type) && (
-                        <FiFile className="w-4 h-4 text-gray-500" />
-                      )}
-                      <div>
-                        <h4 className="font-medium text-black">{source.name}</h4>
-                        <p className="text-sm text-gray-500">
-                          {source.type.toUpperCase()} •{' '}
-                          {source.created_at
-                            ? new Date(source.created_at).toLocaleDateString()
-                            : ''}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      className="ml-4 p-2 rounded-full bg-primary/10 hover:bg-primary/20 text-primary"
-                      title="Add"
-                      onClick={() => handleAddSource(source)}
+              <div className="space-y-3">
+                {sources
+                  .filter(
+                    (source) =>
+                      source.name.toLowerCase() !== 'imported content' &&
+                      source.type.toLowerCase() !== 'docx' &&
+                      (source.name.toLowerCase().includes(sourceSearch.toLowerCase()) ||
+                        source.type.toLowerCase().includes(sourceSearch.toLowerCase()))
+                  )
+                  .map((source) => (
+                    <div
+                      key={source.id}
+                      className="border border-gray-200 rounded-xl p-4 bg-white hover:shadow-lg transition-all duration-200 flex items-center justify-between"
                     >
-                      <FiPlus className="w-5 h-5" />
-                    </button>
-                  </div>
-                ))}
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                          <FiFileText className="w-5 h-5 text-green-600" />
+                        </div>
+                        <div>
+                          <button
+                            type="button"
+                            className="font-semibold text-gray-900 hover:text-blue-600 transition-colors text-left"
+                            onClick={() => {
+                              setSelectingSourceId(source.id);
+                              fetchChunksForSource(source.id);
+                            }}
+                          >
+                            {source.name}
+                          </button>
+                          <p className="text-xs text-gray-500 mt-1">{source.type}</p>
+                        </div>
+                      </div>
+                      {selectedChunks[source.id] && selectedChunks[source.id].size > 0 && (
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-sm text-green-700 font-medium">
+                            {selectedChunks[source.id].size} chunk(s) selected
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
               </div>
             )}
-            {/* Chunks display for selected source */}
-            {selectedSourceForChunks && (
-              <div className="mt-8">
-                <h4 className="text-lg font-semibold mb-4">
-                  Select Chunks from: {selectedSourceForChunks.name}
-                </h4>
-                {chunksLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <FiLoader className="w-8 h-8 animate-spin text-primary mx-auto mb-2" />
-                    <span className="ml-2 text-gray-500">Loading chunks...</span>
+            {/* Selected Chunks Summary */}
+            {Object.keys(selectedChunks).length > 0 && (
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-6 border border-blue-200 mt-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <FiCheck className="w-4 h-4 text-blue-600" />
                   </div>
-                ) : sourceChunks.length === 0 ? (
-                  <div className="text-gray-500">No chunks found for this source.</div>
-                ) : (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {sourceChunks.map((chunk, idx) => (
-                      <div
-                        key={idx}
-                        className={`p-3 border rounded-lg flex items-center justify-between cursor-pointer transition-all ${
-                          selectedChunks.includes(idx)
-                            ? 'border-primary bg-primary/10'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                        onClick={() => handleToggleChunk(idx)}
-                      >
-                        <div className="flex-1">
-                          <div className="font-medium text-black">
-                            {chunk.label || chunk.content.substring(0, 50) + '...'}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {chunk.page && `Page ${chunk.page} • `}
-                            {chunk.section_type && `${chunk.section_type}`}
-                          </div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Selected Chunks Summary
+                  </h3>
+                </div>
+                <div className="space-y-4">
+                  {Object.entries(selectedChunks).map(([sourceId, idxSet]) => {
+                    const sid = Number(sourceId);
+                    const chunkArr = sourceChunks[sid] || [];
+                    const source = sources.find((s) => s.id === sid);
+                    return (
+                      <div key={sid} className="bg-white rounded-xl p-4 border border-blue-200">
+                        <div className="font-semibold text-blue-900 mb-3 flex items-center space-x-2">
+                          <FiFileText className="w-4 h-4" />
+                          <span>{source?.name || source?.title || 'Untitled Section'}</span>
                         </div>
-                        <input
-                          type="checkbox"
-                          checked={selectedChunks.includes(idx)}
-                          onChange={() => handleToggleChunk(idx)}
-                          className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary ml-4"
-                          onClick={(e) => e.stopPropagation()}
-                        />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {[...idxSet].map((idx) => {
+                            const chunk = chunkArr[Number(idx)];
+                            if (!chunk) return null;
+                            // Find the first non-empty tag in chunk.content
+                            let chunkTitle = '';
+                            if (Array.isArray(chunk.content)) {
+                              const firstTag = chunk.content.find(
+                                (item: any) => item.tag && item.tag.trim() !== '',
+                              );
+                              if (firstTag) chunkTitle = firstTag.tag;
+                            }
+                            if (!chunkTitle)
+                              chunkTitle = (chunk as any).name || (chunk as any).title || 'Untitled Chunk';
+                            return (
+                              <div
+                                key={`${sourceId}-${idx}`}
+                                className="flex items-center space-x-2 p-2 bg-blue-50 rounded-lg"
+                              >
+                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                <span className="text-sm text-blue-800 font-medium">
+                                  {chunkTitle}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-                <div className="flex justify-end mt-6">
-                  <button
-                    onClick={handleSaveChunksToWorkspace}
-                    disabled={selectedChunks.length === 0}
-                    className={`py-2 px-6 rounded-lg font-semibold transition-colors ml-2 ${
-                      selectedChunks.length > 0
-                        ? 'bg-primary text-white hover:bg-primary/90'
-                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                    }`}
-                  >
-                    Save to Workspace
-                  </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
-            <div className="flex justify-end mt-6">
+            {/* Action Buttons */}
+            <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200 sticky bottom-0 bg-white z-10">
               <button
+                type="button"
                 onClick={() => setIsAddContentModalOpen(false)}
-                className="py-2 px-6 rounded-lg border border-gray-300 text-neutral-700 hover:bg-gray-50 transition-colors"
+                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-200 shadow-sm hover:shadow-md"
               >
-                Close
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!workspace) return;
+                  // Prepare content selection payload
+                  const chunks: any[] = [];
+                  Object.entries(selectedChunks).forEach(([sourceId, idxSet]) => {
+                    const sid = Number(sourceId);
+                    const chunkArr = sourceChunks[sid] || [];
+                    // Track which major chunks are fully selected to avoid duplicate minors
+                    const majorSelected = new Set<string>();
+                    idxSet.forEach((key) => {
+                      if (/^\d+$/.test(key)) {
+                        // Major chunk selected
+                        const idx = Number(key);
+                        const chunk = chunkArr[idx];
+                        if (chunk) {
+                          let heading = chunk.name || chunk.title || '';
+                          try {
+                            const parsed = typeof chunk.content === 'string' ? JSON.parse(chunk.content) : chunk.content;
+                            if (Array.isArray(parsed)) {
+                              const firstTag = parsed.find((item: any) => item.tag && item.tag.trim() !== '');
+                              if (firstTag && firstTag.tag) heading = firstTag.tag;
+                            }
+                          } catch {}
+                          chunks.push({
+                            name: heading || `Chunk ${idx + 1}`,
+                            content: typeof chunk.content === 'string' ? chunk.content : JSON.stringify(chunk.content),
+                            source: sources.find((s) => s.id === sid)?.name || '',
+                            tags: chunk.tags || [],
+                            content_source_id: sid,
+                          });
+                          majorSelected.add(key);
+                        }
+                      } else if (/^\d+-\d+$/.test(key)) {
+                        // Minor chunk selected
+                        const [majorIdx, minorIdx] = key.split('-').map(Number);
+                        // If the major chunk is also selected, skip this minor to avoid duplicate
+                        if (majorSelected.has(String(majorIdx))) return;
+                        const majorChunk = chunkArr[majorIdx];
+                        if (majorChunk && Array.isArray(majorChunk.content)) {
+                          const minor = majorChunk.content[minorIdx];
+                          if (minor) {
+                            chunks.push({
+                              name: minor.tag || minor.title || minor.name || `Minor Chunk ${minorIdx + 1}`,
+                              content: minor.content ? (typeof minor.content === 'string' ? minor.content : JSON.stringify(minor.content)) : '',
+                              source: sources.find((s) => s.id === sid)?.name || '',
+                              tags: minor.tags || [],
+                              content_source_id: sid,
+                            });
+                          }
+                        }
+                      }
+                    });
+                  });
+                  if (chunks.length === 0) return;
+                  try {
+                    await createSections(parseInt(workspace.id), 'Imported Content', chunks);
+                    setIsAddContentModalOpen(false);
+                    setSelectedChunks({});
+                    setSourceChunks({});
+                    setSelectingSourceId(null);
+                    setSources([]);
+                    setSections((prev) => [...prev, ...chunks]);
+                    // Optionally, show a toast
+                  } catch (err) {
+                    // Optionally, show error toast
+                  }
+                }}
+                disabled={Object.values(selectedChunks).every((set) => set.size === 0)}
+                className={`px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-medium hover:from-blue-700 hover:to-blue-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 shadow-lg hover:shadow-xl`}
+              >
+                Save to Workspace
               </button>
             </div>
+            {/* Chunk selection modal */}
+            {selectingSourceId !== null && sourceChunks[selectingSourceId] && (
+              <SelectChunksModal
+                source={sources.find((s) => s.id === selectingSourceId)}
+                chunks={sourceChunks[selectingSourceId as number] || []}
+                fetchChunks={fetchChunksForSource}
+                selected={selectedChunks[selectingSourceId as number] || new Set()}
+                onSave={(selectedSet: Set<string>) => {
+                  setSelectedChunks((prev) => ({
+                    ...prev,
+                    [selectingSourceId as number]: selectedSet,
+                  }));
+                  setSelectingSourceId(null);
+                }}
+                onClose={() => setSelectingSourceId(null)}
+              />
+            )}
           </div>
         </div>
       )}
@@ -820,23 +992,7 @@ const WorkspaceView: React.FC = () => {
                             <FiEye className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={async () => {
-                              if (window.confirm('Are you sure you want to delete this content chunk?')) {
-                                try {
-                                  await fetch(`${API.BASE_URL()}/api/sections/hard/${section.id}`, {
-                                    method: 'DELETE',
-                                    headers: {
-                                      'Content-Type': 'application/json',
-                                      Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
-                                    },
-                                  });
-                                  setSections((prev) => prev.filter((s) => s.id !== section.id));
-                                  setAllSections((prev) => prev.filter((s) => s.id !== section.id));
-                                } catch (err) {
-                                  alert('Failed to delete section.');
-                                }
-                              }
-                            }}
+                            onClick={() => setDeleteTarget({ id: section.id, name: section.name || 'Content Chunk', type: 'section' })}
                             className="p-1 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-red-100 rounded"
                             title="Delete content chunk"
                           >
