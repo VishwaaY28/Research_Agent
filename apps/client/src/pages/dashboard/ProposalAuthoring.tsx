@@ -48,6 +48,7 @@ const ProposalAuthoring: React.FC = () => {
   const [userPrompt, setUserPrompt] = useState('');
   const [selectedSections, setSelectedSections] = useState<number[]>([]);
   const [generatedContent, setGeneratedContent] = useState<string>('');
+  const [tokenInfo, setTokenInfo] = useState<{ context_tokens: number; response_tokens: number } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showWorkspaceDropdown, setShowWorkspaceDropdown] = useState(false);
@@ -386,18 +387,22 @@ const ProposalAuthoring: React.FC = () => {
 
     setIsGenerating(true);
     try {
-      let content;
+      let result;
       if (selectedSections.length > 0) {
         // If chunks/sections are selected, use them as context
-        content = await generateContent(selectedWorkspace, combinedPrompt, selectedSections);
+        result = await generateContent(selectedWorkspace, combinedPrompt, selectedSections);
       } else {
         // If no chunks selected, use the section name and workspace type as a heading
         const sectionHeading = selectedSectionName
           ? `Section: ${selectedSectionName} (Type: ${selectedWorkspaceObj.workspace_type || 'Proposal'})\n\n`
           : '';
-        content = await generateContent(selectedWorkspace, sectionHeading + combinedPrompt, []);
+        result = await generateContent(selectedWorkspace, sectionHeading + combinedPrompt, []);
       }
-      setGeneratedContent(content);
+      setGeneratedContent(result.content);
+      setTokenInfo({
+        context_tokens: result.context_tokens,
+        response_tokens: result.response_tokens
+      });
       toast.success('Content generated successfully!');
     } catch (error) {
       toast.error('Failed to generate content');
@@ -434,6 +439,7 @@ const ProposalAuthoring: React.FC = () => {
 
   const handleRetry = () => {
     setGeneratedContent('');
+    setTokenInfo(null);
     handleGenerate();
   };
 
@@ -446,6 +452,16 @@ const ProposalAuthoring: React.FC = () => {
 
   const handleRemoveTag = (tagToRemove: string) => {
     setTags(tags.filter((tag) => tag !== tagToRemove));
+  };
+
+  // Calculate token count for selected sections
+  const calculateSelectedTokens = () => {
+    if (!workspaceContent) return 0;
+    const selected = workspaceContent.sections.filter(section =>
+      selectedSections.includes(section.id)
+    );
+    const totalChars = selected.reduce((sum, section) => sum + (section.content?.length || 0), 0);
+    return Math.ceil(totalChars / 4); // Rough estimation: 1 token ≈ 4 characters
   };
 
   const copyToClipboard = async (text: string) => {
@@ -511,9 +527,10 @@ const ProposalAuthoring: React.FC = () => {
         )
         .join('\n');
     } else if (viewingSection.content && typeof viewingSection.content === 'object') {
+      const contentObj = viewingSection.content as any;
       contentString =
-        (typeof viewingSection.content.text === 'string' && viewingSection.content.text) ||
-        (typeof viewingSection.content.content === 'string' && viewingSection.content.content) ||
+        (typeof contentObj.text === 'string' && contentObj.text) ||
+        (typeof contentObj.content === 'string' && contentObj.content) ||
         JSON.stringify(viewingSection.content);
     }
     return (
@@ -680,26 +697,33 @@ const ProposalAuthoring: React.FC = () => {
               <div className="mb-4">
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                   <h3 className="text-base font-semibold text-gray-900 mb-2">Context</h3>
-                  <div className="flex items-center mb-2">
-                    <input
-                      type="checkbox"
-                      id="select-all-context-sections"
-                      checked={selectedSections.length === workspaceContent.sections.length && workspaceContent.sections.length > 0}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedSections(workspaceContent.sections.map((section) => section.id));
-                        } else {
-                          setSelectedSections([]);
-                        }
-                      }}
-                      className="mr-2"
-                    />
-                    <label
-                      htmlFor="select-all-context-sections"
-                      className="text-sm font-medium text-gray-700 cursor-pointer"
-                    >
-                      Select All
-                    </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="select-all-context-sections"
+                        checked={selectedSections.length === workspaceContent.sections.length && workspaceContent.sections.length > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedSections(workspaceContent.sections.map((section) => section.id));
+                          } else {
+                            setSelectedSections([]);
+                          }
+                        }}
+                        className="mr-2"
+                      />
+                      <label
+                        htmlFor="select-all-context-sections"
+                        className="text-sm font-medium text-gray-700 cursor-pointer"
+                      >
+                        Select All
+                      </label>
+                    </div>
+                    {selectedSections.length > 0 && (
+                      <div className="text-xs text-blue-600 font-medium">
+                        ~{calculateSelectedTokens().toLocaleString()} tokens
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
                     {workspaceContent.sections.map((section: Section, idx: number) => {
@@ -858,7 +882,14 @@ const ProposalAuthoring: React.FC = () => {
                   <FiFileText className="w-5 h-5 text-green-600" />
                 </div>
                 <div className="bg-white rounded-xl p-4 shadow border border-gray-100 max-w-2xl">
-                  <div className="text-gray-900 font-medium mb-1">AI Response</div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-gray-900 font-medium">AI Response</div>
+                    {tokenInfo && (
+                      <div className="text-xs text-blue-600 font-medium">
+                        {tokenInfo.response_tokens.toLocaleString()} tokens
+                      </div>
+                    )}
+                  </div>
                   <div className="prose prose-gray max-w-none">
                     <ReactMarkdown>{generatedContent}</ReactMarkdown>
                   </div>

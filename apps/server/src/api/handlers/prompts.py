@@ -78,7 +78,7 @@ async def generate_content(workspace_id: int, request: GenerateContentRequest):
             client = ollama_client
             provider = "Ollama"
 
-        generated_text = await client.generate_content(
+        result = await client.generate_content(
             prompt=request.prompt,
             context_sections=context_sections,
             section_name=request.section_name or "Generated Content"
@@ -86,7 +86,9 @@ async def generate_content(workspace_id: int, request: GenerateContentRequest):
 
         return JSONResponse({
             "success": True,
-            "generated_content": generated_text,
+            "generated_content": result["content"],
+            "context_tokens": result["context_tokens"],
+            "response_tokens": result["response_tokens"],
             "provider": provider
         })
     except Exception as e:
