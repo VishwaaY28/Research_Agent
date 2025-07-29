@@ -65,6 +65,10 @@ const WorkspaceView: React.FC = () => {
   const [sectionTemplatesLoading, setSectionTemplatesLoading] = useState(false);
   const [workspaceTypeName, setWorkspaceTypeName] = useState<string | null>(null);
 const [deleteTarget, setDeleteTarget] = useState<null | { id: string | number; name: string; type: 'section'; closeModal?: () => void }>(null);  
+  const [isAddSectionModalOpen, setIsAddSectionModalOpen] = useState(false);
+  const [newSectionName, setNewSectionName] = useState('');
+  const [newSectionPrompt, setNewSectionPrompt] = useState('');
+  const [addingSection, setAddingSection] = useState(false);
 
   const { createSections } = useSections();
 
@@ -457,6 +461,82 @@ const [deleteTarget, setDeleteTarget] = useState<null | { id: string | number; n
       setSectionPrompts((prev) => ({ ...prev, [sectionId]: [] }));
     } finally {
       setPromptsLoading(false);
+    }
+  };
+
+  const handleAddSection = async () => {
+    if (!newSectionName.trim()) {
+      toast.error('Section name is required');
+      return;
+    }
+
+    if (!workspace?.workspaceType) {
+      toast.error('Workspace type not found');
+      return;
+    }
+
+    setAddingSection(true);
+    try {
+      // 1. Create the section template
+      const sectionResponse = await fetch(
+        `${API.BASE_URL()}/api/prompt-templates/types/${workspace.workspaceType}/sections`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
+          },
+          body: JSON.stringify({
+            name: newSectionName.trim(),
+            order: sectionTemplates.length
+          }),
+        },
+      );
+
+      if (!sectionResponse.ok) {
+        const error = await sectionResponse.text();
+        toast.error(error || 'Failed to create section');
+        return;
+      }
+
+      const sectionData = await sectionResponse.json();
+      const sectionId = sectionData.id;
+
+      // 2. Create the prompt for the section
+      const promptResponse = await fetch(
+        `${API.BASE_URL()}/api/prompt-templates/sections/${sectionId}/prompts`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
+          },
+          body: JSON.stringify({
+            prompt: newSectionPrompt.trim() || 'Provide content for this section.',
+            is_default: true
+          }),
+        },
+      );
+
+      if (!promptResponse.ok) {
+        const error = await promptResponse.text();
+        toast.error(error || 'Failed to create prompt');
+        return;
+      }
+
+      // 3. Refresh the section templates list
+      await fetchSectionTemplates(workspace.workspaceType);
+
+      // 4. Reset form and close modal
+      setNewSectionName('');
+      setNewSectionPrompt('');
+      setIsAddSectionModalOpen(false);
+      toast.success('Section added successfully!');
+    } catch (error) {
+      console.error('Error adding section:', error);
+      toast.error('Failed to add section');
+    } finally {
+      setAddingSection(false);
     }
   };
 
@@ -1043,7 +1123,16 @@ const [deleteTarget, setDeleteTarget] = useState<null | { id: string | number; n
             <div className="flex gap-6 min-h-[400px]">
               {/* Left: Section List */}
               <div className="w-64 bg-gray-50 border rounded-lg p-3 flex-shrink-0 overflow-y-auto max-h-[500px]">
-                <h3 className="text-base font-semibold mb-3 text-gray-700">Sections</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-base font-semibold text-gray-700">Sections</h3>
+                  <button
+                    onClick={() => setIsAddSectionModalOpen(true)}
+                    className="p-1 text-gray-400 hover:text-primary transition-colors"
+                    title="Add new section"
+                  >
+                    <FiPlus className="w-4 h-4" />
+                  </button>
+                </div>
                 {sectionTemplatesLoading ? (
                   <div className="text-gray-500 text-sm">Loading...</div>
                 ) : sectionTemplates.length === 0 ? (
@@ -1235,6 +1324,89 @@ const [deleteTarget, setDeleteTarget] = useState<null | { id: string | number; n
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Section Modal */}
+      {isAddSectionModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-black">Add New Section</h3>
+              <button
+                onClick={() => {
+                  setIsAddSectionModalOpen(false);
+                  setNewSectionName('');
+                  setNewSectionPrompt('');
+                }}
+                className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="sectionName" className="block text-sm font-medium text-gray-700 mb-2">
+                  Section Name *
+                </label>
+                <input
+                  id="sectionName"
+                  type="text"
+                  value={newSectionName}
+                  onChange={(e) => setNewSectionName(e.target.value)}
+                  placeholder="Enter section name..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="sectionPrompt" className="block text-sm font-medium text-gray-700 mb-2">
+                  Default Prompt
+                </label>
+                <textarea
+                  id="sectionPrompt"
+                  value={newSectionPrompt}
+                  onChange={(e) => setNewSectionPrompt(e.target.value)}
+                  placeholder="Enter default prompt for this section (optional)..."
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddSectionModalOpen(false);
+                  setNewSectionName('');
+                  setNewSectionPrompt('');
+                }}
+                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAddSection}
+                disabled={addingSection || !newSectionName.trim()}
+                className={`px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-medium hover:from-blue-700 hover:to-blue-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2`}
+              >
+                {addingSection ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Adding...</span>
+                  </>
+                ) : (
+                  <>
+                    <FiPlus className="w-4 h-4" />
+                    <span>Add Section</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
