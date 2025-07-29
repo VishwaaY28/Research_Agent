@@ -367,59 +367,12 @@ const PromptTemplatePage: React.FC = () => {
                 )}
                 <button
                   className="px-4 py-1 bg-primary text-white rounded-full font-medium hover:bg-primary/90 transition-colors text-sm ml-2"
-                  onClick={() => setShowAddSectionModal((prev) => !prev)}
+                  onClick={() => setShowAddSectionModal(true)}
                   type="button"
                 >
                   + Add Section
                 </button>
               </div>
-
-              {/* Inline Add Section Form */}
-              {showAddSectionModal && (
-                <form
-                  className="w-full max-w-md bg-white border border-gray-200 rounded-lg shadow-lg p-6 mt-4 flex flex-col gap-4"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleAddSection();
-                  }}
-                >
-                  <h2 className="text-xl font-bold mb-2">Add Section</h2>
-                  <input
-                    type="text"
-                    className="w-full border rounded p-2 mb-2"
-                    placeholder="Section name..."
-                    value={newSectionName}
-                    onChange={(e) => setNewSectionName(e.target.value)}
-                  />
-                  <textarea
-                    className="w-full border rounded p-2 mb-2"
-                    placeholder="Prompt for this section..."
-                    value={newSectionPrompt}
-                    onChange={(e) => setNewSectionPrompt(e.target.value)}
-                    rows={4}
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
-                      onClick={() => {
-                        setShowAddSectionModal(false);
-                        setNewSectionName('');
-                        setNewSectionPrompt('');
-                      }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 rounded bg-primary text-white hover:bg-primary/90"
-                      disabled={!newSectionName.trim() || !newSectionPrompt.trim()}
-                    >
-                      Add
-                    </button>
-                  </div>
-                </form>
-              )}
             </div>
           )}
 
@@ -472,7 +425,7 @@ const PromptTemplatePage: React.FC = () => {
         </div>
 
         {/* Add Workspace Type Modal */}
-        {showAddTypeModal && !showAddSectionModal && (
+        {showAddTypeModal && (
           <ReactModal
             isOpen={showAddTypeModal}
             onRequestClose={() => setShowAddTypeModal(false)}
@@ -506,6 +459,63 @@ const PromptTemplatePage: React.FC = () => {
                   disabled={!newTypeName.trim()}
                 >
                   Add
+                </button>
+              </div>
+            </div>
+          </ReactModal>
+        )}
+
+        {/* Add Section Modal */}
+        {showAddSectionModal && (
+          <ReactModal
+            isOpen={showAddSectionModal}
+            onRequestClose={() => setShowAddSectionModal(false)}
+            contentLabel="Add Section"
+            ariaHideApp={false}
+            className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-30"
+            overlayClassName=""
+          >
+            <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
+              <h2 className="text-xl font-bold mb-4">Add Section to {selectedType?.name}</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Section Name</label>
+                  <input
+                    type="text"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                    placeholder="Enter section name..."
+                    value={newSectionName}
+                    onChange={(e) => setNewSectionName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Prompt Template</label>
+                  <textarea
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary"
+                    placeholder="Enter the prompt template for this section..."
+                    value={newSectionPrompt}
+                    onChange={(e) => setNewSectionPrompt(e.target.value)}
+                    rows={6}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors"
+                  onClick={() => {
+                    setShowAddSectionModal(false);
+                    setNewSectionName('');
+                    setNewSectionPrompt('');
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors"
+                  onClick={handleAddSection}
+                  disabled={!newSectionName.trim() || !newSectionPrompt.trim()}
+                >
+                  Add Section
                 </button>
               </div>
             </div>
