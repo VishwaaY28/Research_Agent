@@ -175,6 +175,7 @@ export function useWorkspace() {
       name: ws.name,
       clientName: ws.client,
       tags: data.tags,
+      workspace_type: ws.workspace_type, // Use the workspace type name from backend
       createdAt: new Date().toISOString().split('T')[0],
     };
     setWorkspaces((prev) => [...prev, newWorkspace]);
