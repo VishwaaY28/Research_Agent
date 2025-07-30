@@ -64,142 +64,177 @@ const ProposalAuthoring: React.FC = () => {
   const [sectionTemplatesLoading, setSectionTemplatesLoading] = useState(false);
   const [workspaceTypes, setWorkspaceTypes] = useState<{ id: number; name: string }[]>([]);
 
-  // Add static section lists for each workspace type
-  // REMOVE all static WORKSPACE_SECTIONS and WORKSPACE_SECTION_PROMPTS
-
-  // Prefer workspace name from navigation state if available
   const workspaceNameFromState = location.state?.workspaceName;
 
   // Compute selectedWorkspaceObj after all hooks and state
   let selectedWorkspaceObj: Workspace | { workspace_type: string; name: string };
   const foundWorkspace = workspaces.find((w) => w.id === selectedWorkspace);
+  
+  console.log('🔍 Computing selectedWorkspaceObj:');
+  console.log('  - selectedWorkspace:', selectedWorkspace);
+  console.log('  - workspaces count:', workspaces.length);
+  console.log('  - foundWorkspace:', foundWorkspace);
+  console.log('  - fallbackWorkspace:', fallbackWorkspace);
+  console.log('  - workspaceNameFromState:', workspaceNameFromState);
+  console.log('  - location.state:', location.state);
+  
   if (foundWorkspace) {
     selectedWorkspaceObj = foundWorkspace;
+    console.log('🔍 Using foundWorkspace:', foundWorkspace);
   } else if (fallbackWorkspace) {
     selectedWorkspaceObj = fallbackWorkspace;
+    console.log('🔍 Using fallbackWorkspace:', fallbackWorkspace);
   } else {
+    // Use navigation state workspace type if available
+    const workspaceTypeFromState = location.state?.workspaceTypeId || location.state?.workspaceType || '';
     selectedWorkspaceObj = {
-      workspace_type: '',
+      workspace_type: workspaceTypeFromState,
       name: workspaceNameFromState || 'Workspace',
     };
+    console.log('🔍 Using default workspace object with state type:', selectedWorkspaceObj);
   }
 
-  // Fetch all workspace types on mount
+  // Fetch workspace types
   useEffect(() => {
-    fetch(`${API.BASE_URL()}/api/prompt-templates/types`, {
-      headers: {
-        Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
-      },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) setWorkspaceTypes(data);
-        else if (Array.isArray(data.workspace_types)) setWorkspaceTypes(data.workspace_types);
-        else setWorkspaceTypes([]);
-      })
-      .catch(() => setWorkspaceTypes([]));
+    async function fetchWorkspaceTypes() {
+      console.log('🔍 Fetching workspace types...');
+      try {
+        const res = await fetch(`${API.BASE_URL()}/api/prompt-templates/types`, {
+          headers: {
+            Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
+          },
+        });
+        if (!res.ok) {
+          console.error('❌ Failed to fetch workspace types:', res.status);
+          return;
+        }
+        const data = await res.json();
+        console.log('✅ Fetched workspace types:', data);
+        setWorkspaceTypes(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error('❌ Error fetching workspace types:', error);
+        setWorkspaceTypes([]);
+      }
+    }
+    fetchWorkspaceTypes();
   }, []);
 
   // Fetch section templates for the workspace type (by ID)
   useEffect(() => {
     async function fetchTemplates() {
-      let wsTypeId = selectedWorkspaceObj?.workspace_type;
-      console.log('Debug: selectedWorkspaceObj:', selectedWorkspaceObj);
-      console.log('Debug: workspaceType:', wsTypeId);
+      console.log('🔍 fetchTemplates called with:');
+      console.log('  - selectedWorkspaceObj:', selectedWorkspaceObj);
+      console.log('  - workspaceTypes:', workspaceTypes);
+      console.log('  - location.state:', location.state);
       
+      // Wait for workspace types to be loaded
+      if (workspaceTypes.length === 0) {
+        console.log('⏳ Waiting for workspace types to load...');
+        return;
+      }
+
+      let wsTypeId: string | null = null;
+      
+      // Priority 1: Use navigation state workspace type ID (most reliable for new workspaces)
+      if (location.state?.workspaceTypeId) {
+        wsTypeId = location.state.workspaceTypeId;
+        console.log('🔍 Using workspace type ID from navigation state:', wsTypeId);
+      }
+      // Priority 2: Use selectedWorkspaceObj workspace type (now returns ID from backend)
+      else if (selectedWorkspaceObj?.workspace_type) {
+        wsTypeId = String(selectedWorkspaceObj.workspace_type);
+        console.log('🔍 Using workspace type ID from selectedWorkspaceObj:', wsTypeId);
+      }
+      // Priority 3: Use navigation state workspace type name
+      else if (location.state?.workspaceType) {
+        const found = workspaceTypes.find((t) => t.name === location.state.workspaceType);
+        wsTypeId = found ? String(found.id) : null;
+        console.log('🔍 Using workspace type name from navigation state:', location.state.workspaceType, '-> ID:', wsTypeId);
+      }
+
+      // If workspace_type is a name (string), look up the ID from workspaceTypes
       if (wsTypeId && isNaN(Number(wsTypeId))) {
-        // If it's a name, look up the ID
+        console.log('🔍 wsTypeId is a name, looking up ID...');
         const found = workspaceTypes.find((t) => t.name === wsTypeId);
-        wsTypeId = found ? String(found.id) : undefined;
-        console.log('Debug: found workspace type by name:', found);
+        wsTypeId = found ? String(found.id) : null;
+        console.log('🔍 Found workspace type by name:', found);
+        console.log('🔍 New wsTypeId:', wsTypeId);
       }
-      
-      // If we still don't have a valid workspace type ID, try to get it from the workspace name
+
+      // If we still don't have a valid workspace type ID, try to infer from workspace name
       if (!wsTypeId && selectedWorkspaceObj?.name) {
+        console.log('🔍 Trying to infer from workspace name...');
         const workspaceName = selectedWorkspaceObj.name.toLowerCase();
-        if (workspaceName.includes('proposal')) {
-          wsTypeId = '1'; // Default to Proposal type
-        } else if (workspaceName.includes('blog')) {
-          wsTypeId = '2'; // Default to Blog type
-        } else {
-          wsTypeId = '1'; // Default to Proposal type
+        // Look for exact matches first
+        const exactMatch = workspaceTypes.find(t =>
+          workspaceName.includes(t.name.toLowerCase())
+        );
+        if (exactMatch) {
+          wsTypeId = String(exactMatch.id);
+          console.log('🔍 Found exact workspace type match:', exactMatch);
         }
-        console.log('Debug: inferred workspace type ID:', wsTypeId);
+        console.log('🔍 Inferred workspace type ID:', wsTypeId);
       }
-      
-      // If we still don't have a workspace type ID, create default sections
+
+      // If we still don't have a workspace type ID, use the first available type
+      if (!wsTypeId && workspaceTypes.length > 0) {
+        wsTypeId = String(workspaceTypes[0].id);
+        console.log('🔍 Using first available workspace type:', wsTypeId);
+      }
+
+      console.log('🔍 Final wsTypeId:', wsTypeId);
+
+      // Only proceed if we have a valid workspace type ID
       if (!wsTypeId) {
-        console.log('Debug: no workspace type found, using default sections');
-        const defaultSections = [
-          { id: 1, name: 'Executive Summary', order: 0, prompt: 'Provide a concise summary of the proposal, highlighting the business context, objectives, and value proposition.' },
-          { id: 2, name: 'Problem Statement', order: 1, prompt: 'Explain the core business challenges the client is facing and why addressing them is critical.' },
-          { id: 3, name: 'Proposed Solution', order: 2, prompt: 'Describe the proposed solution in detail, including key features, components, and how it addresses the client\'s needs.' },
-          { id: 4, name: 'Scope of Work', order: 3, prompt: 'Outline the specific deliverables, services, and responsibilities covered under this proposal.' },
-          { id: 5, name: 'Project Approach and Methodology', order: 4, prompt: 'Describe the overall approach, phases, and methodology that will be used to execute the project.' },
-          { id: 6, name: 'Project Plan and Timeline', order: 5, prompt: 'Provide a high-level timeline with major milestones and estimated completion dates for key phases.' },
-          { id: 7, name: 'Team Composition and Roles', order: 6, prompt: 'List the proposed team members, their roles, responsibilities, and relevant experience.' }
-        ];
-        setSectionTemplates(defaultSections);
+        console.log('❌ No workspace type ID found, cannot fetch sections');
+        setSectionTemplates([]);
         setSectionTemplatesLoading(false);
         return;
       }
-      
-      console.log('Debug: final wsTypeId:', wsTypeId);
-      
-      if (!wsTypeId) {
-        setSectionTemplates([]);
-        return;
-      }
+
+      console.log('🔍 Making API call to fetch sections...');
       setSectionTemplatesLoading(true);
       try {
-        const res = await fetch(
-          `${API.BASE_URL()}/api/prompt-templates/types/${String(wsTypeId)}/sections`,
-          {
-            headers: {
-              Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
-            },
+        const apiUrl = `${API.BASE_URL()}/api/prompt-templates/types/${String(wsTypeId)}/sections`;
+        console.log('🔍 API URL:', apiUrl);
+        
+        const res = await fetch(apiUrl, {
+          headers: {
+            Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
           },
-        );
-        console.log('Debug: API response status:', res.status);
+        });
+        console.log('🔍 API response status:', res.status);
+        console.log('🔍 API response headers:', res.headers);
+        
         if (!res.ok) {
           const errorText = await res.text();
-          console.error('Debug: API error response:', errorText);
+          console.error('❌ API error response:', errorText);
           throw new Error(`Failed to fetch section templates: ${res.status} ${errorText}`);
         }
+        
         const data = await res.json();
-        console.log('Debug: fetched section templates:', data);
+        console.log('✅ Fetched section templates:', data);
+        console.log('✅ Number of sections:', Array.isArray(data) ? data.length : 'Not an array');
         setSectionTemplates(Array.isArray(data) ? data : []);
       } catch (error) {
-        console.error('Debug: error fetching section templates:', error);
-        // Use fallback sections when API fails
-        console.log('Debug: using fallback sections due to API error');
-        const fallbackSections = [
-          { id: 1, name: 'Executive Summary', order: 0, prompt: 'Provide a concise summary of the proposal, highlighting the business context, objectives, and value proposition.' },
-          { id: 2, name: 'Problem Statement', order: 1, prompt: 'Explain the core business challenges the client is facing and why addressing them is critical.' },
-          { id: 3, name: 'Proposed Solution', order: 2, prompt: 'Describe the proposed solution in detail, including key features, components, and how it addresses the client\'s needs.' },
-          { id: 4, name: 'Scope of Work', order: 3, prompt: 'Outline the specific deliverables, services, and responsibilities covered under this proposal.' },
-          { id: 5, name: 'Project Approach and Methodology', order: 4, prompt: 'Describe the overall approach, phases, and methodology that will be used to execute the project.' },
-          { id: 6, name: 'Project Plan and Timeline', order: 5, prompt: 'Provide a high-level timeline with major milestones and estimated completion dates for key phases.' },
-          { id: 7, name: 'Team Composition and Roles', order: 6, prompt: 'List the proposed team members, their roles, responsibilities, and relevant experience.' }
-        ];
-        setSectionTemplates(fallbackSections);
+        console.error('❌ Error fetching section templates:', error);
+        setSectionTemplates([]);
       } finally {
         setSectionTemplatesLoading(false);
       }
     }
     fetchTemplates();
-  }, [selectedWorkspaceObj?.workspace_type, selectedWorkspaceObj?.name, workspaceTypes]);
+  }, [selectedWorkspaceObj?.workspace_type, selectedWorkspaceObj?.name, workspaceTypes, location.state]);
 
   // Debug logging for section dropdown
   useEffect(() => {
-    console.log('Debug: rendering section dropdown with:', { 
-      selectedWorkspace, 
-      sectionTemplatesLoading, 
-      sectionTemplates: sectionTemplates.length, 
-      selectedSectionId,
-      selectedWorkspaceObj: selectedWorkspaceObj?.name,
-      workspaceType: selectedWorkspaceObj?.workspace_type
-    });
+    console.log('🔍 Section dropdown debug info:');
+    console.log('  - selectedWorkspace:', selectedWorkspace);
+    console.log('  - sectionTemplatesLoading:', sectionTemplatesLoading);
+    console.log('  - sectionTemplates count:', sectionTemplates.length);
+    console.log('  - selectedSectionId:', selectedSectionId);
+    console.log('  - selectedWorkspaceObj:', selectedWorkspaceObj);
+    console.log('  - workspaceType:', selectedWorkspaceObj?.workspace_type);
   }, [selectedWorkspace, sectionTemplatesLoading, sectionTemplates.length, selectedSectionId, selectedWorkspaceObj]);
 
   useEffect(() => {
@@ -213,10 +248,12 @@ const ProposalAuthoring: React.FC = () => {
       if (ws && ws.name) {
         setSelectedWorkspace(workspaceId);
         setFallbackWorkspace(null); // clear fallback if found
+        console.log('✅ Found workspace in workspaces array:', ws);
       } else {
         // If not found, fetch directly by ID
+        console.log('🔍 Workspace not found in array, fetching by ID:', workspaceId);
         fetchWorkspace(workspaceId).then((fw) => {
-          console.log('Fetched fallback workspace:', fw);
+          console.log('✅ Fetched fallback workspace:', fw);
           if (fw && fw.name) {
             setFallbackWorkspace({
               id: fw.id?.toString?.() || workspaceId,
@@ -227,7 +264,7 @@ const ProposalAuthoring: React.FC = () => {
             });
             setSelectedWorkspace(workspaceId);
           } else {
-            console.warn('No workspace found for ID', workspaceId, 'Response:', fw);
+            console.warn('❌ No workspace found for ID', workspaceId, 'Response:', fw);
           }
         });
       }
@@ -241,6 +278,50 @@ const ProposalAuthoring: React.FC = () => {
     }
   }, [workspaceId]);
 
+  // Sophisticated state synchronization for navigation
+  useEffect(() => {
+    if (location.state) {
+      console.log('Navigation state received:', location.state);
+      
+      // Handle workspace ID from navigation state
+      if (location.state.workspaceId) {
+        setSelectedWorkspace(location.state.workspaceId);
+        console.log('Set selected workspace from navigation state:', location.state.workspaceId);
+      }
+      
+      // Handle section name from navigation state
+      if (location.state.sectionName) {
+        setSelectedSectionName(location.state.sectionName);
+        console.log('Set selected section name from navigation state:', location.state.sectionName);
+      }
+      
+      // Handle workspace type information
+      if (location.state.workspaceType || location.state.workspaceTypeId) {
+        const workspaceTypeName = location.state.workspaceType;
+        const workspaceTypeId = location.state.workspaceTypeId;
+        
+        console.log('Navigation state workspace type info:', { workspaceTypeName, workspaceTypeId });
+        
+        // Store workspace type info for later use when workspaces are loaded
+        if (workspaceTypeName) {
+          // This will be used when workspace types are loaded
+          console.log('Workspace type name from navigation:', workspaceTypeName);
+        }
+        
+        if (workspaceTypeId) {
+          // This will be used when workspace types are loaded
+          console.log('Workspace type ID from navigation:', workspaceTypeId);
+        }
+      }
+      
+      // Handle prompt if provided
+      if (location.state.prompt) {
+        setPrompt(location.state.prompt);
+        console.log('Set prompt from navigation state:', location.state.prompt);
+      }
+    }
+  }, [location.state]);
+
   // Pre-fill from navigation state (prompt template or workspace selection)
   useEffect(() => {
     if (location.state) {
@@ -252,10 +333,21 @@ const ProposalAuthoring: React.FC = () => {
       if (location.state.sectionName) {
         setSelectedSectionName(location.state.sectionName);
       }
-      // Handle workspace type selection (from prompt template)
-      else if (location.state.type && workspaces.length > 0) {
-        const ws = workspaces.find((w) => w.workspace_type === location.state.type);
-        if (ws) setSelectedWorkspace(ws.id);
+      // Handle workspace type selection (from prompt template or workspace creation)
+      if (location.state.workspaceType && workspaces.length > 0) {
+        // First try to find workspace by type name
+        const ws = workspaces.find((w) => w.workspace_type === location.state.workspaceType);
+        if (ws) {
+          setSelectedWorkspace(ws.id);
+        }
+      }
+      // Handle workspace type ID (from workspace creation)
+      if (location.state.workspaceTypeId && workspaces.length > 0) {
+        // Find workspace by type ID
+        const ws = workspaces.find((w) => w.workspace_type === location.state.workspaceTypeId);
+        if (ws) {
+          setSelectedWorkspace(ws.id);
+        }
       }
 
       // Handle prompt if provided
@@ -271,6 +363,59 @@ const ProposalAuthoring: React.FC = () => {
       loadWorkspaceContent();
     }
   }, [selectedWorkspace]);
+
+  // Enhanced workspace type resolution when workspace content is loaded
+  useEffect(() => {
+    if (selectedWorkspace && workspaceContent) {
+      console.log('Workspace content loaded for:', selectedWorkspace);
+      console.log('Workspace content:', workspaceContent);
+      
+      // If we have navigation state with workspace type info, use it to enhance resolution
+      if (location.state?.workspaceType || location.state?.workspaceTypeId) {
+        console.log('Using navigation state workspace type info for enhanced resolution');
+      }
+    }
+  }, [selectedWorkspace, workspaceContent, location.state]);
+
+  // Refresh workspace data when navigating from workspace creation
+  useEffect(() => {
+    if (location.state?.workspaceId && location.state?.workspaceTypeId) {
+      console.log('🔍 Detected navigation from workspace creation, refreshing workspace data');
+      
+      // Refresh workspaces to ensure we have the latest data
+      fetchWorkspaces().then(() => {
+        console.log('✅ Workspaces refreshed after navigation from workspace creation');
+      });
+      
+      // Also fetch the specific workspace to ensure it's loaded with correct workspace type
+      if (location.state.workspaceId) {
+        fetchWorkspace(location.state.workspaceId).then((workspace) => {
+          if (workspace) {
+            console.log('✅ Fetched specific workspace after creation:', workspace);
+            setFallbackWorkspace({
+              id: workspace.id?.toString?.() || location.state.workspaceId,
+              name: workspace.name,
+              workspace_type: workspace.workspace_type || location.state.workspaceTypeId,
+              clientName: workspace.clientName || workspace.client || '',
+              tags: workspace.tags || [],
+            });
+            setSelectedWorkspace(location.state.workspaceId);
+          } else {
+            console.warn('❌ Could not fetch workspace after creation');
+            // Even if fetch fails, set the workspace type from navigation state
+            setFallbackWorkspace({
+              id: location.state.workspaceId,
+              name: location.state.workspaceName || 'New Workspace',
+              workspace_type: location.state.workspaceTypeId, // Use the ID
+              clientName: '',
+              tags: [],
+            });
+            setSelectedWorkspace(location.state.workspaceId);
+          }
+        });
+      }
+    }
+  }, [location.state?.workspaceId, location.state?.workspaceTypeId, fetchWorkspaces, fetchWorkspace]);
 
   useEffect(() => {
     if (selectedWorkspace && selectedSectionId) {
@@ -361,10 +506,7 @@ const ProposalAuthoring: React.FC = () => {
   };
 
   const fetchSectionPrompts = async () => {
-    // Replace with real API call to fetch prompts for the selected workspace/section
-    // Example: await getPromptsBySection(selectedWorkspace, selectedSectionId)
-    // For now, just clear or mock
-    setSectionPrompts([]); // TODO: Replace with real fetch
+    setSectionPrompts([]);
   };
 
   const handleSectionToggle = (sectionId: number) => {
@@ -641,7 +783,7 @@ const ProposalAuthoring: React.FC = () => {
                 {!sectionTemplatesLoading && sectionTemplates.length === 0 && (
                   <div className="text-xs text-gray-500 mt-2">
                     No sections found for this workspace type.
-                    <button 
+                    <button
                       onClick={async () => {
                         try {
                           const res = await fetch(`${API.BASE_URL()}/api/prompt-templates/seed`, {
@@ -673,6 +815,7 @@ const ProposalAuthoring: React.FC = () => {
                     Found {sectionTemplates.length} sections for workspace type: {selectedWorkspaceObj?.workspace_type}
                   </div>
                 )}
+
               </div>
             )}
             {/* Context/sections */}

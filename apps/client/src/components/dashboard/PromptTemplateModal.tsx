@@ -1,150 +1,90 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FiChevronLeft, FiChevronRight, FiFileText, FiX } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
+import { API } from '../../utils/constants';
 
-const WORKSPACE_TYPES = [
-  {
-    name: 'Proposal',
-    sections: [
-      {
-        name: 'Executive Summary',
-        prompt:
-          'Provide a concise summary of the proposal, highlighting the business context, objectives, and value proposition.',
-      },
-      {
-        name: 'Problem Statement',
-        prompt:
-          'Explain the core business challenges the client is facing and why addressing them is critical.',
-      },
-      {
-        name: 'Proposed Solution',
-        prompt:
-          "Describe the proposed solution in detail, including key features, components, and how it addresses the client's needs.",
-      },
-      {
-        name: 'Scope of Work',
-        prompt:
-          'Outline the specific deliverables, services, and responsibilities covered under this proposal.',
-      },
-      {
-        name: 'Project Approach and Methodology',
-        prompt:
-          'Describe the overall approach, phases, and methodology that will be used to execute the project.',
-      },
-      {
-        name: 'Project Plan and Timeline',
-        prompt:
-          'Provide a high-level timeline with major milestones and estimated completion dates for key phases.',
-      },
-      {
-        name: 'Team Composition and Roles',
-        prompt:
-          'List the proposed team members, their roles, responsibilities, and relevant experience.',
-      },
-    ],
-  },
-  {
-    name: 'Service Agreement',
-    sections: [
-      {
-        name: 'Agreement Overview',
-        prompt: 'Summarize the purpose and scope of the service agreement.',
-      },
-      {
-        name: 'Services Provided',
-        prompt: 'List and describe the services to be provided under this agreement.',
-      },
-      {
-        name: 'Service Levels',
-        prompt: 'Define the expected service levels and performance metrics.',
-      },
-      { name: 'Responsibilities', prompt: 'Outline the responsibilities of both parties.' },
-      {
-        name: 'Payment Terms',
-        prompt: 'Specify the payment terms, schedule, and invoicing process.',
-      },
-      {
-        name: 'Termination Clause',
-        prompt: 'Describe the conditions under which the agreement may be terminated.',
-      },
-      {
-        name: 'Confidentiality',
-        prompt: 'Explain the confidentiality obligations of both parties.',
-      },
-    ],
-  },
-  {
-    name: 'Report',
-    sections: [
-      {
-        name: 'Introduction',
-        prompt: 'Provide an introduction to the report, including objectives and background.',
-      },
-      {
-        name: 'Methodology',
-        prompt: 'Describe the methods and processes used to gather and analyze data.',
-      },
-      { name: 'Findings', prompt: 'Summarize the key findings of the report.' },
-      { name: 'Analysis', prompt: 'Provide a detailed analysis of the findings.' },
-      {
-        name: 'Recommendations',
-        prompt: 'Offer actionable recommendations based on the analysis.',
-      },
-      { name: 'Conclusion', prompt: 'Summarize the main points and conclusions of the report.' },
-      { name: 'Appendices', prompt: 'Include any supplementary material or data.' },
-    ],
-  },
-  {
-    name: 'Research',
-    sections: [
-      { name: 'Abstract', prompt: 'Summarize the research topic, objectives, and key findings.' },
-      { name: 'Introduction', prompt: 'Introduce the research problem and its significance.' },
-      { name: 'Literature Review', prompt: 'Review relevant literature and previous research.' },
-      { name: 'Methodology', prompt: 'Describe the research design, methods, and procedures.' },
-      { name: 'Results', prompt: 'Present the results of the research.' },
-      { name: 'Discussion', prompt: 'Interpret the results and discuss their implications.' },
-      { name: 'References', prompt: 'List all references and sources cited in the research.' },
-    ],
-  },
-  {
-    name: 'Template',
-    sections: [
-      { name: 'Header', prompt: 'Provide the header for the template, including title and date.' },
-      { name: 'Body', prompt: 'Describe the main content or body of the template.' },
-      { name: 'Footer', prompt: 'Include footer information such as page numbers or disclaimers.' },
-      {
-        name: 'Instructions',
-        prompt: 'Provide instructions for using or filling out the template.',
-      },
-      { name: 'Checklist', prompt: 'List items to be checked or completed in the template.' },
-      { name: 'Summary', prompt: 'Summarize the purpose and key points of the template.' },
-      { name: 'Appendix', prompt: 'Include any additional material or resources.' },
-    ],
-  },
-  {
-    name: 'Blog',
-    sections: [
-      { name: 'Title', prompt: 'Provide a catchy and relevant title for the blog post.' },
-      { name: 'Introduction', prompt: 'Write an engaging introduction to the blog topic.' },
-      {
-        name: 'Main Content',
-        prompt: 'Develop the main content with supporting arguments and examples.',
-      },
-      {
-        name: 'Tips & Insights',
-        prompt: 'Share tips, insights, or personal experiences related to the topic.',
-      },
-      { name: 'Conclusion', prompt: 'Conclude the blog post with a summary or call to action.' },
-      { name: 'References', prompt: 'List any sources or references used in the blog post.' },
-      { name: 'Author Bio', prompt: 'Provide a brief bio of the blog author.' },
-    ],
-  },
-];
+interface WorkspaceType {
+  id: number;
+  name: string;
+  is_default: boolean;
+  sections?: Array<{
+    id: number;
+    name: string;
+    order: number;
+    prompt?: string;
+  }>;
+}
 
-const PromptTemplatePanel = ({ isOpen, onClose }) => {
-  const [selectedType, setSelectedType] = useState(null);
-  const [selectedSection, setSelectedSection] = useState(null);
+interface Section {
+  id: number;
+  name: string;
+  order: number;
+  prompt?: string;
+}
+
+const PromptTemplatePanel = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+  const [selectedType, setSelectedType] = useState<WorkspaceType | null>(null);
+  const [selectedSection, setSelectedSection] = useState<Section | null>(null);
+  const [workspaceTypes, setWorkspaceTypes] = useState<WorkspaceType[]>([]);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  // Fetch workspace types from backend
+  useEffect(() => {
+    if (isOpen) {
+      fetchWorkspaceTypes();
+    }
+  }, [isOpen]);
+
+  const fetchWorkspaceTypes = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API.BASE_URL()}/api/prompt-templates/types`, {
+        headers: {
+          Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
+        },
+      });
+      if (response.ok) {
+        const types = await response.json();
+        setWorkspaceTypes(types);
+      } else {
+        console.error('Failed to fetch workspace types');
+      }
+    } catch (error) {
+      console.error('Error fetching workspace types:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchSectionsForType = async (typeId: number) => {
+    try {
+      const response = await fetch(`${API.BASE_URL()}/api/prompt-templates/types/${typeId}/sections`, {
+        headers: {
+          Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
+        },
+      });
+      if (response.ok) {
+        const sections = await response.json();
+        return sections;
+      } else {
+        console.error('Failed to fetch sections');
+        return [];
+      }
+    } catch (error) {
+      console.error('Error fetching sections:', error);
+      return [];
+    }
+  };
+
+  const handleTypeSelect = async (type: WorkspaceType) => {
+    setSelectedType(type);
+    setSelectedSection(null);
+    
+    // Fetch sections for this type
+    const sections = await fetchSectionsForType(type.id);
+    setSelectedType({ ...type, sections });
+  };
 
   if (!isOpen) return null;
 
@@ -174,24 +114,25 @@ const PromptTemplatePanel = ({ isOpen, onClose }) => {
           <div className="w-full h-full flex flex-col items-center justify-center px-6 py-8">
             <h3 className="text-xl font-semibold mb-6 text-slate-700">Workspace Types</h3>
             <ul className="space-y-3 max-h-48 overflow-y-auto custom-scrollbar w-full max-w-xs">
-              {WORKSPACE_TYPES.map((type) => (
-                <li key={type.name}>
-                  <button
-                    className={`w-full flex items-center justify-between p-3 rounded-2xl shadow-md border transition-all group ${selectedType && selectedType.name === type.name ? 'bg-slate-200 border-slate-400' : 'bg-white hover:bg-slate-100 border-gray-200'}`}
-                    onClick={() => {
-                      setSelectedType(type);
-                      setSelectedSection(null);
-                    }}
-                  >
-                    <span
-                      className={`font-semibold text-base ${selectedType && selectedType.name === type.name ? 'text-slate-900' : 'text-slate-700 group-hover:text-slate-900'} transition-colors`}
+              {loading ? (
+                <li className="text-center text-slate-500">Loading...</li>
+              ) : (
+                workspaceTypes.map((type: WorkspaceType) => (
+                  <li key={type.name}>
+                    <button
+                      className={`w-full flex items-center justify-between p-3 rounded-2xl shadow-md border transition-all group ${selectedType && selectedType.name === type.name ? 'bg-slate-200 border-slate-400' : 'bg-white hover:bg-slate-100 border-gray-200'}`}
+                      onClick={() => handleTypeSelect(type)}
                     >
-                      {type.name}
-                    </span>
-                    <FiChevronRight className="w-5 h-5 text-slate-400" />
-                  </button>
-                </li>
-              ))}
+                      <span
+                        className={`font-semibold text-base ${selectedType && selectedType.name === type.name ? 'text-slate-900' : 'text-slate-700 group-hover:text-slate-900'} transition-colors`}
+                      >
+                        {type.name}
+                      </span>
+                      <FiChevronRight className="w-5 h-5 text-slate-400" />
+                    </button>
+                  </li>
+                ))
+              )}
             </ul>
           </div>
         </div>
@@ -215,7 +156,7 @@ const PromptTemplatePanel = ({ isOpen, onClose }) => {
               <h3 className="text-xl font-semibold mb-4 text-slate-700">Sections</h3>
               <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
                 <ul className="space-y-4 max-h-64 overflow-y-auto custom-scrollbar">
-                  {selectedType.sections.map((section) => (
+                  {selectedType.sections?.map((section: Section) => (
                     <li key={section.name}>
                       <button
                         className={`w-full flex items-center justify-between p-4 rounded-xl shadow-sm border transition-all group ${selectedSection && selectedSection.name === section.name ? 'bg-slate-200 border-slate-400' : 'bg-white hover:bg-slate-100 border-gray-200'}`}
@@ -229,7 +170,7 @@ const PromptTemplatePanel = ({ isOpen, onClose }) => {
                         <FiChevronRight className="w-5 h-5 text-slate-400" />
                       </button>
                     </li>
-                  ))}
+                  )) || <li className="text-center text-slate-500">No sections available</li>}
                 </ul>
               </div>
             </div>
@@ -250,7 +191,7 @@ const PromptTemplatePanel = ({ isOpen, onClose }) => {
                 <FiChevronLeft className="w-5 h-5 mr-2" /> Back to Sections
               </button>
               <h3 className="text-xl font-semibold mb-4 text-slate-700">
-                Prompt for {selectedSection.name}
+                Prompt for {selectedSection?.name}
               </h3>
               <div className="flex-1 overflow-y-auto custom-scrollbar">
                 <div className="bg-gradient-to-br from-slate-50 to-gray-100 rounded-2xl p-6 text-slate-800 shadow-inner border border-gray-200 text-lg leading-relaxed font-medium">
@@ -261,9 +202,9 @@ const PromptTemplatePanel = ({ isOpen, onClose }) => {
                   onClick={() => {
                     navigate('/dashboard/proposal-authoring/create-proposal', {
                       state: {
-                        type: selectedType.name,
-                        section: selectedSection.name,
-                        prompt: selectedSection.prompt,
+                        type: selectedType?.name || '',
+                        section: selectedSection?.name || '',
+                        prompt: selectedSection?.prompt || '',
                       },
                     });
                     onClose();

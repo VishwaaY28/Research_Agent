@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-  FiArrowLeft,
-  FiCalendar,
-  FiChevronDown,
-  FiChevronRight,
-  FiFile,
-  FiFileText,
-  FiGlobe,
+    FiArrowLeft,
+    FiCalendar,
+    FiCheck,
+    FiChevronDown,
+    FiChevronRight,
+    FiEye,
+    FiFile,
+    FiFileText,
+    FiGlobe
 } from 'react-icons/fi';
 import { useNavigate, useParams } from 'react-router-dom';
 import { API } from '../../utils/constants';
@@ -181,46 +183,72 @@ const ContentSourceView: React.FC = () => {
           ) : (
             details.chunks.map((chunk: Chunk, index: number) =>
               isStructuredChunk(chunk) ? (
-                <div key={index} className="bg-white rounded-xl border border-gray-200">
+                <div key={index} className="border border-gray-200 rounded-lg overflow-hidden">
                   <div
-                    className="flex items-center justify-between p-6 cursor-pointer"
+                    className={`p-4 cursor-pointer transition-colors ${
+                      expandedSections.has(index) ? 'bg-gray-50' : 'bg-white hover:bg-gray-50'
+                    }`}
                     onClick={() => toggleSection(index)}
                   >
-                    <div>
-                      <h3 className="text-base font-semibold text-gray-900">{chunk.title}</h3>
-                      <p className="text-sm text-gray-500">
-                        {chunk.content.length} minor chunks • {chunk.start_range} -{' '}
-                        {chunk.end_range}
-                      </p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-5 h-5 rounded border-2 border-gray-300 flex items-center justify-center">
+                          <FiCheck className="w-3 h-3 text-gray-400" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900">{chunk.title}</h4>
+                          <p className="text-sm text-gray-500">
+                            {chunk.content.length} minor chunks • {chunk.start_range} - {chunk.end_range}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Handle view functionality if needed
+                          }}
+                          className="p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-colors"
+                        >
+                          <FiEye className="w-4 h-4" />
+                        </button>
+                        <button className="p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-colors">
+                          {expandedSections.has(index) ? (
+                            <FiChevronDown className="w-4 h-4" />
+                          ) : (
+                            <FiChevronRight className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
                     </div>
-                    <button className="p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-colors">
-                      {expandedSections.has(index) ? (
-                        <FiChevronDown className="w-5 h-5" />
-                      ) : (
-                        <FiChevronRight className="w-5 h-5" />
-                      )}
-                    </button>
                   </div>
                   {expandedSections.has(index) && (
-                    <div className="border-t border-gray-100 bg-gray-50">
+                    <div className="border-t border-gray-200 bg-white">
                       {chunk.content.map((minor, minorIdx) => (
                         <div
                           key={minorIdx}
-                          className="p-4 border-b border-gray-100 last:border-b-0"
+                          className="p-4 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors"
                         >
-                          <h4 className="font-medium text-gray-800 mb-2 text-base">{minor.tag}</h4>
-                          <div className="text-base text-gray-800 space-y-1">
-                            {minor.content.slice(0, 2).map((content, contentIndex) => (
-                              <p key={contentIndex} className="line-clamp-2">
-                                {content.text.substring(0, 200)}
-                                {content.text.length > 200 && '...'}
-                              </p>
-                            ))}
-                            {minor.content.length > 2 && (
-                              <p className="text-gray-500 italic">
-                                +{minor.content.length - 2} more items
-                              </p>
-                            )}
+                          <div className="flex items-start space-x-3">
+                            <div className="w-4 h-4 mt-1 rounded border-2 border-gray-300 flex items-center justify-center">
+                              <FiCheck className="w-2.5 h-2.5 text-gray-400" />
+                            </div>
+                            <div className="flex-1">
+                              <h5 className="font-medium text-gray-800 mb-2">{minor.tag}</h5>
+                              <div className="text-sm text-gray-600 space-y-1">
+                                {minor.content.slice(0, 2).map((content, contentIndex) => (
+                                  <p key={contentIndex} className="line-clamp-2">
+                                    {content.text.substring(0, 200)}
+                                    {content.text.length > 200 && '...'}
+                                  </p>
+                                ))}
+                                {minor.content.length > 2 && (
+                                  <p className="text-gray-500 italic">
+                                    +{minor.content.length - 2} more items
+                                  </p>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -228,26 +256,44 @@ const ContentSourceView: React.FC = () => {
                   )}
                 </div>
               ) : (
-                <div key={index} className="bg-white rounded-xl border border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-base font-semibold text-gray-900">{chunk.label}</h3>
-                    {(chunk as SimpleChunk).page && (
-                      <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                        Page {(chunk as SimpleChunk).page}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-base text-gray-800 leading-relaxed max-h-40 overflow-y-auto">
-                    {chunk.content.substring(0, 500)}
-                    {chunk.content.length > 500 && '...'}
-                  </div>
-                  {(chunk as SimpleChunk).section_type && (
-                    <div className="mt-3">
-                      <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
-                        {(chunk as SimpleChunk).section_type}
-                      </span>
+                <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-start space-x-3">
+                    <div className="w-5 h-5 mt-1 rounded border-2 border-gray-300 flex items-center justify-center">
+                      <FiCheck className="w-3 h-3 text-gray-400" />
                     </div>
-                  )}
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium text-gray-900">
+                          {chunk.label || chunk.content.substring(0, 50) + '...'}
+                        </h4>
+                        <div className="flex items-center space-x-2">
+                          {(chunk as SimpleChunk).page && (
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                              Page {(chunk as SimpleChunk).page}
+                            </span>
+                          )}
+                          {(chunk as SimpleChunk).section_type && (
+                            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
+                              {(chunk as SimpleChunk).section_type}
+                            </span>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Handle view functionality if needed
+                            }}
+                            className="p-1 text-gray-400 hover:text-gray-600 rounded transition-colors"
+                          >
+                            <FiEye className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-600 line-clamp-3">
+                        {chunk.content.substring(0, 300)}
+                        {chunk.content.length > 300 && '...'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               ),
             )

@@ -258,14 +258,21 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
           Template: 'Header',
           Blog: 'Title',
         };
-        const defaultSectionName = defaultSectionMap[workspaceType] || '';
+        
+        // Get the workspace type name from the selected ID
+        const selectedWorkspaceType = workspaceTypes.find(type => type.id.toString() === workspaceType);
+        const workspaceTypeName = selectedWorkspaceType?.name || '';
+        const defaultSectionName = defaultSectionMap[workspaceTypeName] || '';
+        
         const navFn = internalNavigate;
         if (navFn) {
           navFn(`/dashboard/proposal-authoring/${newWorkspace.id}`, {
             state: {
               workspaceId: newWorkspace.id,
+              workspaceName: newWorkspace.name,
+              workspaceType: workspaceTypeName, // Pass the workspace type name
+              workspaceTypeId: workspaceType, // Pass the workspace type ID
               sectionName: defaultSectionName,
-              workspaceName: newWorkspace.name, // Pass the name for fallback
             },
           });
         }

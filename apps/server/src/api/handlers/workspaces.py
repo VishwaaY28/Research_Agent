@@ -90,12 +90,21 @@ async def create_workspace(data: WorkspaceCreateRequest):
 
         logger.info(f"Workspace {workspace.id} has tags: {tags}")
 
+        # Get workspace type name if it exists
+        workspace_type_name = None
+        if workspace_with_tags.workspace_type_id:
+            try:
+                workspace_type = await workspace_with_tags.workspace_type
+                workspace_type_name = workspace_type.name if workspace_type else None
+            except:
+                workspace_type_name = None
+
         result = {
             "id": workspace.id,
             "name": workspace.name,
             "client": workspace.client,
             "tags": tags,
-            "workspace_type": workspace.workspace_type_id
+            "workspace_type": workspace_type_name  # Return the name instead of ID
         }
 
         logger.info(f"Returning workspace data: {result}")
@@ -116,12 +125,21 @@ async def filter_workspaces(data: dict):
         tag_relations = await ws.tags.all().prefetch_related("tag")
         tags = [wt.tag.name for wt in tag_relations]
         
+        # Get workspace type name if it exists
+        workspace_type_name = None
+        if ws.workspace_type_id:
+            try:
+                workspace_type = await ws.workspace_type
+                workspace_type_name = workspace_type.name if workspace_type else None
+            except:
+                workspace_type_name = None
+        
         result.append({
             "id": ws.id, 
             "name": ws.name, 
             "client": ws.client, 
             "tags": tags,
-            "workspace_type": ws.workspace_type_id
+            "workspace_type": workspace_type_name
         })
     return JSONResponse(result, status_code=200)
 
@@ -136,12 +154,21 @@ async def search_workspaces(data: dict):
         tag_relations = await ws.tags.all().prefetch_related("tag")
         tags = [wt.tag.name for wt in tag_relations]
         
+        # Get workspace type name if it exists
+        workspace_type_name = None
+        if ws.workspace_type_id:
+            try:
+                workspace_type = await ws.workspace_type
+                workspace_type_name = workspace_type.name if workspace_type else None
+            except:
+                workspace_type_name = None
+        
         result.append({
             "id": ws.id, 
             "name": ws.name, 
             "client": ws.client, 
             "tags": tags,
-            "workspace_type": ws.workspace_type_id
+            "workspace_type": workspace_type_name  # Return the name instead of ID
         })
     return JSONResponse(result, status_code=200)
 
@@ -152,12 +179,21 @@ async def fetch_all_workspaces():
         tag_relations = await ws.tags.all().prefetch_related("tag")
         tags = [wt.tag.name for wt in tag_relations]
         
+        # Get workspace type name if it exists
+        workspace_type_name = None
+        if ws.workspace_type_id:
+            try:
+                workspace_type = await ws.workspace_type
+                workspace_type_name = workspace_type.name if workspace_type else None
+            except:
+                workspace_type_name = None
+        
         result.append({
             "id": ws.id, 
             "name": ws.name, 
             "client": ws.client, 
             "tags": tags,
-            "workspace_type": ws.workspace_type_id
+            "workspace_type": workspace_type_name  # Return the name instead of ID
         })
     return JSONResponse(result)
 
@@ -169,12 +205,22 @@ async def fetch_by_id(workspace_id: int):
         raise HTTPException(status_code=404, detail="Workspace not found")
     tag_relations = await workspace.tags.all().prefetch_related("tag")
     tags = [wt.tag.name for wt in tag_relations]
+    
+    # Get workspace type name if it exists
+    workspace_type_name = None
+    if workspace.workspace_type_id:
+        try:
+            workspace_type = await workspace.workspace_type
+            workspace_type_name = workspace_type.name if workspace_type else None
+        except:
+            workspace_type_name = None
+    
     return JSONResponse({
         "id": workspace.id,
         "name": workspace.name,
         "client": workspace.client,
         "tags": tags,
-        "workspace_type": workspace.workspace_type_id
+        "workspace_type": workspace_type_name  # Return the name instead of ID
     })
 
 async def fetch_by_name(name: str):
@@ -183,12 +229,22 @@ async def fetch_by_name(name: str):
         raise HTTPException(status_code=404, detail="Workspace not found")
     tag_relations = await workspace.tags.all().prefetch_related("tag")
     tags = [wt.tag.name for wt in tag_relations]
+    
+    # Get workspace type name if it exists
+    workspace_type_name = None
+    if workspace.workspace_type_id:
+        try:
+            workspace_type = await workspace.workspace_type
+            workspace_type_name = workspace_type.name if workspace_type else None
+        except:
+            workspace_type_name = None
+    
     return JSONResponse({
         "id": workspace.id,
         "name": workspace.name,
         "client": workspace.client,
         "tags": tags,
-        "workspace_type": workspace.workspace_type_id
+        "workspace_type": workspace_type_name  # Return the name instead of ID
     })
 
 async def filter_by_tags(tags: List[str]):
@@ -197,12 +253,22 @@ async def filter_by_tags(tags: List[str]):
     for ws in workspaces:
         tag_relations = await ws.tags.all().prefetch_related("tag")
         ws_tags = [wt.tag.name for wt in tag_relations]
+        
+        # Get workspace type name if it exists
+        workspace_type_name = None
+        if ws.workspace_type_id:
+            try:
+                workspace_type = await ws.workspace_type
+                workspace_type_name = workspace_type.name if workspace_type else None
+            except:
+                workspace_type_name = None
+        
         result.append({
             "id": ws.id, 
             "name": ws.name, 
             "client": ws.client, 
             "tags": ws_tags,
-            "workspace_type": ws.workspace_type_id
+            "workspace_type": workspace_type_name  # Return the name instead of ID
         })
     return JSONResponse(result, status_code=200)
 
@@ -222,12 +288,21 @@ async def update_workspace(workspace_id: int, data: WorkspaceUpdateRequest):
     tag_relations = await updated_workspace.tags.all().prefetch_related("tag")
     tags = [wt.tag.name for wt in tag_relations]
     
+    # Get workspace type name if it exists
+    workspace_type_name = None
+    if updated_workspace.workspace_type_id:
+        try:
+            workspace_type = await updated_workspace.workspace_type
+            workspace_type_name = workspace_type.name if workspace_type else None
+        except:
+            workspace_type_name = None
+
     return JSONResponse({
         "id": updated_workspace.id,
         "name": updated_workspace.name,
         "client": updated_workspace.client,
         "tags": tags,
-        "workspace_type": updated_workspace.workspace_type_id
+        "workspace_type": workspace_type_name  # Return the name instead of ID
     })
 
 async def soft_delete(workspace_id: int):

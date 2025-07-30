@@ -341,6 +341,156 @@ async def seed_default_data(request: Request):
                 "name": "Author Bio",
                 "prompt": "Provide a brief bio of the blog author."
             }
+        ],
+        "User Story": [
+            {
+                "name": "User Story Title",
+                "prompt": "Write a clear, concise title that describes the user story in one sentence."
+            },
+            {
+                "name": "As a [User]",
+                "prompt": "Define the user role or persona who will benefit from this feature."
+            },
+            {
+                "name": "I want to [Action]",
+                "prompt": "Describe the specific action or capability the user wants to achieve."
+            },
+            {
+                "name": "So that [Benefit]",
+                "prompt": "Explain the business value or benefit that will be achieved."
+            },
+            {
+                "name": "Acceptance Criteria",
+                "prompt": "List the specific criteria that must be met for this user story to be considered complete."
+            },
+            {
+                "name": "Technical Requirements",
+                "prompt": "Outline any technical constraints, dependencies, or implementation details."
+            },
+            {
+                "name": "Definition of Done",
+                "prompt": "Define what constitutes completion of this user story, including testing and documentation requirements."
+            }
+        ],
+        "Service Agreement": [
+            {
+                "name": "Agreement Overview",
+                "prompt": "Summarize the purpose and scope of the service agreement."
+            },
+            {
+                "name": "Services Provided",
+                "prompt": "List and describe the services to be provided under this agreement."
+            },
+            {
+                "name": "Service Levels",
+                "prompt": "Define the expected service levels and performance metrics."
+            },
+            {
+                "name": "Responsibilities",
+                "prompt": "Outline the responsibilities of both parties."
+            },
+            {
+                "name": "Payment Terms",
+                "prompt": "Specify the payment terms, schedule, and invoicing process."
+            },
+            {
+                "name": "Termination Clause",
+                "prompt": "Describe the conditions under which the agreement may be terminated."
+            },
+            {
+                "name": "Confidentiality",
+                "prompt": "Explain the confidentiality obligations of both parties."
+            }
+        ],
+        "Report": [
+            {
+                "name": "Introduction",
+                "prompt": "Provide an introduction to the report, including objectives and background."
+            },
+            {
+                "name": "Methodology",
+                "prompt": "Describe the methods and processes used to gather and analyze data."
+            },
+            {
+                "name": "Findings",
+                "prompt": "Summarize the key findings of the report."
+            },
+            {
+                "name": "Analysis",
+                "prompt": "Provide a detailed analysis of the findings."
+            },
+            {
+                "name": "Recommendations",
+                "prompt": "Offer actionable recommendations based on the analysis."
+            },
+            {
+                "name": "Conclusion",
+                "prompt": "Summarize the main points and conclusions of the report."
+            },
+            {
+                "name": "Appendix",
+                "prompt": "Include any additional material, data, or supporting documentation."
+            }
+        ],
+        "Research": [
+            {
+                "name": "Abstract",
+                "prompt": "Summarize the research topic, objectives, and key findings."
+            },
+            {
+                "name": "Introduction",
+                "prompt": "Introduce the research problem and its significance."
+            },
+            {
+                "name": "Literature Review",
+                "prompt": "Review relevant literature and previous research."
+            },
+            {
+                "name": "Methodology",
+                "prompt": "Describe the research design, methods, and procedures."
+            },
+            {
+                "name": "Results",
+                "prompt": "Present the results of the research."
+            },
+            {
+                "name": "Discussion",
+                "prompt": "Interpret the results and discuss their implications."
+            },
+            {
+                "name": "References",
+                "prompt": "List all references and sources cited in the research."
+            }
+        ],
+        "Template": [
+            {
+                "name": "Header",
+                "prompt": "Provide the header for the template, including title and date."
+            },
+            {
+                "name": "Body",
+                "prompt": "Describe the main content or body of the template."
+            },
+            {
+                "name": "Footer",
+                "prompt": "Include footer information such as page numbers or disclaimers."
+            },
+            {
+                "name": "Instructions",
+                "prompt": "Provide instructions for using or filling out the template."
+            },
+            {
+                "name": "Checklist",
+                "prompt": "List items to be checked or completed in the template."
+            },
+            {
+                "name": "Summary",
+                "prompt": "Summarize the purpose and key points of the template."
+            },
+            {
+                "name": "Appendix",
+                "prompt": "Include any additional material or resources."
+            }
         ]
     }
     
