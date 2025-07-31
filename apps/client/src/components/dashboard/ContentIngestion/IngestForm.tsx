@@ -216,9 +216,9 @@ const IngestForm: React.FC<IngestFormProps> = ({
       (uploadType === 'url' && webLinks.trim().length > 0 && !errors.url));
 
   return (
-    <div className="max-w-4xl mx-auto p-8">
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-black mb-3">Content Ingestion</h2>
+    <div className="w-full">
+      <div className="mb-8">
+        <h2 className="text-2xl font-semibold text-black mb-3">Content Ingestion</h2>
         <p className="text-neutral-600">Upload new documents or web content</p>
       </div>
 
