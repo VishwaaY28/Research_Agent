@@ -76,13 +76,13 @@ const ContentSources: React.FC = () => {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-2">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-black mb-3">Content Sources</h1>
+        <h1 className="text-2xl font-medium text-black mb-3">Content Sources</h1>
         <p className="text-neutral-600">View and manage all your extracted content sources</p>
       </div>
 
-      <div className="flex flex-row flex-wrap gap-2 mb-6 bg-gray-100 p-1 rounded-lg w-full">
+      <div className="flex flex-row flex-wrap gap-2 mb-6 bg-gray-100 p-1 rounded-lg max-w-sm">
         {[
           { key: 'all', label: 'All Sources' },
           { key: 'pdf', label: 'PDF' },
