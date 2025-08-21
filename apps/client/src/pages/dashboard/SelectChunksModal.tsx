@@ -99,15 +99,12 @@ const SelectChunksModal: React.FC<SelectChunksModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-5 w-full max-w-2xl mx-4 max-h-[70vh] overflow-y-auto shadow-lg">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-medium text-gray-900">Select Chunks</h3>
-            <p className="text-sm text-gray-500 mt-0.5">{source.name}</p>
-          </div>
+      <div className="bg-white rounded-xl p-6 w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-semibold text-black">Select Chunks from {source.name}</h3>
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-full hover:bg-gray-50"
+            className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
           >
             ✕
           </button>
@@ -118,50 +115,20 @@ const SelectChunksModal: React.FC<SelectChunksModalProps> = ({
           <div className="text-gray-400">No chunks found for this file.</div>
         ) : (
           <>
-            <div className="mb-3 flex items-center">
-              <label className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
-                <input
-                  type="checkbox"
-                  className="rounded border-gray-300 text-primary focus:ring-primary"
-                  checked={localSelected.size > 0}
-                  onChange={(e) => {
-                    if (!e.target.checked) {
-                      // Deselect all
-                      setLocalSelected(new Set());
-                    } else {
-                      // Select all
-                      const newSet = new Set<string>();
-                      chunkList.forEach((chunk, idx) => {
-                        const minors = Array.isArray(chunk.content) ? chunk.content : [];
-                        if (minors.length === 0) {
-                          newSet.add(`${idx}`);
-                        } else {
-                          minors.forEach((_: unknown, mIdx: number) => {
-                            newSet.add(`${idx}-${mIdx}`);
-                          });
-                        }
-                      });
-                      setLocalSelected(newSet);
-                    }
-                  }}
-                />
-                <span className="text-sm text-gray-700">Select All</span>
-              </label>
-            </div>
-            <div className="space-y-2 mb-4">
+            <div className="space-y-2 mb-6">
               {chunkList.map((chunk, idx) => {
                 let heading = chunk.name || chunk.title || 'Untitled Section';
                 const minors = Array.isArray(chunk.content) ? chunk.content : [];
                 const majorState = isMajorSelected(idx, minors);
                 const isExpanded = expandedMajors.has(idx);
                 return (
-                  <div key={idx} className="border border-gray-200 rounded-lg p-2 mb-2 bg-white hover:bg-gray-50 transition-colors">
+                  <div key={idx} className="border rounded p-2 mb-2 bg-white">
                     <div className="flex items-center gap-2">
                       {minors.length > 0 && (
                         <button
                           type="button"
                           onClick={() => toggleExpand(idx)}
-                          className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-primary focus:outline-none transition-colors"
+                          className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-primary focus:outline-none"
                           aria-label={isExpanded ? 'Collapse' : 'Expand'}
                         >
                           <ChevronDown rotated={isExpanded} />
@@ -174,24 +141,22 @@ const SelectChunksModal: React.FC<SelectChunksModalProps> = ({
                           if (el) el.indeterminate = majorState === 'indeterminate';
                         }}
                         onChange={() => handleMajorToggle(idx, minors)}
-                        className="rounded border-gray-300 text-primary focus:ring-primary"
                       />
-                      <span className="font-medium text-sm text-gray-700">{heading}</span>
+                      <span className="font-bold text-base text-gray-900">{heading}</span>
                       {minors.length > 0 && (
-                        <span className="text-xs text-gray-400 ml-1">({minors.length} minor chunks)</span>
+                        <span className="text-xs text-gray-500 ml-2">({minors.length} minor chunks)</span>
                       )}
                     </div>
                     {minors.length > 0 && isExpanded && (
-                      <div className="ml-7 mt-2 space-y-1.5 pl-2 border-l border-gray-100">
+                      <div className="ml-7 mt-2 space-y-1">
                         {minors.map((minor: any, mIdx: number) => (
-                          <label key={mIdx} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 py-0.5 px-1 rounded transition-colors">
+                          <label key={mIdx} className="flex items-center gap-2 cursor-pointer">
                             <input
                               type="checkbox"
                               checked={localSelected.has(`${idx}-${mIdx}`)}
                               onChange={() => handleMinorToggle(idx, mIdx)}
-                              className="rounded border-gray-300 text-primary focus:ring-primary"
                             />
-                            <span className="text-sm text-gray-600">
+                            <span className="text-sm text-gray-800">
                               {minor.tag || minor.title || minor.name || `Minor Chunk ${mIdx + 1}`}
                             </span>
                           </label>
@@ -204,18 +169,18 @@ const SelectChunksModal: React.FC<SelectChunksModalProps> = ({
             </div>
           </>
         )}
-        <div className="flex space-x-3 pt-4 mt-2 border-t border-gray-100">
+        <div className="flex space-x-3">
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-2 px-4 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-all text-sm font-medium"
+            className="flex-1 py-3 px-4 border border-gray-300 rounded-lg text-neutral-700 hover:bg-gray-50 transition-colors"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={() => onSave(localSelected)}
-            className="flex-1 py-2 px-4 rounded-lg bg-primary text-white hover:bg-primary/90 transition-all text-sm font-medium shadow-sm"
+            className="flex-1 py-3 px-4 rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors"
             disabled={localSelected.size === 0}
           >
             Save Selection
