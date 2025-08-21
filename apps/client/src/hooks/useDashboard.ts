@@ -16,9 +16,16 @@ export type RecentWorkspace = {
   last_used_at: string | null;
 };
 
+export type PromptTemplate = {
+  id: number;
+  name: string;
+  last_used_at: string | null;
+};
+
 export type DashboardData = {
   stats: DashboardStats;
   recent_workspaces: RecentWorkspace[];
+  recent_prompts: PromptTemplate[];
 };
 
 export function useDashboard() {
