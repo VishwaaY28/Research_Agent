@@ -19,6 +19,7 @@ import { useSources } from '../../hooks/useSources';
 import { useTags } from '../../hooks/useTags';
 import { useWorkspace } from '../../hooks/useWorkspace';
 import { API } from '../../utils/constants';
+import { useWorkspaceTypes } from '../../hooks/useWorkspaceTypes';
 import SelectChunksModal from './SelectChunksModal';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -64,6 +65,7 @@ const WorkspaceView: React.FC = () => {
   const [sectionTemplates, setSectionTemplates] = useState<any[]>([]);
   const [sectionTemplatesLoading, setSectionTemplatesLoading] = useState(false);
   const [workspaceTypeName, setWorkspaceTypeName] = useState<string | null>(null);
+  const { workspaceTypes } = useWorkspaceTypes();
 const [deleteTarget, setDeleteTarget] = useState<null | { id: string | number; name: string; type: 'section'; closeModal?: () => void }>(null);  
   const [isAddSectionModalOpen, setIsAddSectionModalOpen] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
@@ -409,12 +411,27 @@ const [deleteTarget, setDeleteTarget] = useState<null | { id: string | number; n
     }
   };
 
-  // Fetch section templates for the workspace type
-  const fetchSectionTemplates = async (workspaceTypeId: string | number) => {
+  // Fetch section templates for the workspace type (by ID, resolving name if needed)
+  const fetchSectionTemplates = async (workspaceType: string | number) => {
     setSectionTemplatesLoading(true);
     try {
+      let wsTypeId: string | number | null = null;
+      if (workspaceType && !isNaN(Number(workspaceType))) {
+        wsTypeId = String(workspaceType);
+      } else if (workspaceType && typeof workspaceType === 'string' && workspaceTypes.length > 0) {
+        const found = workspaceTypes.find((t) => t.name === workspaceType);
+        wsTypeId = found ? String(found.id) : null;
+      }
+      if (!wsTypeId && workspaceTypes.length > 0) {
+        wsTypeId = String(workspaceTypes[0].id);
+      }
+      if (!wsTypeId) {
+        setSectionTemplates([]);
+        setSectionTemplatesLoading(false);
+        return;
+      }
       const res = await fetch(
-        `${API.BASE_URL()}/api/prompt-templates/types/${workspaceTypeId}/sections`,
+        `${API.BASE_URL()}/api/prompt-templates/types/${wsTypeId}/sections`,
         {
           headers: {
             Authorization: localStorage.getItem('token')
@@ -439,7 +456,7 @@ const [deleteTarget, setDeleteTarget] = useState<null | { id: string | number; n
       fetchSectionTemplates(workspace.workspaceType);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, workspace?.workspaceType]);
+  }, [tab, workspace?.workspaceType, workspaceTypes]);
 
   const fetchPromptsForSection = async (sectionId: string | number) => {
     setPromptsLoading(true);
@@ -477,9 +494,25 @@ const [deleteTarget, setDeleteTarget] = useState<null | { id: string | number; n
 
     setAddingSection(true);
     try {
-      // 1. Create the section template
+      // 1. Resolve workspace type ID
+      let wsTypeId: string | number | null = null;
+      if (workspace.workspaceType && !isNaN(Number(workspace.workspaceType))) {
+        wsTypeId = String(workspace.workspaceType);
+      } else if (workspace.workspaceType && typeof workspace.workspaceType === 'string' && workspaceTypes.length > 0) {
+        const found = workspaceTypes.find((t) => t.name === workspace.workspaceType);
+        wsTypeId = found ? String(found.id) : null;
+      }
+      if (!wsTypeId && workspaceTypes.length > 0) {
+        wsTypeId = String(workspaceTypes[0].id);
+      }
+      if (!wsTypeId) {
+        toast.error('Workspace type ID not found');
+        setAddingSection(false);
+        return;
+      }
+      // 2. Create the section template
       const sectionResponse = await fetch(
-        `${API.BASE_URL()}/api/prompt-templates/types/${workspace.workspaceType}/sections`,
+        `${API.BASE_URL()}/api/prompt-templates/types/${wsTypeId}/sections`,
         {
           method: 'POST',
           headers: {
@@ -502,7 +535,7 @@ const [deleteTarget, setDeleteTarget] = useState<null | { id: string | number; n
       const sectionData = await sectionResponse.json();
       const sectionId = sectionData.id;
 
-      // 2. Create the prompt for the section
+      // 3. Create the prompt for the section
       const promptResponse = await fetch(
         `${API.BASE_URL()}/api/prompt-templates/sections/${sectionId}/prompts`,
         {
@@ -524,10 +557,10 @@ const [deleteTarget, setDeleteTarget] = useState<null | { id: string | number; n
         return;
       }
 
-      // 3. Refresh the section templates list
-      await fetchSectionTemplates(workspace.workspaceType);
+      // 4. Refresh the section templates list
+      await fetchSectionTemplates(wsTypeId);
 
-      // 4. Reset form and close modal
+      // 5. Reset form and close modal
       setNewSectionName('');
       setNewSectionPrompt('');
       setIsAddSectionModalOpen(false);

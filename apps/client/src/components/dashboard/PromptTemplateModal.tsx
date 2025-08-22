@@ -80,7 +80,7 @@ const PromptTemplatePanel = ({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   const handleTypeSelect = async (type: WorkspaceType) => {
     setSelectedType(type);
     setSelectedSection(null);
-    
+
     // Fetch sections for this type
     const sections = await fetchSectionsForType(type.id);
     setSelectedType({ ...type, sections });
@@ -95,6 +95,7 @@ const PromptTemplatePanel = ({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
   return (
     <div className="fixed top-0 right-0 z-50 h-full w-[480px] max-w-full bg-white shadow-2xl border-l border-gray-200 flex flex-col transition-transform duration-300">
+
       <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
         <h2 className="text-2xl font-extrabold text-slate-700 tracking-tight flex items-center gap-2">
           <FiFileText className="w-7 h-7 text-slate-400" /> Prompt Templates

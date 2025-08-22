@@ -23,6 +23,7 @@ import {
 import type { Workspace } from '../../hooks/useWorkspace';
 import { useWorkspace } from '../../hooks/useWorkspace';
 import { API } from '../../utils/constants';
+import { encoding_for_model } from "@dqbd/tiktoken";
 
 function hasTextProp(item: any): item is { text: string } {
   return item && typeof item === 'object' && 'text' in item && typeof item.text === 'string';
@@ -64,13 +65,14 @@ const ProposalAuthoring: React.FC = () => {
   const [sectionTemplates, setSectionTemplates] = useState<{ id: number; name: string; order: number; prompt?: string }[]>([]);
   const [sectionTemplatesLoading, setSectionTemplatesLoading] = useState(false);
   const [workspaceTypes, setWorkspaceTypes] = useState<{ id: number; name: string }[]>([]);
+  const [selectedTokens, setSelectedTokens] = useState(0);
 
   const workspaceNameFromState = location.state?.workspaceName;
 
   // Compute selectedWorkspaceObj after all hooks and state
   let selectedWorkspaceObj: Workspace | { workspace_type: string; name: string };
   const foundWorkspace = workspaces.find((w) => w.id === selectedWorkspace);
-  
+
   console.log('🔍 Computing selectedWorkspaceObj:');
   console.log('  - selectedWorkspace:', selectedWorkspace);
   console.log('  - workspaces count:', workspaces.length);
@@ -78,7 +80,7 @@ const ProposalAuthoring: React.FC = () => {
   console.log('  - fallbackWorkspace:', fallbackWorkspace);
   console.log('  - workspaceNameFromState:', workspaceNameFromState);
   console.log('  - location.state:', location.state);
-  
+
   if (foundWorkspace) {
     selectedWorkspaceObj = foundWorkspace;
     console.log('🔍 Using foundWorkspace:', foundWorkspace);
@@ -123,102 +125,66 @@ const ProposalAuthoring: React.FC = () => {
   // Fetch section templates for the workspace type (by ID)
   useEffect(() => {
     async function fetchTemplates() {
-      console.log('🔍 fetchTemplates called with:');
-      console.log('  - selectedWorkspaceObj:', selectedWorkspaceObj);
-      console.log('  - workspaceTypes:', workspaceTypes);
-      console.log('  - location.state:', location.state);
-      
       // Wait for workspace types to be loaded
-      if (workspaceTypes.length === 0) {
-        console.log('⏳ Waiting for workspace types to load...');
-        return;
-      }
+      if (workspaceTypes.length === 0) return;
 
       let wsTypeId: string | null = null;
-      
+
       // Priority 1: Use navigation state workspace type ID (most reliable for new workspaces)
-      if (location.state?.workspaceTypeId) {
-        wsTypeId = location.state.workspaceTypeId;
-        console.log('🔍 Using workspace type ID from navigation state:', wsTypeId);
+      if (location.state?.workspaceTypeId && !isNaN(Number(location.state.workspaceTypeId))) {
+        wsTypeId = String(location.state.workspaceTypeId);
       }
-      // Priority 2: Use selectedWorkspaceObj workspace type (now returns ID from backend)
+      // Priority 2: Use selectedWorkspaceObj workspace type (should be ID, but may be name)
       else if (selectedWorkspaceObj?.workspace_type) {
-        wsTypeId = String(selectedWorkspaceObj.workspace_type);
-        console.log('🔍 Using workspace type ID from selectedWorkspaceObj:', wsTypeId);
+        // If it's a number or numeric string, use as is
+        if (!isNaN(Number(selectedWorkspaceObj.workspace_type))) {
+          wsTypeId = String(selectedWorkspaceObj.workspace_type);
+        } else {
+          // Try to resolve name to ID
+          const found = workspaceTypes.find((t) => t.name === selectedWorkspaceObj.workspace_type);
+          wsTypeId = found ? String(found.id) : null;
+        }
       }
       // Priority 3: Use navigation state workspace type name
       else if (location.state?.workspaceType) {
         const found = workspaceTypes.find((t) => t.name === location.state.workspaceType);
         wsTypeId = found ? String(found.id) : null;
-        console.log('🔍 Using workspace type name from navigation state:', location.state.workspaceType, '-> ID:', wsTypeId);
-      }
-
-      // If workspace_type is a name (string), look up the ID from workspaceTypes
-      if (wsTypeId && isNaN(Number(wsTypeId))) {
-        console.log('🔍 wsTypeId is a name, looking up ID...');
-        const found = workspaceTypes.find((t) => t.name === wsTypeId);
-        wsTypeId = found ? String(found.id) : null;
-        console.log('🔍 Found workspace type by name:', found);
-        console.log('🔍 New wsTypeId:', wsTypeId);
       }
 
       // If we still don't have a valid workspace type ID, try to infer from workspace name
       if (!wsTypeId && selectedWorkspaceObj?.name) {
-        console.log('🔍 Trying to infer from workspace name...');
         const workspaceName = selectedWorkspaceObj.name.toLowerCase();
-        // Look for exact matches first
-        const exactMatch = workspaceTypes.find(t =>
-          workspaceName.includes(t.name.toLowerCase())
-        );
-        if (exactMatch) {
-          wsTypeId = String(exactMatch.id);
-          console.log('🔍 Found exact workspace type match:', exactMatch);
-        }
-        console.log('🔍 Inferred workspace type ID:', wsTypeId);
+        const exactMatch = workspaceTypes.find(t => workspaceName.includes(t.name.toLowerCase()));
+        if (exactMatch) wsTypeId = String(exactMatch.id);
       }
 
       // If we still don't have a workspace type ID, use the first available type
       if (!wsTypeId && workspaceTypes.length > 0) {
         wsTypeId = String(workspaceTypes[0].id);
-        console.log('🔍 Using first available workspace type:', wsTypeId);
       }
-
-      console.log('🔍 Final wsTypeId:', wsTypeId);
 
       // Only proceed if we have a valid workspace type ID
       if (!wsTypeId) {
-        console.log('❌ No workspace type ID found, cannot fetch sections');
         setSectionTemplates([]);
         setSectionTemplatesLoading(false);
         return;
       }
 
-      console.log('🔍 Making API call to fetch sections...');
       setSectionTemplatesLoading(true);
       try {
-        const apiUrl = `${API.BASE_URL()}/api/prompt-templates/types/${String(wsTypeId)}/sections`;
-        console.log('🔍 API URL:', apiUrl);
-        
+        const apiUrl = `${API.BASE_URL()}/api/prompt-templates/types/${wsTypeId}/sections`;
         const res = await fetch(apiUrl, {
           headers: {
             Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
           },
         });
-        console.log('🔍 API response status:', res.status);
-        console.log('🔍 API response headers:', res.headers);
-        
         if (!res.ok) {
           const errorText = await res.text();
-          console.error('❌ API error response:', errorText);
           throw new Error(`Failed to fetch section templates: ${res.status} ${errorText}`);
         }
-        
         const data = await res.json();
-        console.log('✅ Fetched section templates:', data);
-        console.log('✅ Number of sections:', Array.isArray(data) ? data.length : 'Not an array');
         setSectionTemplates(Array.isArray(data) ? data : []);
       } catch (error) {
-        console.error('❌ Error fetching section templates:', error);
         setSectionTemplates([]);
       } finally {
         setSectionTemplatesLoading(false);
@@ -283,38 +249,38 @@ const ProposalAuthoring: React.FC = () => {
   useEffect(() => {
     if (location.state) {
       console.log('Navigation state received:', location.state);
-      
+
       // Handle workspace ID from navigation state
       if (location.state.workspaceId) {
         setSelectedWorkspace(location.state.workspaceId);
         console.log('Set selected workspace from navigation state:', location.state.workspaceId);
       }
-      
+
       // Handle section name from navigation state
       if (location.state.sectionName) {
         setSelectedSectionName(location.state.sectionName);
         console.log('Set selected section name from navigation state:', location.state.sectionName);
       }
-      
+
       // Handle workspace type information
       if (location.state.workspaceType || location.state.workspaceTypeId) {
         const workspaceTypeName = location.state.workspaceType;
         const workspaceTypeId = location.state.workspaceTypeId;
-        
+
         console.log('Navigation state workspace type info:', { workspaceTypeName, workspaceTypeId });
-        
+
         // Store workspace type info for later use when workspaces are loaded
         if (workspaceTypeName) {
           // This will be used when workspace types are loaded
           console.log('Workspace type name from navigation:', workspaceTypeName);
         }
-        
+
         if (workspaceTypeId) {
           // This will be used when workspace types are loaded
           console.log('Workspace type ID from navigation:', workspaceTypeId);
         }
       }
-      
+
       // Handle prompt if provided
       if (location.state.prompt) {
         setPrompt(location.state.prompt);
@@ -370,7 +336,7 @@ const ProposalAuthoring: React.FC = () => {
     if (selectedWorkspace && workspaceContent) {
       console.log('Workspace content loaded for:', selectedWorkspace);
       console.log('Workspace content:', workspaceContent);
-      
+
       // If we have navigation state with workspace type info, use it to enhance resolution
       if (location.state?.workspaceType || location.state?.workspaceTypeId) {
         console.log('Using navigation state workspace type info for enhanced resolution');
@@ -382,12 +348,12 @@ const ProposalAuthoring: React.FC = () => {
   useEffect(() => {
     if (location.state?.workspaceId && location.state?.workspaceTypeId) {
       console.log('🔍 Detected navigation from workspace creation, refreshing workspace data');
-      
+
       // Refresh workspaces to ensure we have the latest data
       fetchWorkspaces().then(() => {
         console.log('✅ Workspaces refreshed after navigation from workspace creation');
       });
-      
+
       // Also fetch the specific workspace to ensure it's loaded with correct workspace type
       if (location.state.workspaceId) {
         fetchWorkspace(location.state.workspaceId).then((workspace) => {
@@ -596,15 +562,30 @@ const ProposalAuthoring: React.FC = () => {
     setTags(tags.filter((tag) => tag !== tagToRemove));
   };
 
-  // Calculate token count for selected sections
-  const calculateSelectedTokens = () => {
-    if (!workspaceContent) return 0;
-    const selected = workspaceContent.sections.filter(section =>
-      selectedSections.includes(section.id)
-    );
-    const totalChars = selected.reduce((sum, section) => sum + (section.content?.length || 0), 0);
-    return Math.ceil(totalChars / 4); // Rough estimation: 1 token ≈ 4 characters
-  };
+  // Calculate token count for selected sections using tiktoken-js
+  useEffect(() => {
+    let cancelled = false;
+    async function updateTokens() {
+      if (!workspaceContent || selectedSections.length === 0) {
+        setSelectedTokens(0);
+        return;
+      }
+      const selected = workspaceContent.sections.filter(section =>
+        selectedSections.includes(section.id)
+      );
+      const encoder = await encoding_for_model("gpt-3.5-turbo");
+      let totalTokens = 0;
+      for (const section of selected) {
+        const content = section.content || "";
+        const tokens = encoder.encode(content);
+        totalTokens += tokens.length;
+      }
+      encoder.free();
+      if (!cancelled) setSelectedTokens(totalTokens);
+    }
+    updateTokens();
+    return () => { cancelled = true; };
+  }, [selectedSections, workspaceContent]);
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -800,31 +781,7 @@ const ProposalAuthoring: React.FC = () => {
                 {!sectionTemplatesLoading && sectionTemplates.length === 0 && (
                   <div className="text-xs text-gray-500 mt-2">
                     No sections found for this workspace type.
-                    <button
-                      onClick={async () => {
-                        try {
-                          const res = await fetch(`${API.BASE_URL()}/api/prompt-templates/seed`, {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
-                            },
-                          });
-                          if (res.ok) {
-                            console.log('Database seeded successfully');
-                            // Retry fetching templates
-                            window.location.reload();
-                          } else {
-                            console.error('Failed to seed database');
-                          }
-                        } catch (error) {
-                          console.error('Error seeding database:', error);
-                        }
-                      }}
-                      className="ml-2 text-blue-600 hover:text-blue-800 underline"
-                    >
-                      Seed Database
-                    </button>
+
                   </div>
                 )}
                 {sectionTemplates.length > 0 && (
@@ -864,7 +821,7 @@ const ProposalAuthoring: React.FC = () => {
                     </div>
                     {selectedSections.length > 0 && (
                       <div className="text-xs text-blue-600 font-medium">
-                        ~{calculateSelectedTokens().toLocaleString()} tokens
+                        ~{selectedTokens.toLocaleString()} tokens
                       </div>
                     )}
                   </div>

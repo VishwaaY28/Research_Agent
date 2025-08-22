@@ -181,10 +181,73 @@ const PromptTemplatePage: React.FC = () => {
     }
     setSaving(true);
     try {
+      // 1. Update the prompt template for the section (if it exists)
+      // Fetch the prompt templates for this section
+      const promptTemplatesResp = await fetch(
+        `${API.BASE_URL()}/api/prompt-templates/sections/${selectedSection.id}/prompts`,
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        }
+      );
+      let promptTemplates = [];
+      if (promptTemplatesResp.ok) {
+        promptTemplates = await promptTemplatesResp.json();
+      }
+      // Find the default prompt template (or first one)
+      const templateToUpdate = promptTemplates.find((p) => p.is_default) || promptTemplates[0];
+      if (templateToUpdate) {
+        // Update the prompt template
+        const updateResp = await fetch(
+          `${API.BASE_URL()}/api/prompt-templates/prompts/${templateToUpdate.id}`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${localStorage.getItem('token')}`,
+            },
+            body: JSON.stringify({
+              prompt: editablePrompt,
+              is_default: true,
+            }),
+          }
+        );
+        if (!updateResp.ok) {
+          const error = await updateResp.text();
+          toast.error(error || 'Failed to update prompt template');
+          setSaving(false);
+          return;
+        }
+      } else {
+        // If no template exists, create one
+        const createResp = await fetch(
+          `${API.BASE_URL()}/api/prompt-templates/sections/${selectedSection.id}/prompts`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${localStorage.getItem('token')}`,
+            },
+            body: JSON.stringify({
+              prompt: editablePrompt,
+              is_default: true,
+            }),
+          }
+        );
+        if (!createResp.ok) {
+          const error = await createResp.text();
+          toast.error(error || 'Failed to create prompt template');
+          setSaving(false);
+          return;
+        }
+      }
+
+      // 2. Save the prompt to the workspace as before
       const title = `${selectedType.name} - ${selectedSection.name}`;
       await savePromptToWorkspace(workspace.id, title, editablePrompt, []);
-      toast.success('Prompt added to workspace');
+      toast.success('Prompt template updated and added to workspace');
       await fetchWorkspaces();
+      // Refresh section prompts
+      await loadSectionsForType(selectedType);
       // Reset section and prompt for new entry
       setSelectedSection(null);
       setEditablePrompt('');
@@ -289,6 +352,31 @@ const PromptTemplatePage: React.FC = () => {
   return (
     <div className="min-h-full bg-gradient-to-br from-indigo-50 via-white to-purple-50 font-sans">
       <div className="px-4 sm:px-6 lg:px-8 py-12 w-full">
+       <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`${API.BASE_URL()}/api/prompt-templates/seed`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
+                            },
+                          });
+                          if (res.ok) {
+                            console.log('Database seeded successfully');
+                            // Retry fetching templates
+                            window.location.reload();
+                          } else {
+                            console.error('Failed to seed database');
+                          }
+                        } catch (error) {
+                          console.error('Error seeding database:', error);
+                        }
+                      }}
+                      className="ml-2 text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Seed Database
+                    </button>
         <div className="bg-white rounded-2xl shadow-xl border border-indigo-100 w-full p-8 mb-10 backdrop-blur-sm bg-white/90">
           <div className="flex items-center justify-between mb-10 border-b border-indigo-100 pb-6">
             <div>
