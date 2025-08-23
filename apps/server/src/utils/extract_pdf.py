@@ -156,7 +156,7 @@ def extract_pdf_sections(filepath: str, figures_dir: str) -> List[Dict]:
             sections_dicts = json.load(f)
     else:
         logger.info("Extracting sections with default settings...")
-        elements = partition_pdf(filename=filepath, extract_images_in_pdf=False)
+        elements = partition_pdf(filename=filepath, pdf_infer_table_structure =True)
         sections_dicts = [el.to_dict() if hasattr(el, "to_dict") else el for el in elements]
         with open(output_json_name, "w") as f:
             json.dump(sections_dicts, f)

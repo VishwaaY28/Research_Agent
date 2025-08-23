@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import List, Optional
 from database.models import WorkspaceType, SectionTemplate, PromptTemplate, User
+from utils.llm2 import hugging_face_llm_client
 from tortoise.exceptions import DoesNotExist, IntegrityError
 
 router = APIRouter()
@@ -125,7 +126,7 @@ async def create_section_template(type_id: int, data: SectionTemplateCreate, req
         workspace_type = await WorkspaceType.get(id=type_id)
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Workspace type not found")
-    
+
     obj = await SectionTemplate.create(
         workspace_type=workspace_type,
         name=data.name,
@@ -144,22 +145,22 @@ async def list_section_templates(type_id: int, request: Request):
         await WorkspaceType.get(id=type_id)
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Workspace type not found")
-    
+
     sections = await SectionTemplate.filter(workspace_type_id=type_id).order_by('order', 'name')
-    
+
     result = []
     for section in sections:
         # Get the default prompt for this section
         prompt_obj = await PromptTemplate.filter(section_template=section, is_default=True).first()
         prompt_text = prompt_obj.prompt if prompt_obj else None
-        
+
         result.append(SectionWithPromptResponse(
             id=section.id,
             name=section.name,
             order=section.order,
             prompt=prompt_text
         ))
-    
+
     return result
 
 @router.get('/sections/{section_id}', response_model=SectionTemplateResponse)
@@ -209,11 +210,11 @@ async def create_prompt_template(section_id: int, data: PromptTemplateCreate, re
         section = await SectionTemplate.get(id=section_id)
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Section template not found")
-    
+
     # If this is a default prompt, unset other defaults for this section
     if data.is_default:
         await PromptTemplate.filter(section_template=section, is_default=True).update(is_default=False)
-    
+
     obj = await PromptTemplate.create(
         section_template=section,
         prompt=data.prompt,
@@ -232,7 +233,7 @@ async def list_prompt_templates(section_id: int, request: Request):
         await SectionTemplate.get(id=section_id)
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Section template not found")
-    
+
     prompts = await PromptTemplate.filter(section_template_id=section_id).order_by('-is_default', 'created_at')
     return [
         PromptTemplateResponse(
@@ -247,15 +248,15 @@ async def update_prompt_template(prompt_id: int, data: PromptTemplateCreate, req
     await get_current_user(request)  # Ensure user is authenticated
     try:
         obj = await PromptTemplate.get(id=prompt_id)
-        
+
         # If this is becoming a default prompt, unset other defaults for this section
         if data.is_default and not obj.is_default:
             await PromptTemplate.filter(section_template=obj.section_template, is_default=True).update(is_default=False)
-        
+
         obj.prompt = data.prompt
         obj.is_default = data.is_default
         await obj.save()
-        
+
         return PromptTemplateResponse(
             id=obj.id,
             prompt=obj.prompt,
@@ -274,12 +275,11 @@ async def delete_prompt_template(prompt_id: int, request: Request):
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Prompt template not found")
 
-# Seed data route
 @router.post('/seed')
 async def seed_default_data(request: Request):
     """Seed the database with default workspace types, sections, and prompts"""
-    await get_current_user(request)  # Ensure user is authenticated
-    
+    await get_current_user(request)
+
     # Default workspace types and their sections
     default_data = {
         "Proposal": [
@@ -371,141 +371,22 @@ async def seed_default_data(request: Request):
                 "name": "Definition of Done",
                 "prompt": "Define what constitutes completion of this user story, including testing and documentation requirements."
             }
-        ],
-        "Service Agreement": [
-            {
-                "name": "Agreement Overview",
-                "prompt": "Summarize the purpose and scope of the service agreement."
-            },
-            {
-                "name": "Services Provided",
-                "prompt": "List and describe the services to be provided under this agreement."
-            },
-            {
-                "name": "Service Levels",
-                "prompt": "Define the expected service levels and performance metrics."
-            },
-            {
-                "name": "Responsibilities",
-                "prompt": "Outline the responsibilities of both parties."
-            },
-            {
-                "name": "Payment Terms",
-                "prompt": "Specify the payment terms, schedule, and invoicing process."
-            },
-            {
-                "name": "Termination Clause",
-                "prompt": "Describe the conditions under which the agreement may be terminated."
-            },
-            {
-                "name": "Confidentiality",
-                "prompt": "Explain the confidentiality obligations of both parties."
-            }
-        ],
-        "Report": [
-            {
-                "name": "Introduction",
-                "prompt": "Provide an introduction to the report, including objectives and background."
-            },
-            {
-                "name": "Methodology",
-                "prompt": "Describe the methods and processes used to gather and analyze data."
-            },
-            {
-                "name": "Findings",
-                "prompt": "Summarize the key findings of the report."
-            },
-            {
-                "name": "Analysis",
-                "prompt": "Provide a detailed analysis of the findings."
-            },
-            {
-                "name": "Recommendations",
-                "prompt": "Offer actionable recommendations based on the analysis."
-            },
-            {
-                "name": "Conclusion",
-                "prompt": "Summarize the main points and conclusions of the report."
-            },
-            {
-                "name": "Appendix",
-                "prompt": "Include any additional material, data, or supporting documentation."
-            }
-        ],
-        "Research": [
-            {
-                "name": "Abstract",
-                "prompt": "Summarize the research topic, objectives, and key findings."
-            },
-            {
-                "name": "Introduction",
-                "prompt": "Introduce the research problem and its significance."
-            },
-            {
-                "name": "Literature Review",
-                "prompt": "Review relevant literature and previous research."
-            },
-            {
-                "name": "Methodology",
-                "prompt": "Describe the research design, methods, and procedures."
-            },
-            {
-                "name": "Results",
-                "prompt": "Present the results of the research."
-            },
-            {
-                "name": "Discussion",
-                "prompt": "Interpret the results and discuss their implications."
-            },
-            {
-                "name": "References",
-                "prompt": "List all references and sources cited in the research."
-            }
-        ],
-        "Template": [
-            {
-                "name": "Header",
-                "prompt": "Provide the header for the template, including title and date."
-            },
-            {
-                "name": "Body",
-                "prompt": "Describe the main content or body of the template."
-            },
-            {
-                "name": "Footer",
-                "prompt": "Include footer information such as page numbers or disclaimers."
-            },
-            {
-                "name": "Instructions",
-                "prompt": "Provide instructions for using or filling out the template."
-            },
-            {
-                "name": "Checklist",
-                "prompt": "List items to be checked or completed in the template."
-            },
-            {
-                "name": "Summary",
-                "prompt": "Summarize the purpose and key points of the template."
-            },
-            {
-                "name": "Appendix",
-                "prompt": "Include any additional material or resources."
-            }
         ]
+
     }
-    
+
     created_types = []
-    
+
     for type_name, sections in default_data.items():
         # Create workspace type
         workspace_type, created = await WorkspaceType.get_or_create(
             name=type_name,
             defaults={"is_default": True}
         )
-        
+
         if created:
             created_types.append(type_name)
-        
+
         # Create sections and prompts
         for i, section_data in enumerate(sections):
             section, _ = await SectionTemplate.get_or_create(
@@ -513,15 +394,15 @@ async def seed_default_data(request: Request):
                 name=section_data["name"],
                 defaults={"order": i}
             )
-            
+
             # Create default prompt for this section
             await PromptTemplate.get_or_create(
                 section_template=section,
                 is_default=True,
                 defaults={"prompt": section_data["prompt"]}
             )
-    
+
     return {
         "message": f"Seeded {len(created_types)} workspace types with their sections and prompts",
         "created_types": created_types
-    } 
+    }

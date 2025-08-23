@@ -78,20 +78,20 @@ const Sidebar: React.FC = () => {
                   <NavLink
                     to={item.path}
                     className={({ isActive }) => {
-                      // Highlight 'Workspaces' for both /dashboard/workspaces and /dashboard/proposal-authoring
                       const isWorkspaceActive =
                         item.path === '/dashboard/workspaces' &&
                         (location.pathname.startsWith('/dashboard/workspaces') ||
                           location.pathname.startsWith('/dashboard/proposal-authoring'));
                       const active = isActive || isWorkspaceActive;
-                      return `flex items-center ${collapsed ? 'justify-center px-0' : 'space-x-3 px-4'} py-3 rounded-lg transition-colors ${
-                        active ? 'bg-primary text-white' : 'text-neutral-700 hover:bg-gray-100'
+                      return `relative flex items-center ${collapsed ? 'justify-center px-0' : 'space-x-3 px-4'} py-3 rounded-xl transition-all duration-200 shadow-sm ${
+                        active
+                          ? 'bg-gradient-to-l from-indigo-50 to-white text-indigo-700 font-semibold'
+                          : 'text-neutral-700 hover:bg-gray-50'
                       }`;
                     }}
                     end={item.path === '/dashboard'}
                   >
                     {({ isActive }) => {
-                      // Highlight 'Workspaces' for both /dashboard/workspaces and /dashboard/proposal-authoring
                       const isWorkspaceActive =
                         item.path === '/dashboard/workspaces' &&
                         (location.pathname.startsWith('/dashboard/workspaces') ||
@@ -99,18 +99,21 @@ const Sidebar: React.FC = () => {
                       const active = isActive || isWorkspaceActive;
                       return (
                         <>
+                          {active && !collapsed && (
+                            <div className="absolute left-0 top-2 bottom-2 border-l-4 border-indigo-500 rounded-r-lg"></div>
+                          )}
                           <IconComponent
-                            className={`w-5 h-5 ${
+                            className={`w-5 h-5 z-10 ${
                               collapsed
                                 ? active
-                                  ? 'mx-auto text-blue-300'
+                                  ? 'mx-auto text-indigo-500 drop-shadow'
                                   : 'mx-auto text-neutral-700'
                                 : active
-                                  ? 'text-white'
+                                  ? 'text-indigo-700 drop-shadow'
                                   : 'text-neutral-700'
                             }`}
                           />
-                          {!collapsed && <span className="font-medium">{item.label}</span>}
+                          {!collapsed && <span className="font-medium z-10">{item.label}</span>}
                         </>
                       );
                     }}
