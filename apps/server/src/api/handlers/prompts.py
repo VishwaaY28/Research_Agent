@@ -6,10 +6,12 @@ from pydantic import BaseModel
 
 from database.repositories.content import content_repository
 from utils.llm import azure_openai_client, ollama_client
+from utils.llm2 import hugging_face_llm_client
 
 logger = logging.getLogger(__name__)
 
-USE_AZURE_OPENAI = True
+USE_AZURE_OPENAI = False
+USE_HUGGING_FACE = True
 
 class PromptRequest(BaseModel):
     title: str
@@ -60,7 +62,7 @@ async def get_workspace_content(workspace_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 async def generate_content(workspace_id: int, request: GenerateContentRequest):
-    """Generate content using either Azure OpenAI or Ollama based on configuration"""
+    """Generate content using either Azure OpenAI, Ollama, or Hugging Face based on configuration"""
     try:
         context_sections = []
 
@@ -69,7 +71,11 @@ async def generate_content(workspace_id: int, request: GenerateContentRequest):
             sections = {s.id: s for s in content['sections']}
             context_sections = [sections[sid].content for sid in request.section_ids if sid in sections]
 
-        if USE_AZURE_OPENAI:
+        if USE_HUGGING_FACE:
+            logger.info("Using Hugging Face for content generation")
+            client = hugging_face_llm_client
+            provider = "Hugging Face"
+        elif USE_AZURE_OPENAI:
             logger.info("Using Azure OpenAI for content generation")
             client = azure_openai_client
             provider = "Azure OpenAI"
@@ -87,12 +93,15 @@ async def generate_content(workspace_id: int, request: GenerateContentRequest):
         return JSONResponse({
             "success": True,
             "generated_content": result["content"],
-            "context_tokens": result["context_tokens"],
-            "response_tokens": result["response_tokens"],
+            "context_tokens": result.get("context_tokens", 0),
+            "response_tokens": result.get("response_tokens", 0),
             "provider": provider
         })
     except Exception as e:
-        provider = "Azure OpenAI" if USE_AZURE_OPENAI else "Ollama"
+        if USE_HUGGING_FACE:
+            provider = "Hugging Face"
+        else:
+            provider = "Azure OpenAI" if USE_AZURE_OPENAI else "Ollama"
         logger.error(f"Error generating content with {provider}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Content generation failed: {str(e)}")
 
