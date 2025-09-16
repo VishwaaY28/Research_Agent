@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import time
 from fastapi import HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict
@@ -78,7 +79,10 @@ async def upload_and_extract(
 
                 logger.info(f"Extraction results: {len(chunks)} chunks")
 
-                extract_path = os.path.join(EXTRACTS_DIR, f"content_{filename}.json")
+                # Generate unique extract path to avoid conflicts
+                timestamp = int(time.time() * 1000)  # milliseconds for uniqueness
+                safe_filename = filename.replace(" ", "_").replace(".", "_")
+                extract_path = os.path.join(EXTRACTS_DIR, f"content_{safe_filename}_{timestamp}.json")
                 content_source = await content_source_repository.upsert(
                     name=filename,
                     source_url=source_path,
@@ -144,7 +148,9 @@ async def upload_and_extract(
 
                 logger.info(f"Web extraction results: {len(chunks)} chunks")
 
-                extract_path = os.path.join(EXTRACTS_DIR, f"content_web_{url_safe}.json")
+                # Generate unique extract path to avoid conflicts
+                timestamp = int(time.time() * 1000)  # milliseconds for uniqueness
+                extract_path = os.path.join(EXTRACTS_DIR, f"content_web_{url_safe}_{timestamp}.json")
                 content_source = await content_source_repository.upsert(
                     name=url_safe,
                     source_url=url,

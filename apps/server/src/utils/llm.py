@@ -20,7 +20,7 @@ def count_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
 
 class AzureOpenAIClient:
     def __init__(self):
-        self.key_vault_url = env.get("KEY_VAULT_URL")
+        self.key_vault_url = "https://kv-fs-to-autogen.vault.azure.net/"
         self._config = None
         self._client = None
 
@@ -128,7 +128,7 @@ Your response must follow these principles:
 \"\"\"
 
 ---
-✅ Instructions:
+ Instructions:
 - Synthesize and summarize the workspace content into a coherent, well-written section.
 - If the content spans multiple ideas, organize them into logical paragraphs or bullet points as appropriate.
 - Do not repeat raw content or include citations/attributions. The output should be ready to copy-paste into a client-facing proposal.
@@ -147,15 +147,15 @@ Your response must follow these principles:
             )
 
             generated_content = response.choices[0].message.content.strip()
-            
+
             # Calculate token counts
             full_context = system_prompt + "\n" + user_message
             context_tokens = count_tokens(workspace_content)
             response_tokens = count_tokens(generated_content)
-            
+
             logger.info(f"Successfully generated content for section: {section_name}")
             logger.info(f"Context tokens: {context_tokens}, Response tokens: {response_tokens}")
-            
+
             return {
                 "content": generated_content,
                 "context_tokens": context_tokens,
@@ -247,16 +247,16 @@ Your response must follow these principles:
 - Use clear, confident, and well-structured language suitable for external stakeholders such as clients, procurement teams, and decision-makers.
 
 ---
-### ✏️ Section to be Written:
+### Section to be Written:
 {section_name}
 
-### 🗂 Workspace Content:
+### Workspace Content:
 \"\"\"
 {workspace_content}
 \"\"\"
 
 ---
-✅ Instructions:
+Instructions:
 - Synthesize and summarize the workspace content into a coherent, well-written section.
 - If the content spans multiple ideas, organize them into logical paragraphs or bullet points as appropriate.
 - Do not repeat raw content or include citations/attributions. The output should be ready to copy-paste into a client-facing proposal.
@@ -275,15 +275,15 @@ Your response must follow these principles:
             )
 
             generated_content = response.choices[0].message.content.strip()
-            
+
             # Calculate token counts
             full_context = system_prompt + "\n" + user_message
             context_tokens = count_tokens(workspace_content)
             response_tokens = count_tokens(generated_content)
-            
+
             logger.info(f"Successfully generated content using Ollama for section: {section_name}")
             logger.info(f"Context tokens: {context_tokens}, Response tokens: {response_tokens}")
-            
+
             return {
                 "content": generated_content,
                 "context_tokens": context_tokens,

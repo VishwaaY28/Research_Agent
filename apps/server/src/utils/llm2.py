@@ -78,7 +78,7 @@ class HuggingFaceLLMClient:
                     do_sample=True,
                     temperature=0.3,
                     top_p=0.9,
-                    return_full_text=False
+                    return_full_text=True
                 )
             resp = await loop.run_in_executor(None, call_pipeline)
 

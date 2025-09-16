@@ -3,13 +3,150 @@ import json
 import re
 from pathlib import Path
 import logging
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from unstructured.partition.pdf import partition_pdf
 from utils.cache import check_extracted_cache, save_extracted_cache
 from utils.clean import clean_content
+import nltk
+from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from collections import Counter
+import string
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Initialize NLTK components
+try:
+    nltk.data.find('tokenizers/punkt')
+    nltk.data.find('corpora/stopwords')
+    nltk.data.find('corpora/wordnet')
+except LookupError:
+    nltk.download('punkt')
+    nltk.download('stopwords')
+    nltk.download('wordnet')
+
+lemmatizer = WordNetLemmatizer()
+stop_words = set(stopwords.words('english'))
+
+def extract_keywords(text: str, max_keywords: int = 5) -> List[str]:
+    """Extract keywords from text using TF-IDF"""
+    if not text or len(text.strip()) < 10:
+        return []
+
+    # Clean and preprocess text
+    text = re.sub(r'[^\w\s]', ' ', text.lower())
+    words = word_tokenize(text)
+    words = [lemmatizer.lemmatize(word) for word in words if word not in stop_words and len(word) > 2]
+
+    if len(words) < 3:
+        return []
+
+    # Use TF-IDF to extract keywords
+    try:
+        vectorizer = TfidfVectorizer(max_features=50, ngram_range=(1, 2))
+        tfidf_matrix = vectorizer.fit_transform([' '.join(words)])
+        feature_names = vectorizer.get_feature_names_out()
+        scores = tfidf_matrix.toarray()[0]
+
+        # Get top keywords
+        keyword_scores = list(zip(feature_names, scores))
+        keyword_scores.sort(key=lambda x: x[1], reverse=True)
+
+        keywords = [kw for kw, score in keyword_scores[:max_keywords] if score > 0.1]
+        return keywords
+    except Exception as e:
+        logger.warning(f"Error extracting keywords: {e}")
+        # Fallback to simple word frequency
+        word_freq = Counter(words)
+        return [word for word, freq in word_freq.most_common(max_keywords) if freq > 1]
+
+def detect_heading(text: str) -> bool:
+    """Detect if text is likely a heading based on patterns"""
+    if not text or len(text.strip()) < 3:
+        return False
+
+    text = text.strip()
+
+    # Check for common heading patterns
+    heading_patterns = [
+        r'^[A-Z][A-Z\s]+$',  # ALL CAPS
+        r'^\d+\.?\s+[A-Z]',  # Numbered headings
+        r'^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*$',  # Title Case
+        r'^[IVX]+\.?\s+[A-Z]',  # Roman numerals
+        r'^[A-Z]\.\s+[A-Z]',  # Letter numbering
+    ]
+
+    for pattern in heading_patterns:
+        if re.match(pattern, text):
+            return True
+
+    # Check if text is short and contains important words
+    if len(text) < 100 and any(word in text.lower() for word in ['introduction', 'overview', 'summary', 'conclusion', 'methodology', 'results', 'analysis', 'discussion']):
+        return True
+
+    return False
+
+def generate_meaningful_title(text: str, max_length: int = 60) -> str:
+    """Generate a meaningful title from text content"""
+    if not text or len(text.strip()) < 10:
+        return "Untitled Section"
+
+    # Try to find the first sentence that looks like a heading
+    sentences = sent_tokenize(text)
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if detect_heading(sentence) and len(sentence) <= max_length:
+            return sentence
+
+    # If no heading found, use first sentence or create from keywords
+    if sentences:
+        first_sentence = sentences[0].strip()
+        if len(first_sentence) <= max_length:
+            return first_sentence
+        else:
+            # Truncate first sentence
+            return first_sentence[:max_length-3] + "..."
+
+    # Fallback: use keywords
+    keywords = extract_keywords(text, 3)
+    if keywords:
+        return " ".join(keywords[:3]).title()
+
+    return "Content Section"
+
+def auto_tag_chunk(content: str, major_title: str = None) -> List[str]:
+    """Generate auto tags for a chunk"""
+    tags = []
+
+    # Add major title as tag if provided
+    if major_title:
+        tags.append(major_title.lower().replace(' ', '-'))
+
+    # Extract keywords as tags
+    keywords = extract_keywords(content, 5)
+    tags.extend([kw.replace(' ', '-') for kw in keywords])
+
+    # Add content type tags based on patterns
+    content_lower = content.lower()
+    if any(word in content_lower for word in ['introduction', 'overview', 'background']):
+        tags.append('introduction')
+    if any(word in content_lower for word in ['methodology', 'approach', 'process']):
+        tags.append('methodology')
+    if any(word in content_lower for word in ['results', 'findings', 'outcomes']):
+        tags.append('results')
+    if any(word in content_lower for word in ['conclusion', 'summary', 'recommendations']):
+        tags.append('conclusion')
+    if any(word in content_lower for word in ['table', 'figure', 'chart', 'graph']):
+        tags.append('data-visualization')
+    if any(word in content_lower for word in ['analysis', 'evaluation', 'assessment']):
+        tags.append('analysis')
+
+    # Remove duplicates and limit to 8 tags
+    unique_tags = list(dict.fromkeys(tags))[:4]
+    return [tag for tag in unique_tags if len(tag) > 2]
 
 def filter_footer_content(elements):
     """Filter out footer content from elements"""
@@ -80,7 +217,7 @@ def group_elements_by_page(elements):
 def chunk_by_toc_with_minors(entries, elements):
     """
     For each TOC entry (major chunk), collect all elements in its page range,
-    then subdivide into minor chunks using 'Title' elements as boundaries.
+    then subdivide into fewer, more meaningful minor chunks using NLP techniques.
     """
     if not entries or not elements:
         return []
@@ -102,38 +239,73 @@ def chunk_by_toc_with_minors(entries, elements):
         section_elements = []
         for page in range(start_page, end_page):
             section_elements.extend(page_map.get(page, []))
-        # Minor chunking: group by 'Title' elements
+
+        # Improved minor chunking: group content more intelligently
         minor_chunks = []
         current_minor = None
+        current_content = []
+        min_chunk_size = 500  # Minimum content size for a minor chunk
+
         for el in section_elements:
             text = el.get("text", "").strip()
             el_type = el.get("type", "")
             page_number = el.get("metadata", {}).get("page_number")
-            # Start a new minor chunk at each Title (not the TOC section title itself)
-            if el_type == "Title" and text and text != title:
-                if current_minor:
-                    minor_chunks.append(current_minor)
+
+            if not text:
+                continue
+
+            # Check if this element is a heading
+            is_heading = (el_type == "Title" and text != title) or detect_heading(text)
+
+            if is_heading and current_minor and len(' '.join(current_content)) > min_chunk_size:
+                # Finalize current chunk
+                content_text = ' '.join(current_content)
+                current_minor["content"] = [{"text": content_text, "page_number": page_number}]
+                current_minor["tags"] = auto_tag_chunk(content_text, title)
+                minor_chunks.append(current_minor)
+                current_minor = None
+                current_content = []
+
+            if is_heading:
+                # Start new minor chunk
                 current_minor = {
                     "tag": text,
                     "content": []
                 }
-            elif text:
+            else:
+                # Add to current content
+                current_content.append(text)
+
+                # If we don't have a current minor chunk, create one
                 if not current_minor:
                     current_minor = {
-                        "tag": "Untitled Section",
+                        "tag": generate_meaningful_title(text),
                         "content": []
                     }
-                current_minor["content"].append({
-                    "text": text,
-                    "page_number": page_number
-                })
-        if current_minor:
+
+        # Finalize last chunk
+        if current_minor and current_content:
+            content_text = ' '.join(current_content)
+            current_minor["content"] = [{"text": content_text, "page_number": page_number}]
+            current_minor["tags"] = auto_tag_chunk(content_text, title)
             minor_chunks.append(current_minor)
+
+        # If no minor chunks were created, create one from all content
+        if not minor_chunks:
+            all_content = ' '.join([el.get("text", "").strip() for el in section_elements if el.get("text", "").strip()])
+            if all_content:
+                minor_chunks.append({
+                    "tag": generate_meaningful_title(all_content),
+                    "content": [{"text": all_content, "page_number": start_page}],
+                    "tags": auto_tag_chunk(all_content, title)
+                })
+
         chunks.append({
             "title": title,
             "start_page": start_page,
             "end_page": end_page - 1,
-            "content": minor_chunks
+            "content": minor_chunks,
+            "tags": auto_tag_chunk(' '.join([chunk["content"][0]["text"] for chunk in minor_chunks]), title)
         })
     return chunks
 
@@ -172,26 +344,62 @@ def extract_pdf_sections(filepath: str, figures_dir: str) -> List[Dict]:
         for chunk in chunks:
             chunk["file_source"] = filepath
     else:
-        logger.info("Using fallback chunking (flat)")
+        logger.info("Using fallback chunking with NLP-based titles")
         chunks = []
         buffer = ""
-        section_num = 1
+        current_heading = None
+
         for el in sections_dicts:
-            if el.get("text"):
-                buffer += el["text"] + "\n"
-                if len(buffer) > 2000:
-                    chunks.append({
-                        "file_source": filepath,
-                        "label": f"Section {section_num}",
-                        "content": clean_content(buffer)
-                    })
-                    section_num += 1
-                    buffer = ""
+            text = el.get("text", "").strip()
+            if not text:
+                continue
+
+            # Check if this element is a heading
+            is_heading = detect_heading(text) or el.get("type") == "Title"
+
+            if is_heading and buffer and len(buffer) > 1000:
+                # Finalize current chunk
+                content = clean_content(buffer)
+                title = generate_meaningful_title(content)
+                chunks.append({
+                    "file_source": filepath,
+                    "label": title,
+                    "content": content,
+                    "tags": auto_tag_chunk(content)
+                })
+                buffer = ""
+                current_heading = text
+            elif is_heading:
+                current_heading = text
+                if buffer:
+                    buffer += text + "\n"
+                else:
+                    buffer = text + "\n"
+            else:
+                buffer += text + "\n"
+
+            # Create chunk if buffer gets too large
+            if len(buffer) > 3000:
+                content = clean_content(buffer)
+                title = generate_meaningful_title(content)
+                chunks.append({
+                    "file_source": filepath,
+                    "label": title,
+                    "content": content,
+                    "tags": auto_tag_chunk(content)
+                })
+                buffer = ""
+                current_heading = None
+
+        # Finalize last chunk
         if buffer.strip():
+            content = clean_content(buffer)
+            title = generate_meaningful_title(content)
             chunks.append({
                 "file_source": filepath,
-                "label": f"Section {section_num}",
-                "content": clean_content(buffer)
+                "label": title,
+                "content": content,
+                "tags": auto_tag_chunk(content)
             })
     cache_data = {'chunks': chunks}
     save_extracted_cache(filepath, cache_data)

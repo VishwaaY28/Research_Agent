@@ -24,6 +24,7 @@ type MinorChunk = {
     text: string;
     page_number: number;
   }>;
+  tags?: string[];
 };
 
 type StructuredChunk = {
@@ -32,6 +33,7 @@ type StructuredChunk = {
   end_range: string;
   content: MinorChunk[];
   file_source?: string;
+  tags?: string[];
 };
 
 type SimpleChunk = {
@@ -40,6 +42,7 @@ type SimpleChunk = {
   file_source?: string;
   page?: number;
   section_type?: string;
+  tags?: string[];
 };
 
 type Chunk = StructuredChunk | SimpleChunk;
@@ -230,6 +233,19 @@ const ContentResults: React.FC<ContentResultsProps> = ({
                 <p className="text-sm text-gray-500">
                   {chunk.content.length} minor chunks • {chunk.start_range} - {chunk.end_range}
                 </p>
+                {chunk.tags && chunk.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {chunk.tags.map((tag, tagIndex) => (
+                      <span
+                        key={tagIndex}
+                        className="inline-flex items-center bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs"
+                      >
+                        <FiTag className="w-2 h-2 mr-1" />
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 {selectedItem && selectedItem.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
                     {selectedItem.tags.map((tag, tagIndex) => (
@@ -330,6 +346,19 @@ const ContentResults: React.FC<ContentResultsProps> = ({
                     </div>
                     <div className="flex-1">
                       <h5 className="font-medium text-gray-800 mb-2">{minor.tag}</h5>
+                      {minor.tags && minor.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {minor.tags.map((tag, tagIndex) => (
+                            <span
+                              key={tagIndex}
+                              className="inline-flex items-center bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs"
+                            >
+                              <FiTag className="w-2 h-2 mr-1" />
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       {selectedSectionItem && selectedSectionItem.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-2">
                           {selectedSectionItem.tags.map((tag, tagIndex) => (
@@ -462,6 +491,19 @@ const ContentResults: React.FC<ContentResultsProps> = ({
                 </button>
               </div>
             </div>
+            {chunk.tags && chunk.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-2">
+                {chunk.tags.map((tag, tagIndex) => (
+                  <span
+                    key={tagIndex}
+                    className="inline-flex items-center bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs"
+                  >
+                    <FiTag className="w-2 h-2 mr-1" />
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
             {selectedItem && selectedItem.tags.length > 0 && (
               <div className="flex flex-wrap gap-1 mb-2">
                 {selectedItem.tags.map((tag, tagIndex) => (

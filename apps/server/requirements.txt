@@ -20,3 +20,6 @@ tabula-py
 openai
 azure-identity
 azure-keyvault-secrets
+spacy
+nltk
+scikit-learn

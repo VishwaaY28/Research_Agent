@@ -18,6 +18,14 @@ async def bulk_create_sections(workspace_id: int, filename: str, chunks: list):
         sections = await section_repository.bulk_create_sections(workspace_id, filename, chunks)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        # Handle database integrity errors more gracefully
+        if "UNIQUE constraint failed" in str(e):
+            raise HTTPException(
+                status_code=409, 
+                detail=f"Content with filename '{filename}' already exists. Please use a different filename or delete the existing content first."
+            )
+        raise HTTPException(status_code=500, detail=f"Failed to create sections: {str(e)}")
     return [{"id": s.id, "name": s.name, "content": s.content, "source": s.source} for s in sections]
 
 async def search_sections(workspace_id: int, data: dict):
