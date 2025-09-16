@@ -3,15 +3,34 @@ from tortoise.exceptions import DoesNotExist
 
 class ContentSourceRepository:
     async def upsert(self, name, source_url, extracted_url, type):
-        obj, _ = await ContentSources.get_or_create(
-            source_url=source_url,
-            defaults={"name": name, "extracted_url": extracted_url, "type": type}
-        )
-        obj.name = name
-        obj.extracted_url = extracted_url
-        obj.type = type
-        await obj.save()
-        return obj
+        try:
+            # Try to find by source_url first
+            obj = await ContentSources.get(source_url=source_url, deleted_at=None)
+            # Update existing record
+            obj.name = name
+            obj.extracted_url = extracted_url
+            obj.type = type
+            await obj.save()
+            return obj
+        except DoesNotExist:
+            try:
+                # Try to find by extracted_url as fallback
+                obj = await ContentSources.get(extracted_url=extracted_url, deleted_at=None)
+                # Update existing record
+                obj.name = name
+                obj.source_url = source_url
+                obj.type = type
+                await obj.save()
+                return obj
+            except DoesNotExist:
+                # Create new record
+                obj = await ContentSources.create(
+                    name=name,
+                    source_url=source_url,
+                    extracted_url=extracted_url,
+                    type=type
+                )
+                return obj
 
     async def filter_by_filename(self, filename):
         return await ContentSources.filter(name=filename, deleted_at=None)

@@ -175,7 +175,7 @@ const ContentSources: React.FC = () => {
           ))}
         </div>
       )}
- 
+
 {deleteTarget && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
@@ -202,7 +202,7 @@ const ContentSources: React.FC = () => {
                 onClick={async () => {
                   try {
                     const response = await fetch(
-                      `${API.BASE_URL()}${API.ENDPOINTS.SOURCES.BASE_URL()}${API.ENDPOINTS.SOURCES.DELETE_SOFT(deleteTarget.id)}`,
+                      `${API.BASE_URL()}${API.ENDPOINTS.SOURCES.BASE_URL()}${API.ENDPOINTS.SOURCES.DELETE_HARD(deleteTarget.id)}`,
                       { method: 'DELETE' },
                     );
                     if (response.ok) {
@@ -225,7 +225,7 @@ const ContentSources: React.FC = () => {
           </div>
         </div>
       )}
- 
+
     </div>
   );
 };

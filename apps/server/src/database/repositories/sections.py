@@ -4,6 +4,7 @@ from tortoise.exceptions import DoesNotExist
 from typing import List
 from datetime import datetime
 import json
+from utils.extract_pdf import generate_meaningful_title
 
 class SectionRepository:
     async def bulk_create_sections(self, workspace_id, filename, chunks):
@@ -12,27 +13,23 @@ class SectionRepository:
         except DoesNotExist:
             raise ValueError(f"Workspace with id {workspace_id} not found")
 
-        content_source = None
+        # Use upsert to handle duplicate filenames gracefully
+        from database.repositories.sources import content_source_repository
+        
         if filename.startswith(('http://', 'https://')):
-            try:
-                content_source = await ContentSources.get(source_url=filename, deleted_at=None)
-            except DoesNotExist:
-                content_source = await ContentSources.create(
-                    name=filename,
-                    source_url=filename,
-                    extracted_url=filename,
-                    type="web"
-                )
+            content_source = await content_source_repository.upsert(
+                name=filename,
+                source_url=filename,
+                extracted_url=filename,
+                type="web"
+            )
         else:
-            try:
-                content_source = await ContentSources.get(name=filename, deleted_at=None)
-            except DoesNotExist:
-                content_source = await ContentSources.create(
-                    name=filename,
-                    source_url=f"file://{filename}",
-                    extracted_url=f"file://{filename}",
-                    type="pdf" if filename.endswith('.pdf') else "docx"
-                )
+            content_source = await content_source_repository.upsert(
+                name=filename,
+                source_url=f"file://{filename}",
+                extracted_url=f"file://{filename}_{workspace_id}",  # Make extracted_url unique by adding workspace_id
+                type="pdf" if filename.endswith('.pdf') else "docx"
+            )
 
         if not content_source:
             available_sources = await self._list_available_sources()
@@ -46,23 +43,75 @@ class SectionRepository:
                     content = json.dumps(content)
                 except Exception:
                     content = str(content)
-            name = chunk.get("name")
-            tags = chunk.get("tags", [])
-            if not name:
-                name = content[:50] + "..." if len(content) > 50 else content
+            
+            # Handle different chunk structures
+            if isinstance(chunk, dict) and "content" in chunk and isinstance(chunk["content"], list):
+                # Structured chunk with minor chunks
+                name = chunk.get("title", chunk.get("name", "Untitled Section"))
+                tags = chunk.get("tags", [])
+                
+                # Create main section
+                section = await Section.create(
+                    content_source=content_source,
+                    workspace=workspace,
+                    name=name,
+                    content=content,
+                    source=filename
+                )
+                
+                if tags:
+                    await self.add_tags_to_section(section.id, tags)
+                
+                created_sections.append(section)
+                
+                # Create sections for minor chunks
+                for minor_chunk in chunk["content"]:
+                    if isinstance(minor_chunk, dict) and "content" in minor_chunk:
+                        minor_content = minor_chunk["content"]
+                        if isinstance(minor_content, list):
+                            # Extract text from content array
+                            minor_text = " ".join([item.get("text", "") for item in minor_content if isinstance(item, dict) and "text" in item])
+                        else:
+                            minor_text = str(minor_content)
+                        
+                        minor_name = minor_chunk.get("tag", generate_meaningful_title(minor_text))
+                        minor_tags = minor_chunk.get("tags", [])
+                        
+                        # Add major chunk title as tag
+                        if name and name != "Untitled Section":
+                            minor_tags.append(name.lower().replace(' ', '-'))
+                        
+                        minor_section = await Section.create(
+                            content_source=content_source,
+                            workspace=workspace,
+                            name=minor_name,
+                            content=minor_text,
+                            source=filename
+                        )
+                        
+                        if minor_tags:
+                            await self.add_tags_to_section(minor_section.id, minor_tags)
+                        
+                        created_sections.append(minor_section)
+            else:
+                # Simple chunk
+                name = chunk.get("name", chunk.get("label", "Untitled Section"))
+                tags = chunk.get("tags", [])
+                if not name or name == "Untitled Section":
+                    name = content[:50] + "..." if len(content) > 50 else content
 
-            section = await Section.create(
-                content_source=content_source,
-                workspace=workspace,
-                name=name,
-                content=content,
-                source=filename
-            )
+                section = await Section.create(
+                    content_source=content_source,
+                    workspace=workspace,
+                    name=name,
+                    content=content,
+                    source=filename
+                )
 
-            if tags:
-                await self.add_tags_to_section(section.id, tags)
+                if tags:
+                    await self.add_tags_to_section(section.id, tags)
 
-            created_sections.append(section)
+                created_sections.append(section)
 
         return created_sections
 

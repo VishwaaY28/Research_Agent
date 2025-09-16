@@ -6,9 +6,10 @@ import {
   FiLayers,
   FiLogOut,
   FiSettings,
-  FiUpload,
+  FiUpload
 } from 'react-icons/fi';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import hlogo from '../../assets/H_logo.png';
 import logo from '../../assets/HexawareBlueLogo 2.png';
 import { useAuth } from '../../hooks/useAuth';
 import PromptTemplateModal from './PromptTemplateModal';
@@ -52,12 +53,21 @@ const Sidebar: React.FC = () => {
             className={`p-1 rounded hover:bg-gray-100 transition-colors ${collapsed ? '' : 'ml-2'}`}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            {collapsed ? <FiChevronRight /> : <FiChevronLeft />}
+            {collapsed ? (
+              <div className="flex items-center space-x-1">
+                <img src={hlogo} alt="H Logo" className="h-5 w-auto transition-all duration-200" />
+                <FiChevronRight />
+              </div>
+            ) : (
+              <FiChevronLeft />
+            )}
           </button>
         </div>
 
         <nav className="flex-1 p-4">
+
           <ul className="space-y-1">
+
             {navItems.map((item) => {
               const IconComponent = item.icon;
               if (item.isPromptTemplate) {
