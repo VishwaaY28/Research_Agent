@@ -55,7 +55,8 @@ def extract_keywords(text: str, max_keywords: int = 5) -> List[str]:
         keyword_scores = list(zip(feature_names, scores))
         keyword_scores.sort(key=lambda x: x[1], reverse=True)
 
-        keywords = [kw for kw, score in keyword_scores[:max_keywords] if score > 0.1]
+        # Use a stricter threshold to avoid noisy tags
+        keywords = [kw for kw, score in keyword_scores[:max_keywords * 2] if score > 0.2][:max_keywords]
         return keywords
     except Exception as e:
         logger.warning(f"Error extracting keywords: {e}")
@@ -118,35 +119,130 @@ def generate_meaningful_title(text: str, max_length: int = 60) -> str:
     return "Content Section"
 
 def auto_tag_chunk(content: str, major_title: str = None) -> List[str]:
-    """Generate auto tags for a chunk"""
-    tags = []
+    """Generate refined auto tags for a chunk"""
+    if not content or len(content.strip()) < 20:
+        return []
 
-    # Add major title as tag if provided
+    def kebab(text: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+    tags: List[str] = []
+
+    # Add major title as tag if provided (shortened to top 3 words)
     if major_title:
-        tags.append(major_title.lower().replace(' ', '-'))
+        title_words = [w for w in re.sub(r"[^\w\s]", " ", major_title).split() if len(w) > 2][:3]
+        if title_words:
+            tags.append(kebab(" ".join(title_words)))
 
     # Extract keywords as tags
-    keywords = extract_keywords(content, 5)
-    tags.extend([kw.replace(' ', '-') for kw in keywords])
+    keywords = extract_keywords(content, 4)
+    tags.extend([kebab(kw) for kw in keywords])
 
-    # Add content type tags based on patterns
-    content_lower = content.lower()
-    if any(word in content_lower for word in ['introduction', 'overview', 'background']):
-        tags.append('introduction')
-    if any(word in content_lower for word in ['methodology', 'approach', 'process']):
-        tags.append('methodology')
-    if any(word in content_lower for word in ['results', 'findings', 'outcomes']):
-        tags.append('results')
-    if any(word in content_lower for word in ['conclusion', 'summary', 'recommendations']):
-        tags.append('conclusion')
-    if any(word in content_lower for word in ['table', 'figure', 'chart', 'graph']):
-        tags.append('data-visualization')
-    if any(word in content_lower for word in ['analysis', 'evaluation', 'assessment']):
-        tags.append('analysis')
+    # Domain signals with stricter inclusion (must appear at least twice)
+    content_words = re.findall(r"[a-zA-Z]+", content.lower())
+    freq = Counter(content_words)
+    domain_terms = [
+        ("introduction", 2), ("overview", 2), ("background", 2),
+        ("methodology", 2), ("approach", 2), ("process", 2),
+        ("results", 2), ("findings", 2), ("outcomes", 2),
+        ("conclusion", 2), ("summary", 2), ("recommendations", 2),
+        ("analysis", 2), ("evaluation", 2), ("assessment", 2)
+    ]
+    for term, min_count in domain_terms:
+        if freq.get(term, 0) >= min_count:
+            tags.append(kebab(term))
 
-    # Remove duplicates and limit to 8 tags
-    unique_tags = list(dict.fromkeys(tags))[:4]
-    return [tag for tag in unique_tags if len(tag) > 2]
+    # Prune overly generic/short tags and dedupe; cap to 3
+    generic_blocklist = {"data", "information", "content", "section"}
+    cleaned = []
+    for t in tags:
+        if not t or len(t) < 3:
+            continue
+        if t in generic_blocklist:
+            continue
+        if t not in cleaned:
+            cleaned.append(t)
+
+    return cleaned[:3]
+
+def _merge_minor_chunks(minor_chunks: List[Dict], max_minors: int = 6, min_chars: int = 800) -> List[Dict]:
+    """Merge adjacent minor chunks to reduce count and ensure size thresholds."""
+    if not minor_chunks:
+        return minor_chunks
+
+    # Normalize content strings
+    def content_text(mc: Dict) -> str:
+        if isinstance(mc.get("content"), list) and mc["content"]:
+            return " ".join([c.get("text", "") for c in mc["content"] if isinstance(c, dict)])
+        if isinstance(mc.get("content"), str):
+            return mc["content"]
+        return ""
+
+    # First, merge too-small chunks with previous
+    merged: List[Dict] = []
+    for mc in minor_chunks:
+        txt = content_text(mc)
+        if merged and len(txt) < min_chars:
+            prev = merged[-1]
+            prev_txt = content_text(prev)
+            combined = (prev_txt + "\n\n" + txt).strip()
+            prev["content"] = [{"text": combined, "page_number": None}]
+            # Re-title based on combined and merge tags
+            prev["tag"] = generate_meaningful_title(combined)
+            prev["tags"] = list(dict.fromkeys((prev.get("tags") or []) + (mc.get("tags") or [])))
+        else:
+            merged.append(mc)
+
+    # If still too many, iteratively merge adjacent pairs until under cap
+    while len(merged) > max_minors:
+        new_list: List[Dict] = []
+        i = 0
+        while i < len(merged):
+            if i == len(merged) - 1:
+                new_list.append(merged[i])
+                break
+            a, b = merged[i], merged[i+1]
+            a_txt = content_text(a)
+            b_txt = content_text(b)
+            combined = (a_txt + "\n\n" + b_txt).strip()
+            combined_mc = {
+                "tag": generate_meaningful_title(combined),
+                "content": [{"text": combined, "page_number": None}],
+                "tags": list(dict.fromkeys((a.get("tags") or []) + (b.get("tags") or [])))
+            }
+            new_list.append(combined_mc)
+            i += 2
+        merged = new_list
+
+    return merged
+
+def _merge_fallback_chunks_to_max(chunks: List[Dict], max_chunks: int = 20) -> List[Dict]:
+    """Merge adjacent fallback chunks until count <= max_chunks."""
+    if len(chunks) <= max_chunks:
+        return chunks
+    def get_text(ch: Dict) -> str:
+        return ch.get("content", "") or ""
+    merged = chunks[:]
+    while len(merged) > max_chunks and len(merged) > 1:
+        new_list: List[Dict] = []
+        i = 0
+        while i < len(merged):
+            if i == len(merged) - 1:
+                new_list.append(merged[i])
+                break
+            a, b = merged[i], merged[i+1]
+            combined_text = (get_text(a) + "\n\n" + get_text(b)).strip()
+            title = generate_meaningful_title(combined_text)
+            new_chunk = {
+                "file_source": a.get("file_source"),
+                "label": title,
+                "content": combined_text,
+                "tags": auto_tag_chunk(combined_text)
+            }
+            new_list.append(new_chunk)
+            i += 2
+        merged = new_list
+    return merged
 
 def filter_footer_content(elements):
     """Filter out footer content from elements"""
@@ -300,6 +396,9 @@ def chunk_by_toc_with_minors(entries, elements):
                     "tags": auto_tag_chunk(all_content, title)
                 })
 
+        # Post-process: merge to reduce minor chunks
+        minor_chunks = _merge_minor_chunks(minor_chunks, max_minors=6, min_chars=800)
+
         chunks.append({
             "title": title,
             "start_page": start_page,
@@ -401,6 +500,9 @@ def extract_pdf_sections(filepath: str, figures_dir: str) -> List[Dict]:
                 "content": content,
                 "tags": auto_tag_chunk(content)
             })
+        # Cap total chunks to max 20 by merging
+        if len(chunks) > 20:
+            chunks = _merge_fallback_chunks_to_max(chunks, max_chunks=20)
     cache_data = {'chunks': chunks}
     save_extracted_cache(filepath, cache_data)
     logger.info(f"Extraction complete: {len(chunks)} chunks")
