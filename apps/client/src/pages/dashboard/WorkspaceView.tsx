@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
@@ -13,7 +14,11 @@ import {
   FiZap,
 } from 'react-icons/fi';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useContent, type GeneratedContent, type GeneratedContentDetails } from '../../hooks/useContent';
+import {
+  useContent,
+  type GeneratedContent,
+  type GeneratedContentDetails,
+} from '../../hooks/useContent';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useSections, type Section } from '../../hooks/useSections';
 import { useSources } from '../../hooks/useSources';
@@ -42,6 +47,9 @@ const WorkspaceView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  // UI state: show limited tags initially, allow expand
+  const [showAllTags, setShowAllTags] = useState(false);
+  const TAG_PREVIEW_COUNT = 6;
   const [viewingSection, setViewingSection] = useState<Section | null>(null);
   const [currentTags, setCurrentTags] = useState<any[]>([]);
   const { listSources } = useSources();
@@ -59,7 +67,8 @@ const WorkspaceView: React.FC = () => {
   const [selectedChunks, setSelectedChunks] = useState<{ [key: number]: Set<string> }>({}); // sourceId -> chunk indices
   const [selectingSourceId, setSelectingSourceId] = useState<number | null>(null);
   const [tab, setTab] = useState<'content' | 'sections' | 'generated'>('content');
-  const { getWorkspaceGeneratedContent, getGeneratedContentDetails, deleteGeneratedContent } = useContent();
+  const { getWorkspaceGeneratedContent, getGeneratedContentDetails, deleteGeneratedContent } =
+    useContent();
   const [generatedContent, setGeneratedContent] = useState<GeneratedContent[]>([]);
   const [generatedLoading, setGeneratedLoading] = useState(false);
   const [viewingGenerated, setViewingGenerated] = useState<GeneratedContentDetails | null>(null);
@@ -1000,37 +1009,61 @@ const WorkspaceView: React.FC = () => {
                 </div>
 
                 {allTags.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    <span className="text-sm font-medium text-gray-700 mr-2 py-2">
-                      Filter by tags:
-                    </span>
-                    {allTags.map((tag) => (
-                      <button
-                        key={tag}
-                        onClick={() => toggleTag(tag)}
-                        className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
-                          selectedTags.includes(tag)
-                            ? 'bg-primary text-white border-primary'
-                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-primary/10 hover:border-primary/20'
-                        }`}
-                      >
-                        <FiTag className="inline w-3 h-3 mr-1" />
-                        {tag}
-                        {selectedTags.includes(tag) && (
-                          <span className="ml-1 text-xs">
-                            ({sections.filter((s) => s.tags?.includes(tag)).length})
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                    {selectedTags.length > 0 && (
-                      <button
-                        onClick={() => setSelectedTags([])}
-                        className="px-3 py-1 rounded-full text-sm font-medium text-gray-500 border border-gray-200 hover:bg-gray-50 transition-colors"
-                      >
-                        Clear filters
-                      </button>
-                    )}
+                  <div className="flex flex-col w-full">
+                    <div className="flex items-center mb-2">
+                      <span className="text-sm font-medium text-gray-700 mr-2 py-2">
+                        Filter by tags:
+                      </span>
+                      <div className="text-xs text-gray-500">Choose tags to filter sections</div>
+                    </div>
+
+                    <div
+                      className={`flex flex-wrap gap-2 transition-all duration-200 ${
+                        showAllTags ? 'max-h-40 overflow-y-auto pr-2' : ''
+                      }`}
+                      aria-live="polite"
+                    >
+                      {(showAllTags ? allTags : allTags.slice(0, TAG_PREVIEW_COUNT)).map((tag) => (
+                        <button
+                          key={tag}
+                          onClick={() => toggleTag(tag)}
+                          className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
+                            selectedTags.includes(tag)
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-primary/10 hover:border-primary/20'
+                          }`}
+                        >
+                          <FiTag className="inline w-3 h-3 mr-1" />
+                          {tag}
+                          {selectedTags.includes(tag) && (
+                            <span className="ml-1 text-xs">
+                              ({sections.filter((s) => s.tags?.includes(tag)).length})
+                            </span>
+                          )}
+                        </button>
+                      ))}
+
+                      {/* More / Show less toggle */}
+                      {allTags.length > TAG_PREVIEW_COUNT && (
+                        <button
+                          onClick={() => setShowAllTags((v) => !v)}
+                          className="px-3 py-1 rounded-full text-sm font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors"
+                        >
+                          {showAllTags
+                            ? 'Show less'
+                            : `More (${allTags.length - TAG_PREVIEW_COUNT})`}
+                        </button>
+                      )}
+
+                      {selectedTags.length > 0 && (
+                        <button
+                          onClick={() => setSelectedTags([])}
+                          className="px-3 py-1 rounded-full text-sm font-medium text-gray-500 border border-gray-200 hover:bg-gray-50 transition-colors"
+                        >
+                          Clear filters
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -1341,10 +1374,13 @@ const WorkspaceView: React.FC = () => {
                             title="Delete generated content"
                             onClick={async () => {
                               if (!id) return;
-                              if (!window.confirm('Permanently delete this generated content?')) return;
+                              if (!window.confirm('Permanently delete this generated content?'))
+                                return;
                               try {
                                 await deleteGeneratedContent(id, item.id);
-                                setGeneratedContent((prev) => prev.filter((gc) => gc.id !== item.id));
+                                setGeneratedContent((prev) =>
+                                  prev.filter((gc) => gc.id !== item.id),
+                                );
                                 toast.success('Deleted');
                               } catch (e) {
                                 toast.error('Delete failed');
@@ -1356,7 +1392,6 @@ const WorkspaceView: React.FC = () => {
                         </div>
                       </div>
                       <div className="mb-2">
-                        <h4 className="font-semibold text-gray-900 mb-1">Generated Content</h4>
                         <div className="text-gray-700 text-sm whitespace-pre-line line-clamp-6">
                           {item.content}
                         </div>
@@ -1391,8 +1426,12 @@ const WorkspaceView: React.FC = () => {
           <div className="bg-white rounded-xl max-w-3xl w-full max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-gray-200">
               <div>
-                <div className="text-xs text-gray-500 mb-1">{new Date(viewingGenerated.created_at).toLocaleString()}</div>
-                <h3 className="text-lg font-semibold text-gray-900">{viewingGenerated.prompt?.title || 'Generated Content'}</h3>
+                <div className="text-xs text-gray-500 mb-1">
+                  {new Date(viewingGenerated.created_at).toLocaleString()}
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {viewingGenerated.prompt?.title || 'Generated Content'}
+                </h3>
               </div>
               <button
                 onClick={() => setViewingGenerated(null)}
@@ -1409,7 +1448,10 @@ const WorkspaceView: React.FC = () => {
               {viewingGenerated.tags && viewingGenerated.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-4">
                   {viewingGenerated.tags.map((tag) => (
-                    <span key={tag.id} className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full font-medium">
+                    <span
+                      key={tag.id}
+                      className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full font-medium"
+                    >
                       {tag.name}
                     </span>
                   ))}
