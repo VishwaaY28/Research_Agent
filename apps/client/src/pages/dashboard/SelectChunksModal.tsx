@@ -1,10 +1,11 @@
+
 import React, { useEffect, useState } from 'react';
 
 interface SelectChunksModalProps {
   source: any;
   chunks: any[];
   fetchChunks: (sourceId: number) => Promise<any[]>;
-  selected: Set<string>; // Use string keys: 'majorIdx' or 'majorIdx-minorIdx'
+  selected: Set<string>;
   onSave: (selected: Set<string>) => void;
   onClose: () => void;
 }

@@ -53,14 +53,32 @@ class HuggingFaceLLMClient:
 
             # Build a clearer system instruction separate from the workspace content to
             # reduce the chance the model will simply echo the chunks.
-            system_prompt = (
-                "You are a professional proposal writer for an enterprise IT services firm.\n"
-                "Your job is to synthesize the provided workspace context into a single, polished, client-facing proposal section.\n"
-                "Respond ONLY with the final section text. Do NOT repeat the raw workspace content. Do NOT include the workspace notes or verbatim chunks.\n"
-                "Write in an executive, business-professional tone and produce well-structured paragraphs (or short bullet lists when appropriate).\n"
-                "Keep the section concise and focused; prioritize clarity and value messaging.\n"
-                "If useful, include a short 1-line heading followed by 2-4 short paragraphs.\n"
-            )
+            system_prompt = f"""
+You are a professional proposal writer for a reputed IT Services enterprise.
+You will help draft a specific section of a business proposal based strictly on the content provided below from a Workspace.
+
+Your response must follow these principles:
+- Use only the information provided in the Workspace. Do not assume or invent additional content.
+- Maintain an enterprise-grade, business-professional tone.
+- Ensure that the writing reflects the company's credibility, experience, and strategic value.
+- Use clear, confident, and well-structured language suitable for external stakeholders such as clients, procurement teams, and decision-makers.
+
+---
+### ✏️ Section to be Written:
+{section_name}
+
+### 🗂 Workspace Content:
+\"\"\"
+{workspace_content}
+\"\"\"
+
+---
+ Instructions:
+- Synthesize and summarize the workspace content into a coherent, well-written section.
+- If the content spans multiple ideas, organize them into logical paragraphs or bullet points as appropriate and add necessary spacings everwhere.
+- Do not repeat raw content or include citations/attributions. The output should be ready to copy-paste into a client-facing proposal.
+"""
+
 
             user_message = f"Section: {section_name}\nGuidance: {prompt}\n"
 
