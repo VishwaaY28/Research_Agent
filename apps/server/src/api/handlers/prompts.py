@@ -10,8 +10,8 @@ from utils.llm2 import hugging_face_llm_client
 
 logger = logging.getLogger(__name__)
 
-USE_AZURE_OPENAI = False
-USE_HUGGING_FACE = True
+USE_AZURE_OPENAI = True
+USE_HUGGING_FACE = False
 
 class PromptRequest(BaseModel):
     title: str

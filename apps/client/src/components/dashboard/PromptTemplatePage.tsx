@@ -376,14 +376,14 @@ const PromptTemplatePage: React.FC = () => {
               console.error('Error seeding database:', error);
             }
           }}
-          className="ml-2 text-sm text-blue-600 hover:text-blue-800 underline"
+          className="ml-2 text-sm text-red-600 hover:text-black-800 underline"
         >
           Seed Database
         </button>
         <div className="bg-white rounded-2xl shadow-md border border-gray-100 w-full p-6 mb-6">
           <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
             <div>
-              <h2 className="text-2xl font-bold text-indigo-700 tracking-tight flex items-center gap-2">
+              <h2 className="text-2xl font-bold text-black-700 tracking-tight flex items-center gap-2">
                 <FiFileText className="w-6 h-6 text-indigo-600" /> Prompt Templates
               </h2>
               <p className="text-gray-500 mt-2">Manage and organize your workspace templates</p>

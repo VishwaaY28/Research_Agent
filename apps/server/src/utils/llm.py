@@ -20,7 +20,7 @@ def count_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
 
 class AzureOpenAIClient:
     def __init__(self):
-        self.key_vault_url = "https://kv-fs-to-autogen.vault.azure.net/"
+        self.key_vault_url = "https://KV-fs-to-autogen.vault.azure.net/"
         self._config = None
         self._client = None
 
@@ -115,8 +115,17 @@ You will help draft a specific section of a business proposal based strictly on 
 Your response must follow these principles:
 - Use only the information provided in the Workspace. Do not assume or invent additional content.
 - Maintain an enterprise-grade, business-professional tone.
+- Leave necessary blank spaces between each paragraph or section
 - Ensure that the writing reflects the company's credibility, experience, and strategic value.
 - Use clear, confident, and well-structured language suitable for external stakeholders such as clients, procurement teams, and decision-makers.
+
+Output requirements (IMPORTANT):
+- Format the response using well-structured.
+- Include explicit sections with headings.
+- Use bullet lists where appropriate for clarity.
+- Use bold and/or italics to highlight important terms or recommendations.
+- Leave a single blank line between paragraphs and list blocks for readability.
+- Keep the output concise (aim for 3-8 short paragraphs or 6-12 bullet points) and suitable for direct copy-paste into a proposal document.
 
 ---
 ### ✏️ Section to be Written:
@@ -128,8 +137,8 @@ Your response must follow these principles:
 \"\"\"
 
 ---
- Instructions:
-- Synthesize and summarize the workspace content into a coherent, well-written section.
+Instructions:
+- Synthesize and summarize the workspace content into the coherent, well-written section.
 - If the content spans multiple ideas, organize them into logical paragraphs or bullet points as appropriate.
 - Do not repeat raw content or include citations/attributions. The output should be ready to copy-paste into a client-facing proposal.
 """
@@ -138,8 +147,10 @@ Your response must follow these principles:
 
             response = client.chat.completions.create(
                 model=config["deployment"],
-                temperature=0.3,
-                max_tokens=1200,
+                temperature=0.2,
+                max_tokens=600,
+                top_p=0.9,
+                frequency_penalty=0.8,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message}
@@ -245,6 +256,14 @@ Your response must follow these principles:
 - Maintain an enterprise-grade, business-professional tone.
 - Ensure that the writing reflects the company's credibility, experience, and strategic value.
 - Use clear, confident, and well-structured language suitable for external stakeholders such as clients, procurement teams, and decision-makers.
+
+Output requirements (IMPORTANT):
+- Format the response using well-structured.
+- Include explicit sections with headings.
+- Use bullet lists where appropriate for clarity.
+- Use bold and/or italics to highlight important terms or recommendations.
+- Leave blank line between paragraphs and list blocks for readability.
+- Keep the output concise (aim for 3-8 short paragraphs or 6-12 bullet points) and suitable for direct copy-paste into a proposal document.
 
 ---
 ### Section to be Written:
