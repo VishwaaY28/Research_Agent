@@ -44,7 +44,7 @@ const Sidebar: React.FC = () => {
           {!collapsed && (
             <div className="flex flex-col items-center space-y-1 w-full">
               <img src={logo} alt="Logo" className="h-5 w-auto transition-all duration-200" />
-              <span className="text-base font-semibold mt-1">Proposal Authoring</span>
+              <span className="text-base font-semibold mt-1">HexAuthor</span>
             </div>
           )}
           {/* No logo when collapsed */}

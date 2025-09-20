@@ -19,14 +19,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize NLTK components
-try:
-    nltk.data.find('tokenizers/punkt')
-    nltk.data.find('corpora/stopwords')
-    nltk.data.find('corpora/wordnet')
-except LookupError:
-    nltk.download('punkt')
-    nltk.download('stopwords')
-    nltk.download('wordnet')
+# try:
+#     nltk.data.find('tokenizers/punkt')
+#     nltk.data.find('corpora/stopwords')
+#     nltk.data.find('corpora/wordnet')
+# except LookupError:
+#     nltk.download('punkt')
+#     nltk.download('stopwords')
+#     nltk.download('wordnet')
 
 lemmatizer = WordNetLemmatizer()
 stop_words = set(stopwords.words('english'))
@@ -427,7 +427,7 @@ def extract_pdf_sections(filepath: str, figures_dir: str) -> List[Dict]:
             sections_dicts = json.load(f)
     else:
         logger.info("Extracting sections with default settings...")
-        elements = partition_pdf(filename=filepath, pdf_infer_table_structure =True)
+        elements = partition_pdf(filename=filepath, pdf_infer_table_structure =False)
         sections_dicts = [el.to_dict() if hasattr(el, "to_dict") else el for el in elements]
         with open(output_json_name, "w") as f:
             json.dump(sections_dicts, f)

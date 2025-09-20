@@ -11,6 +11,14 @@ import logging
 
 from utils.cache import check_extracted_cache, save_extracted_cache
 from utils.clean import clean_content
+# Reuse helpers from extract_pdf to align output format
+from utils.extract_pdf import (
+    extract_toc_entries_from_elements,
+    chunk_by_toc_with_minors,
+    auto_tag_chunk,
+    generate_meaningful_title,
+    filter_footer_content,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -343,31 +351,56 @@ def extract_docx_sections(filepath: str, figures_dir: str) -> List[Dict]:
     toc_sections_raw = extract_toc(merged_sections)
 
     if toc_sections_raw:
-        toc_sections = clean_toc_sections(toc_sections_raw)
-        chunks = parse_toc_hierarchical(merged_sections, toc_sections)
+        # Try to get TOC entries with pages and use the pdf helper for consistent minor chunking
+        entries = extract_toc_entries_from_elements(merged_sections)
+        if entries:
+            chunks = chunk_by_toc_with_minors(entries, merged_sections)
+            for ch in chunks:
+                ch["file_source"] = filepath
+        else:
+            toc_sections = clean_toc_sections(toc_sections_raw)
+            chunks_raw = parse_toc_hierarchical(merged_sections, toc_sections)
+            # Normalize raw chunks to match expected structure
+            chunks = []
+            for cr in chunks_raw:
+                title = cr.get("title") or cr.get("label") or "Untitled"
+                minor_list = []
+                for m in (cr.get("content") or []):
+                    # m may have 'content' as list of dicts or strings
+                    if isinstance(m, dict) and m.get("content"):
+                        text = "\n\n".join([c.get("text", "") for c in m.get("content")])
+                    else:
+                        text = str(m)
+                    minor_list.append({"tag": generate_meaningful_title(text), "content": [{"text": clean_content(text), "page_number": None}]})
+                chunks.append({"file_source": filepath, "title": title, "content": minor_list, "tags": auto_tag_chunk(' '.join([c['content'][0]['text'] for c in minor_list]), title)})
     else:
+        # No TOC: fallback to chunking by accumulated text and headings
         chunks = []
         buffer = ""
-        section_num = 1
+        current_title = None
+        minor_chunks = []
 
         for el in sections_dicts:
-            if el.get("text"):
-                buffer += el["text"] + "\n"
-                if len(buffer) > 2000:
-                    chunks.append({
-                        "file_source": filepath,
-                        "label": f"Section {section_num}",
-                        "content": clean_content(buffer)
-                    })
-                    section_num += 1
+            text = el.get("text", "").strip()
+            if not text:
+                continue
+            if el.get("type") == "Title" or len(text) < 200 and text == text.upper() or generate_meaningful_title(text) == text:
+                # treat as heading
+                if buffer.strip():
+                    content_text = clean_content(buffer)
+                    minor = {"tag": generate_meaningful_title(content_text), "content": [{"text": content_text, "page_number": None}]}
+                    title = current_title or generate_meaningful_title(content_text)
+                    chunks.append({"file_source": filepath, "title": title, "content": [minor], "tags": auto_tag_chunk(content_text, title)})
                     buffer = ""
+                current_title = text
+            else:
+                buffer += text + "\n\n"
 
         if buffer.strip():
-            chunks.append({
-                "file_source": filepath,
-                "label": f"Section {section_num}",
-                "content": clean_content(buffer)
-            })
+            content_text = clean_content(buffer)
+            title = current_title or generate_meaningful_title(content_text)
+            minor = {"tag": generate_meaningful_title(content_text), "content": [{"text": content_text, "page_number": None}]}
+            chunks.append({"file_source": filepath, "title": title, "content": [minor], "tags": auto_tag_chunk(content_text, title)})
 
     for chunk in chunks:
         chunk["file_source"] = filepath
