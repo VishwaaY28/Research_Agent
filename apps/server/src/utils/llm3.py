@@ -31,7 +31,7 @@ class GroqClient:
 
     def _load_config(self):
         if self._api_key is None or self._api_base is None:
-            self._api_key = "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"
+            self._api_key = env.get('GROQ_API_KEY')
             # Use a safer default API base that matches common GROQ deployments; allow overriding via env
             self._api_base = env.get('GROQ_API_URL', 'https://api.groq.com/')
             self._model = env.get('GROQ_MODEL','openai/gpt-oss-120b')
