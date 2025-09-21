@@ -7,11 +7,13 @@ from pydantic import BaseModel
 from database.repositories.content import content_repository
 from utils.llm import azure_openai_client, ollama_client
 from utils.llm2 import hugging_face_llm_client
+from utils.llm3 import groq_client
 
 logger = logging.getLogger(__name__)
 
-USE_AZURE_OPENAI = True
-USE_HUGGING_FACE = False
+USE_AZURE_OPENAI = False
+USE_HUGGING_FACE = True
+USE_GROQ = False
 
 class PromptRequest(BaseModel):
     title: str
@@ -71,7 +73,12 @@ async def generate_content(workspace_id: int, request: GenerateContentRequest):
             sections = {s.id: s for s in content['sections']}
             context_sections = [sections[sid].content for sid in request.section_ids if sid in sections]
 
-        if USE_HUGGING_FACE:
+        # Choose provider (GROQ preferred when enabled)
+        if USE_GROQ:
+            logger.info("Using GROQ for content generation")
+            client = groq_client
+            provider = "GROQ"
+        elif USE_HUGGING_FACE:
             logger.info("Using Hugging Face for content generation")
             client = hugging_face_llm_client
             provider = "Hugging Face"
@@ -98,10 +105,14 @@ async def generate_content(workspace_id: int, request: GenerateContentRequest):
             "provider": provider
         })
     except Exception as e:
-        if USE_HUGGING_FACE:
+        if USE_GROQ:
+            provider = "GROQ"
+        elif USE_HUGGING_FACE:
             provider = "Hugging Face"
+        elif USE_AZURE_OPENAI:
+            provider = "Azure OpenAI"
         else:
-            provider = "Azure OpenAI" if USE_AZURE_OPENAI else "Ollama"
+            provider = "Ollama"
         logger.error(f"Error generating content with {provider}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Content generation failed: {str(e)}")
 
