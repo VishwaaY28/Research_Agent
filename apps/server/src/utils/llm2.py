@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 class HuggingFaceLLMClient:
-    def __init__(self, model_name: str = "gpt2"):
+    def __init__(self, model_name: str = "baidu/ERNIE-4.5-0.3B-PT"):
         self.model_name = model_name
         self._client = None
 
