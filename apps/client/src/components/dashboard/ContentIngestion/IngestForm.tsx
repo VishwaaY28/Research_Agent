@@ -31,7 +31,7 @@ const IngestForm: React.FC<IngestFormProps> = ({
   const [webLinks, setWebLinks] = useState<string>('');
   const [errors, setErrors] = useState<{ file?: string; url?: string }>({});
   // Restore all state and logic for existing sources
-  const [uploadType, setUploadType] = useState<'file' | 'url'>('file');
+  const [uploadType, setUploadType] = useState<'file' | 'url' | 'existing'>('file');
   const [existingSources, setExistingSources] = useState<ContentSource[]>([]);
   const [selectedSources, setSelectedSources] = useState<ContentSource[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -158,13 +158,17 @@ const IngestForm: React.FC<IngestFormProps> = ({
       let results: any[] = [];
 
       if (uploadType === 'file' && selectedFiles.length > 0) {
-        results = await uploadSources({ files: selectedFiles });
+        const uploadResponse = await uploadSources({ files: selectedFiles });
+        // Convert single response to array for consistency
+        results = [uploadResponse];
       } else if (uploadType === 'url' && webLinks.trim()) {
         const urls = webLinks
           .split(/[\n,]+/)
           .map((u) => u.trim())
           .filter(Boolean);
-        results = await uploadSources({ urls });
+        const uploadResponse = await uploadSources({ urls });
+        // For URLs, the response might be an array or single object
+        results = Array.isArray(uploadResponse) ? uploadResponse : [uploadResponse];
       } else if (uploadType === 'existing' && selectedSources.length > 0) {
         results = await Promise.all(
           selectedSources.map(async (source) => {
@@ -180,40 +184,135 @@ const IngestForm: React.FC<IngestFormProps> = ({
         );
       }
 
-      if (results.length > 0) {
-        const successfulResults = results.filter((r: any) => r.success);
-        const failedResults = results.filter((r: any) => !r.success);
-
-        if (successfulResults.length > 0) {
-          toast.success(`Successfully processed ${successfulResults.length} source(s)`);
-          onContentUploaded(results);
+      let finalResults: any[] = [];
+      
+      if (uploadType === 'file' && results.length > 0) {
+        // For file uploads, we need to wait for background processing to create content sources
+        const response = results[0]; // File upload returns single response
+        
+        if (response.success && response.message === "Chunking started in background.") {
+          // Show processing toast
+          toast.loading('Processing content...', { id: 'processing' });
+          
+          // Poll for new content sources to be created
+          const pollInterval = 2000; // 2 seconds
+          const maxPollAttempts = 60; // 2 minutes max
+          
+          async function pollForNewSources(attempt = 0): Promise<any[]> {
+            try {
+              // Get list of all sources to find newly created ones
+              const sourcesResponse = await fetch(
+                `${API.BASE_URL()}${API.ENDPOINTS.SOURCES.BASE_URL()}${API.ENDPOINTS.SOURCES.LIST()}`
+              );
+              
+              if (!sourcesResponse.ok) {
+                throw new Error('Failed to fetch sources');
+              }
+              
+              const sourcesData = await sourcesResponse.json();
+              const sources = sourcesData.sources || [];
+              
+              // Find sources that match our uploaded filenames
+              const matchingSources = sources.filter((source: any) => 
+                response.filenames && response.filenames.includes(source.name)
+              );
+              
+              if (matchingSources.length > 0) {
+                // Found sources, now poll for chunks
+                const chunkResults = await Promise.all(
+                  matchingSources.map(async (source: any) => {
+                    const chunksResponse = await fetch(
+                      `${API.BASE_URL()}${API.ENDPOINTS.SOURCES.BASE_URL()}/${source.id}/chunks`
+                    );
+                    if (chunksResponse.ok) {
+                      const chunksData = await chunksResponse.json();
+                      if (chunksData.success && chunksData.chunks && chunksData.chunks.length > 0) {
+                        return {
+                          success: true,
+                          content_source_id: source.id,
+                          chunks: chunksData.chunks,
+                          filename: source.name,
+                          type: source.type
+                        };
+                      }
+                    }
+                    return null;
+                  })
+                );
+                
+                const validResults = chunkResults.filter(r => r !== null);
+                if (validResults.length > 0) {
+                  return validResults;
+                }
+              }
+              
+              if (attempt < maxPollAttempts) {
+                await new Promise((resolve) => setTimeout(resolve, pollInterval));
+                return pollForNewSources(attempt + 1);
+              } else {
+                throw new Error('Processing timed out');
+              }
+            } catch (error) {
+              if (attempt < maxPollAttempts) {
+                await new Promise((resolve) => setTimeout(resolve, pollInterval));
+                return pollForNewSources(attempt + 1);
+              } else {
+                throw error;
+              }
+            }
+          }
+          
+          try {
+            finalResults = await pollForNewSources();
+            if (finalResults.length > 0) {
+              toast.success('Content processing completed! You can now select chunks.', { id: 'processing' });
+              onContentUploaded(finalResults);
+            } else {
+              toast.error('Failed to process content. Please try again.', { id: 'processing' });
+            }
+          } catch (error) {
+            console.error('Error polling for new sources:', error);
+            toast.error('Processing timed out. Please try again.', { id: 'processing' });
+          }
+        } else {
+          toast.error('Failed to start processing. Please try again.');
         }
-
-        if (failedResults.length > 0) {
-          failedResults.forEach((r: any) => {
-            toast.error(`Failed: ${r.error}`);
-          });
+        onProcessingEnd();
+      } else if (uploadType === 'url' && results.length > 0) {
+        // For URL uploads, results should contain content_source_id immediately
+        const urlResults = results.filter((r: any) => r.success && r.content_source_id);
+        if (urlResults.length > 0) {
+          toast.success('Content processing completed! You can now select chunks.');
+          onContentUploaded(urlResults);
+        } else {
+          toast.error('Failed to process URLs. Please try again.');
         }
-
-        setSelectedFiles([]);
-        setWebLinks('');
-        setErrors({});
-        setSelectedSources([]); // Clear selected sources after processing
+        onProcessingEnd();
+      } else if (uploadType === 'existing' && results.length > 0) {
+        // For existing sources, just show results
+        onContentUploaded(results);
+        onProcessingEnd();
+      } else {
+        toast.error('No content to process. Please select files, URLs, or existing sources.');
+        onProcessingEnd();
       }
+
+      setSelectedFiles([]);
+      setWebLinks('');
+      setErrors({});
+      setSelectedSources([]);
     } catch (error) {
       console.error('Upload error:', error);
       toast.error('Failed to process content. Please try again.');
-    } finally {
-      if (onProcessingEnd) {
-        onProcessingEnd();
-      }
+      onProcessingEnd();
     }
   };
 
   const canSubmit =
     !isProcessing &&
     ((uploadType === 'file' && selectedFiles.length > 0 && !errors.file) ||
-      (uploadType === 'url' && webLinks.trim().length > 0 && !errors.url));
+      (uploadType === 'url' && webLinks.trim().length > 0 && !errors.url) ||
+      (uploadType === 'existing' && selectedSources.length > 0));
 
   return (
     <div className="w-full">
