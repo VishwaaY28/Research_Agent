@@ -2,15 +2,17 @@ from fastapi import APIRouter, UploadFile, File, Form, Query
 from typing import List, Optional
 
 from api.handlers import sources as sources_handlers
+from fastapi import BackgroundTasks
 
 router = APIRouter(prefix="/api/sources")
 
 @router.post("")
 async def upload_and_extract(
     files: Optional[List[UploadFile]] = File(None),
-    urls: Optional[List[str]] = Form(None)
+    urls: Optional[List[str]] = Form(None),
+    background_tasks: BackgroundTasks = None
 ):
-    return await sources_handlers.upload_and_extract(files, urls)
+    return await sources_handlers.upload_and_extract(files, urls, background_tasks)
 
 @router.get("/list")
 async def list_content_sources():

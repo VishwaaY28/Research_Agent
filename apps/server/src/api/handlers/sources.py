@@ -26,7 +26,8 @@ os.makedirs(FIGURES_DIR, exist_ok=True)
 
 async def upload_and_extract(
     files: Optional[List[UploadFile]] = None,
-    urls: Optional[List[str]] = None
+    urls: Optional[List[str]] = None,
+    background_tasks=None
 ):
     if files and urls:
         raise HTTPException(status_code=400, detail="Provide either files or urls, not both.")
@@ -35,9 +36,9 @@ async def upload_and_extract(
 
     responses = []
 
-    if files:
-        for file in files:
-            filename = file.filename
+    async def process_files(saved_file_paths):
+        print("[Chunking] Background task started.")
+        for filename, source_path in saved_file_paths:
             logger.info(f"Processing file: {filename}")
 
             existing_sources = await content_source_repository.filter_by_filename(filename)
@@ -47,16 +48,12 @@ async def upload_and_extract(
                 try:
                     with open(existing_source.extracted_url, 'r') as f:
                         existing_data = json.load(f)
-                    responses.append(existing_data)
                     continue
                 except Exception as e:
                     logger.warning(f"Could not load existing data for {filename}, re-extracting...")
 
             ext = filename.split(".")[-1].lower()
-            source_path = os.path.join(SOURCES_DIR, filename)
 
-            with open(source_path, "wb") as f:
-                f.write(await file.read())
             logger.info(f"Saved file to: {source_path}")
 
             try:
@@ -70,11 +67,6 @@ async def upload_and_extract(
                     source_type = "docx"
                 else:
                     logger.warning(f"Unsupported file type: {ext}")
-                    responses.append({
-                        "success": False,
-                        "error": f"Unsupported file type: {ext}",
-                        "filename": filename
-                    })
                     continue
 
                 logger.info(f"Extraction results: {len(chunks)} chunks")
@@ -83,6 +75,7 @@ async def upload_and_extract(
                 timestamp = int(time.time() * 1000)  # milliseconds for uniqueness
                 safe_filename = filename.replace(" ", "_").replace(".", "_")
                 extract_path = os.path.join(EXTRACTS_DIR, f"content_{safe_filename}_{timestamp}.json")
+
                 content_source = await content_source_repository.upsert(
                     name=filename,
                     source_url=source_path,
@@ -91,20 +84,10 @@ async def upload_and_extract(
                 )
                 logger.info(f"Created content source with ID: {content_source.id}")
 
-                # if images:
-                #     await source_image_repository.create_bulk(content_source.id, images)
-                #     logger.info(f"Saved {len(images)} images to database")
-
-                # if tables:
-                #     await source_table_repository.create_bulk(content_source.id, tables)
-                #     logger.info(f"Saved {len(tables)} tables to database")
-
                 response_json = {
                     "success": True,
                     "content_source_id": content_source.id,
                     "chunks": chunks,
-                    # "images": images,
-                    # "tables": tables,
                     "filename": filename,
                     "type": source_type
                 }
@@ -113,16 +96,34 @@ async def upload_and_extract(
                     json.dump(response_json, f, indent=2)
                 logger.info(f"Saved extraction data to: {extract_path}")
 
-                responses.append(response_json)
-
             except Exception as e:
                 logger.error(f"Error processing file {filename}: {str(e)}", exc_info=True)
-                responses.append({
-                    "success": False,
-                    "error": str(e),
-                    "filename": filename
-                })
                 continue
+        print("[Chunking] Background task finished.")
+
+    if files:
+        if background_tasks:
+            import asyncio
+            saved_file_paths = []
+            for file in files:
+                filename = file.filename
+                source_path = os.path.join(SOURCES_DIR, filename)
+                with open(source_path, "wb") as f:
+                    f.write(await file.read())
+                saved_file_paths.append((filename, source_path))
+            def run_process_files(saved_file_paths):
+                asyncio.run(process_files(saved_file_paths))
+            filenames = [filename for filename, _ in saved_file_paths]
+            background_tasks.add_task(run_process_files, saved_file_paths)
+            return JSONResponse(content={
+                "success": True,
+                "message": "Chunking started in background.",
+                "filenames": filenames,
+                "status_poll": "Use /api/sources/list or /api/sources/{content_source_id}/chunks to check status."
+            })
+        else:
+            await process_files(files)
+            return JSONResponse(content={"success": True, "message": "Chunking completed."})
 
     elif urls:
         for url in urls:

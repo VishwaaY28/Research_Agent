@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Toaster } from 'react-hot-toast';
+import { useChunkStatus } from '../../hooks/useChunkStatus';
 import { useLocation, useParams } from 'react-router-dom';
 import ContentResults from '../../components/dashboard/ContentIngestion/ContentResults';
 import IngestForm from '../../components/dashboard/ContentIngestion/IngestForm';
@@ -34,9 +34,24 @@ const ContentIngestion: React.FC = () => {
   // Try to get workspaceId from params or location.state
   const workspaceId = params.id || location.state?.workspaceId;
 
+  // Assume you get contentSourceId from upload response
+  const [contentSourceId] = useState<number | undefined>(undefined);
+  const { status, chunks } = useChunkStatus(contentSourceId);
+
   const handleProcessingStart = () => {
     setIsProcessing(true);
   };
+
+  // Example: set contentSourceId after upload (replace with actual logic)
+  // setContentSourceId(uploadResponse.content_source_id);
+
+  // Notify user when chunking is complete
+  React.useEffect(() => {
+    if (status === 'complete') {
+      setExtractedResults([{ success: true, content_source_id: contentSourceId!, chunks }]);
+      setIsProcessing(false);
+    }
+  }, [status, contentSourceId, chunks]);
 
   const handleProcessingEnd = () => {
     setIsProcessing(false);
@@ -54,16 +69,6 @@ const ContentIngestion: React.FC = () => {
 
   return (
     <div className="h-full bg-white">
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 3000,
-          style: {
-            background: '#363636',
-            color: '#fff',
-          },
-        }}
-      />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
           <h1 className="text-3xl font-bold text-gray-900">Content Management</h1>
