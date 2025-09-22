@@ -20,8 +20,8 @@ def count_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
 class GroqClient:
     """Simple Groq API client wrapper for generating content.
 
-    This implementation is intentionally defensive because the exact
-    GROQ API contract may vary; it tries common response shapes.
+    This implementation uses the standard OpenAI-compatible Chat Completions API
+    for GROQ, which requires a 'messages' array in the payload.
     """
 
     def __init__(self):
@@ -31,10 +31,12 @@ class GroqClient:
 
     def _load_config(self):
         if self._api_key is None or self._api_base is None:
-            self._api_key = env.get('GROQ_API_KEY')
-            # Use a safer default API base that matches common GROQ deployments; allow overriding via env
-            self._api_base = env.get('GROQ_API_URL', 'https://api.groq.com/')
-            self._model = env.get('GROQ_MODEL','openai/gpt-oss-120b')
+            # NEVER hardcode API keys in production code; always use env vars
+            self._api_key = env.get('GROQ_API_KEY','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')
+            if not self._api_key:
+                raise ValueError("GROQ_API_KEY environment variable is required.")
+            self._api_base = env.get('GROQ_API_URL', 'https://api.groq.com/openai/v1')
+            self._model = env.get('GROQ_MODEL', 'llama-3.3-70b-versatile')  # Updated to a standard GROQ model; adjust as needed
             logger.info(f"Loaded GROQ config - base: {self._api_base}, model: {self._model}")
         return {
             'api_key': self._api_key,
@@ -45,8 +47,7 @@ class GroqClient:
     def _headers(self):
         cfg = self._load_config()
         headers = {'Content-Type': 'application/json'}
-        if cfg['api_key']:
-            headers['Authorization'] = f"Bearer {cfg['api_key']}"
+        headers['Authorization'] = f"Bearer {cfg['api_key']}"
         return headers
 
     async def generate_content(
@@ -67,7 +68,7 @@ class GroqClient:
             api_base = cfg['api_base']
             model = cfg['model']
 
-            # Build compact workspace content
+            # Build workspace content (context)
             workspace_content = ""
             if context_sections:
                 workspace_content += "\n=== CONTENT SECTIONS ===\n"
@@ -86,104 +87,108 @@ class GroqClient:
                     caption = table.get('caption', 'No caption') if isinstance(table, dict) else str(table)
                     workspace_content += f"\n{i}. Table: {caption}\n"
 
+            # System prompt (fixed role)
             system_prompt = f"""
 You are a professional proposal writer for a reputed IT Services enterprise.
 You will help draft a specific section of a business proposal based strictly on the content provided below from a Workspace.
 
-Output requirements:
-- Provide a concise, client-ready section with headings and bullet lists where appropriate.
-- Use only the workspace content and the user prompt as guidance.
+Your response must follow these principles:
+- Use only the information provided in the Workspace. Do not assume or invent additional content.
+- Maintain an enterprise-grade, business-professional tone.
+- Leave necessary blank spaces between each paragraph or section
+- Ensure that the writing reflects the company's credibility, experience, and strategic value.
+- Use clear, confident, and well-structured language suitable for external stakeholders such as clients, procurement teams, and decision-makers.
+
+Output requirements (IMPORTANT):
+- Format the response using well-structured.
+- Include explicit sections with headings.
+- Use bullet lists where appropriate for clarity.
+- Use bold and/or italics to highlight important terms or recommendations.
+- Leave a single blank line between paragraphs and list blocks for readability.
+- Keep the output concise (aim for 3-8 short paragraphs or 6-12 bullet points) and suitable for direct copy-paste into a proposal document.
+
+---
+### ✏️ Section to be Written:
+{section_name}
+
+### 🗂 Workspace Content:
+\"\"\"
+{workspace_content}
+\"\"\"
+
+---
+Instructions:
+- Synthesize and summarize the workspace content into the coherent, well-written section.
+- If the content spans multiple ideas, organize them into logical paragraphs or bullet points as appropriate.
+- Do not repeat raw content or include citations/attributions. The output should be ready to copy-paste into a client-facing proposal.
 """
 
-            user_message = f"Section: {section_name}\nUser guidance: {prompt}" if prompt else f"Section: {section_name}"
-            full_prompt = system_prompt + "\n\n" + workspace_content + "\n\n" + user_message
 
+            # User message: Combine workspace context with user guidance
+            user_message = f"Section: {section_name}\nUser  guidance: {prompt}" if prompt else f"Section: {section_name}"
+            full_user_content = workspace_content + "\n\n" + user_message if workspace_content else user_message
+
+            # Standard OpenAI-compatible payload for chat completions
             payload = {
                 "model": model,
-                "input": full_prompt,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": full_user_content},
+                ],
                 "max_tokens": max_tokens,
                 "temperature": 0.25,
             }
 
-            # Default endpoint path can vary; use /v1/generate by default to match common APIs
-            # Try a sequence of common endpoint paths and payload shapes until one succeeds.
-            candidate_paths = env.get('GROQ_GENERATE_PATH', '/openai/v1/chat/completions'),
-
-
-            # payload variants: many GROQ-like endpoints accept either 'input' or 'prompt'
-            payload_variants = [
-                payload,
-                {**payload, 'prompt': full_prompt, 'input': None},
-                {**payload, 'prompt': full_prompt},
-                {**payload, 'texts': [full_prompt]},
-            ]
+            # Fixed endpoint for GROQ's OpenAI-compatible chat completions
+            endpoint_path = "/chat/completions"
+            url = f"{api_base.rstrip('/')}{endpoint_path}"
 
             last_error = None
             data = None
             async with httpx.AsyncClient(timeout=30.0) as client:
-                for path in [p for p in candidate_paths if p]:
-                    url = f"{api_base.rstrip('/')}{path}"
-                    for pv in payload_variants:
-                        # Clean None values out of payload
-                        cleaned = {k: v for k, v in (pv or {}).items() if v is not None}
-                        try:
-                            logger.info(f"GROQ attempt -> POST {url} (payload keys: {list(cleaned.keys())})")
-                            resp = await client.post(url, json=cleaned, headers=self._headers())
-                        except Exception as e:
-                            logger.warning(f"GROQ request failed for {url}: {e}")
-                            last_error = e
-                            continue
-
-                        # If we get a non-JSON or error response, log and try next
-                        if resp.status_code >= 400:
-                            logger.warning(f"GROQ attempt returned {resp.status_code} for {url}: {resp.text}")
-                            last_error = Exception(f"{resp.status_code} - {resp.text}")
-                            continue
-
+                # Single attempt with the correct payload (no variants needed)
+                cleaned_payload = {k: v for k, v in payload.items() if v is not None}
+                try:
+                    logger.info(f"GROQ attempt -> POST {url} (payload keys: {list(cleaned_payload.keys())})")
+                    resp = await client.post(url, json=cleaned_payload, headers=self._headers())
+                except Exception as e:
+                    logger.warning(f"GROQ request failed for {url}: {e}")
+                    last_error = e
+                else:
+                    if resp.status_code >= 400:
+                        logger.warning(f"GROQ attempt returned {resp.status_code} for {url}: {resp.text}")
+                        last_error = Exception(f"{resp.status_code} - {resp.text}")
+                    else:
                         try:
                             data = resp.json()
+                            logger.info(f"GROQ succeeded with {url}")
                         except Exception as e:
                             logger.warning(f"Failed to parse JSON from GROQ at {url}: {e}")
                             last_error = e
-                            continue
-
-                        # success
-                        logger.info(f"GROQ succeeded with {url}")
-                        break
-                    if data is not None:
-                        break
 
             if data is None:
                 # Raise the last encountered error with context
-                err_msg = f"GROQ calls failed; last: {getattr(last_error, 'args', last_error)}"
+                err_msg = f"GROQ calls failed; last: {getattr(last_error, 'args', str(last_error))}"
                 logger.error(err_msg)
                 raise Exception(err_msg)
 
-            # Try several common response shapes
+            # Parse standard OpenAI chat response
             generated_text = ''
-            if isinstance(data, dict):
-                # Common shapes: {'output': 'text...'} or {'choices':[{'text': '...'}]}
-                if 'output' in data and isinstance(data['output'], str):
-                    generated_text = data['output']
-                elif 'output' in data and isinstance(data['output'], list) and len(data['output']) > 0:
-                    # sometimes output is array of tokens/objects
-                    first = data['output'][0]
-                    generated_text = first.get('text') if isinstance(first, dict) and first.get('text') else str(first)
-                elif 'choices' in data and isinstance(data['choices'], list) and len(data['choices']) > 0:
-                    first = data['choices'][0]
-                    generated_text = first.get('text') or first.get('message') or str(first)
-                elif 'generated_text' in data:
-                    generated_text = data['generated_text']
+            if isinstance(data, dict) and 'choices' in data and isinstance(data['choices'], list) and len(data['choices']) > 0:
+                first_choice = data['choices'][0]
+                if isinstance(first_choice, dict) and 'message' in first_choice:
+                    generated_text = first_choice['message'].get('content', '')
                 else:
-                    # fallback to stringifying the main fields
-                    generated_text = str(data)
+                    generated_text = str(first_choice)
             else:
+                # Fallback for unexpected shapes (unlikely with standard API)
+                logger.warning(f"Unexpected GROQ response shape: {data}")
                 generated_text = str(data)
 
             generated_text = generated_text.strip()
 
-            # Token approximations
-            context_tokens = count_tokens(workspace_content)
+            # Token approximations (note: tiktoken is approximate for non-OpenAI models)
+            context_tokens = count_tokens(full_user_content)
             response_tokens = count_tokens(generated_text)
 
             logger.info("GROQ: content generated")

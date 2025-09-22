@@ -12,8 +12,8 @@ from utils.llm3 import groq_client
 logger = logging.getLogger(__name__)
 
 USE_AZURE_OPENAI = False
-USE_HUGGING_FACE = True
-USE_GROQ = False
+USE_HUGGING_FACE = False
+USE_GROQ = True
 
 class PromptRequest(BaseModel):
     title: str

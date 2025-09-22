@@ -636,11 +636,66 @@ const ProposalAuthoring: React.FC = () => {
                   </select>
                 </div>
               )}
+            <div className="flex-shrink-0 w-full sm:w-auto">
+            <div className="mb-1">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  placeholder="Add a tag..."
+                />
+                <button
+                  onClick={handleAddTag}
+                  className="px-3 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-50"
+                  disabled={!newTag.trim()}
+                >
+                  <FiPlus className="w-4 h-4" />
+                </button>
+              </div>
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary text-xs rounded-full"
+                    >
+                      <span>{tag}</span>
+                      <button
+                        onClick={() => handleRemoveTag(tag)}
+                        className="p-1 rounded hover:bg-white/20 text-primary"
+                      >
+                        <FiX className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
+            </div>
+          </div>
+        </div>
 
-          <div className="flex-shrink-0 w-full sm:w-auto">
-            {workspaceContent && (
+        {/* Context list under the workspace panel */}
+        {workspaceContent && !contextCollapsed && (
+          <div className="mt-3 bg-white border border-gray-200 rounded-lg p-3 max-h-48 overflow-y-auto">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={contextSearch}
+                  onChange={(e) => setContextSearch(e.target.value)}
+                  placeholder="Search context..."
+                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-md text-sm"
+                />
+                <div className="absolute left-2 top-2 text-gray-400">
+                  <FiSearch />
+                </div>
+              </div>
+              {workspaceContent && (
               <div className="mb-2">
                 <div className="flex items-center gap-3">
                   <div className="text-xs text-gray-500">
@@ -680,70 +735,6 @@ const ProposalAuthoring: React.FC = () => {
                 </div>
               </div>
             )}
-
-            <div className="mb-1">
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={newTag}
-                  onChange={(e) => setNewTag(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                  placeholder="Add a tag..."
-                />
-                <button
-                  onClick={handleAddTag}
-                  className="px-3 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-50"
-                  disabled={!newTag.trim()}
-                >
-                  <FiPlus className="w-4 h-4" />
-                </button>
-              </div>
-              {tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary text-xs rounded-full"
-                    >
-                      <span>{tag}</span>
-                      <button
-                        onClick={() => handleRemoveTag(tag)}
-                        className="p-1 rounded hover:bg-white/20 text-primary"
-                      >
-                        <FiX className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Context list under the workspace panel */}
-        {workspaceContent && !contextCollapsed && (
-          <div className="mt-3 bg-white border border-gray-200 rounded-lg p-3 max-h-48 overflow-y-auto">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={contextSearch}
-                  onChange={(e) => setContextSearch(e.target.value)}
-                  placeholder="Search context..."
-                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-md text-sm"
-                />
-                <div className="absolute left-2 top-2 text-gray-400">
-                  <FiSearch />
-                </div>
-              </div>
-              <button
-                onClick={() => setContextCollapsed((s) => !s)}
-                className="p-1 rounded hover:bg-gray-100"
-                title={contextCollapsed ? 'Expand context' : 'Collapse context'}
-              >
-                {contextCollapsed ? <FiChevronDown /> : <FiChevronUp />}
-              </button>
             </div>
 
             <div className="space-y-2">
