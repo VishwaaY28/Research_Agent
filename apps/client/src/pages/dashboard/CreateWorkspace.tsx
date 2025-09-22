@@ -231,7 +231,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
         source_ids: source_ids.length > 0 ? source_ids : undefined,
         chunks: chunks.length > 0 ? chunks : undefined,
       });
-      
+
       console.log('DEBUG: Created workspace with data:', {
         name: workspaceName,
         client: formData.clientName.trim(),
@@ -258,12 +258,12 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
           Template: 'Header',
           Blog: 'Title',
         };
-        
+
         // Get the workspace type name from the selected ID
         const selectedWorkspaceType = workspaceTypes.find(type => type.id.toString() === workspaceType);
         const workspaceTypeName = selectedWorkspaceType?.name || '';
         const defaultSectionName = defaultSectionMap[workspaceTypeName] || '';
-        
+
         const navFn = internalNavigate;
         if (navFn) {
           navFn(`/dashboard/proposal-authoring/${newWorkspace.id}`, {
@@ -291,7 +291,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
         <div className="sticky top-0 bg-white rounded-t-3xl border-b border-gray-100 px-8 py-6 z-20">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
                 <FiFolder className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -323,12 +323,12 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
             {/* Workspace Details Section */}
             <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border border-gray-200">
               <div className="flex items-center space-x-3 mb-6">
-                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <FiFileText className="w-4 h-4 text-blue-600" />
+                <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                  <FiFileText className="w-4 h-4 text-indigo-600" />
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900">Workspace Details</h3>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Vertical */}
                 <div className="space-y-2">
@@ -340,7 +340,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                       id="vertical"
                       value={selectedVertical}
                       onChange={(e) => setSelectedVertical(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all duration-200 appearance-none"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm transition-all duration-200 appearance-none"
                       required
                     >
                       <option value="">Select Vertical</option>
@@ -372,7 +372,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                       name="workspaceType"
                       value={workspaceType}
                       onChange={(e) => setWorkspaceType(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all duration-200 appearance-none"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm transition-all duration-200 appearance-none"
                       required
                     >
                       <option value="">{workspaceTypesLoading ? 'Loading...' : 'Select Type'}</option>
@@ -399,7 +399,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all duration-200"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm transition-all duration-200"
                     placeholder="Enter workspace name or title"
                     required
                   />
@@ -417,7 +417,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                     list="client-suggestions"
                     value={formData.clientName}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all duration-200"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm transition-all duration-200"
                     placeholder="Who is this workspace being prepared for?"
                     required
                   />
@@ -445,7 +445,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                       value={currentTag}
                       onChange={(e) => setCurrentTag(e.target.value)}
                       onKeyPress={handleTagKeyPress}
-                      className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all duration-200"
+                      className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm transition-all duration-200"
                       placeholder="Enter a tag and press Enter"
                     />
                     <FiTag className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -454,7 +454,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                     type="button"
                     onClick={addTag}
                     disabled={!currentTag.trim()}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 shadow-lg hover:shadow-xl"
+                    className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 shadow-lg hover:shadow-xl"
                   >
                     <FiPlus className="w-4 h-4" />
                     <span>Add</span>
@@ -465,13 +465,13 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                     {formData.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="inline-flex items-center px-3 py-2 bg-blue-100 text-blue-800 text-sm rounded-lg font-medium shadow-sm"
+                        className="inline-flex items-center px-3 py-2 bg-indigo-100 text-indigo-800 text-sm rounded-lg font-medium shadow-sm"
                       >
                         {tag}
                         <button
                           type="button"
                           onClick={() => removeTag(tag)}
-                          className="ml-2 text-blue-600 hover:text-blue-800 transition-colors"
+                          className="ml-2 text-indigo-600 hover:text-indigo-800 transition-colors"
                         >
                           <FiX className="w-3 h-3" />
                         </button>
@@ -492,7 +492,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                   Add Content from Existing Sources
                 </h3>
               </div>
-              
+
               {sourcesLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
@@ -519,7 +519,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                         <div>
                           <button
                             type="button"
-                            className="font-semibold text-gray-900 hover:text-blue-600 transition-colors text-left"
+                            className="font-semibold text-gray-900 hover:text-indigo-600 transition-colors text-left"
                             onClick={() => setSelectingSourceId(source.id)}
                           >
                             {source.name}
@@ -543,24 +543,24 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
 
             {/* Selected Chunks Summary */}
             {Object.entries(selectedChunks).length > 0 && (
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-6 border border-blue-200">
+              <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-2xl p-6 border border-indigo-200">
                 <div className="flex items-center space-x-3 mb-4">
-                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <FiCheck className="w-4 h-4 text-blue-600" />
+                  <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                    <FiCheck className="w-4 h-4 text-indigo-600" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900">
                     Selected Chunks Summary
                   </h3>
                 </div>
-                
+
                 <div className="space-y-4">
                   {Object.entries(selectedChunks).map(([sourceId, idxSet]) => {
                     const sid = Number(sourceId);
                     const chunkArr = sourceChunks[sid] || [];
                     const source = sources.find((s) => s.id === sid);
                     return (
-                      <div key={sid} className="bg-white rounded-xl p-4 border border-blue-200">
-                        <div className="font-semibold text-blue-900 mb-3 flex items-center space-x-2">
+                      <div key={sid} className="bg-white rounded-xl p-4 border border-indigo-200">
+                        <div className="font-semibold text-indigo-900 mb-3 flex items-center space-x-2">
                           <FiFileText className="w-4 h-4" />
                           <span>{source?.name || source?.title || 'Untitled Section'}</span>
                         </div>
@@ -581,10 +581,10 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
                             return (
                               <div
                                 key={idx}
-                                className="flex items-center space-x-2 p-2 bg-blue-50 rounded-lg"
+                                className="flex items-center space-x-2 p-2 bg-indigo-50 rounded-lg"
                               >
-                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                <span className="text-sm text-blue-800 font-medium">
+                                <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                                <span className="text-sm text-indigo-800 font-medium">
                                   {chunkTitle}
                                 </span>
                               </div>
@@ -617,7 +617,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-medium hover:from-blue-700 hover:to-blue-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 shadow-lg hover:shadow-xl"
+                className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-xl font-medium hover:from-indigo-700 hover:to-indigo-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 shadow-lg hover:shadow-xl"
               >
                 {isSubmitting ? (
                   <>

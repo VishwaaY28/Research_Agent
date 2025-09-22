@@ -11,6 +11,14 @@ import logging
 
 from utils.clean import clean_content
 from utils.cache import check_extracted_cache, save_extracted_cache
+# Reuse robust helpers from extract_pdf to align output format
+from utils.extract_pdf import (
+    extract_toc_entries_from_elements,
+    chunk_by_toc_with_minors,
+    auto_tag_chunk,
+    generate_meaningful_title,
+    filter_footer_content,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -113,19 +121,7 @@ USER_AGENTS = [
 
 #     return table_results
 
-def filter_footer_content(elements):
-    filtered = []
-    for element in elements:
-        element_type = element.get("type", "")
-        category = element.get("category", "")
-
-        if element_type == "Footer" or category == "Footer":
-            continue
-
-        filtered.append(element)
-
-    logger.info(f"Filtered out {len(elements) - len(filtered)} footer elements")
-    return filtered
+# Use filter_footer_content imported from utils.extract_pdf for consistency
 
 def merge_split_titles(elements):
     merged = []
@@ -244,13 +240,37 @@ def extract_web_sections(url: str, figures_dir: str) -> List[Dict]:
             toc_sections_raw = extract_toc(merged_sections)
 
             if toc_sections_raw:
-                toc_sections = clean_toc_sections(toc_sections_raw)
-                chunks = parse_toc_content(merged_sections, toc_sections)
+                # Convert TOC elements into entries compatible with extract_pdf helpers
+                entries = extract_toc_entries_from_elements(merged_sections)
+                if entries:
+                    logger.info("Using TOC-based chunking via extract_pdf helpers")
+                    chunks = chunk_by_toc_with_minors(entries, merged_sections)
+                    for ch in chunks:
+                        ch["file_source"] = url
+                else:
+                    # Fallback to parse_toc_content then normalize
+                    toc_sections = clean_toc_sections(toc_sections_raw)
+                    raw_chunks = parse_toc_content(merged_sections, toc_sections)
+                    chunks = []
+                    for rc in raw_chunks:
+                        label = rc.get("label") or rc.get("title") or "Untitled"
+                        content_text = rc.get("content") or ""
+                        minor = {
+                            "tag": generate_meaningful_title(content_text),
+                            "content": [{"text": content_text, "page_number": None}]
+                        }
+                        chunks.append({
+                            "file_source": url,
+                            "title": label,
+                            "content": [minor],
+                            "tags": auto_tag_chunk(content_text, label)
+                        })
             else:
+                # No TOC detected; build chunks by headings similar to earlier logic
                 chunks = []
                 current_chunk = {
                     "file_source": url,
-                    "label": "untitled_section",
+                    "title": "untitled_section",
                     "content": []
                 }
 
@@ -263,20 +283,36 @@ def extract_web_sections(url: str, figures_dir: str) -> List[Dict]:
 
                     if el_type in ["title", "heading", "header"]:
                         if current_chunk["content"]:
-                            chunks.append(current_chunk)
-                        current_chunk = {
-                            "file_source": url,
-                            "label": text,
-                            "content": []
-                        }
+                            # finalize current chunk
+                            combined = "\n\n".join(current_chunk["content"]) if isinstance(current_chunk["content"], list) else current_chunk["content"]
+                            minor = {"tag": generate_meaningful_title(combined), "content": [{"text": clean_content(combined), "page_number": None}]}
+                            chunk_obj = {
+                                "file_source": url,
+                                "title": current_chunk.get("title", "untitled_section"),
+                                "content": [minor],
+                                "tags": auto_tag_chunk(combined, current_chunk.get("title"))
+                            }
+                            chunks.append(chunk_obj)
+                        current_chunk = {"file_source": url, "title": text, "content": []}
                     elif el_type in ["text", "list", "paragraph"]:
                         current_chunk["content"].append(text)
 
                 if current_chunk["content"]:
-                    chunks.append(current_chunk)
+                    combined = "\n\n".join(current_chunk["content"])
+                    minor = {"tag": generate_meaningful_title(combined), "content": [{"text": clean_content(combined), "page_number": None}]}
+                    chunks.append({
+                        "file_source": url,
+                        "title": current_chunk.get("title", "untitled_section"),
+                        "content": [minor],
+                        "tags": auto_tag_chunk(combined, current_chunk.get("title"))
+                    })
 
+            # Ensure each chunk at least has file_source and tags
             for chunk in chunks:
-                chunk["file_source"] = url
+                chunk.setdefault("file_source", url)
+                if "tags" not in chunk:
+                    sample_text = " ".join([c.get("content")[0].get("text", "") for c in (chunk.get("content") or []) if c.get("content")])
+                    chunk["tags"] = auto_tag_chunk(sample_text, chunk.get("title") or chunk.get("label"))
 
             cache_data = {'chunks': chunks}
             save_extracted_cache(url, cache_data)
