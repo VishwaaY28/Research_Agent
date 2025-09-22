@@ -1,7 +1,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { FiFileText, FiPlus, FiSave, FiLayout, FiEdit3, FiArchive, FiCheckCircle, FiAlertCircle, FiChevronDown } from 'react-icons/fi';
+import { FiAlertCircle, FiChevronDown, FiEdit3, FiFileText, FiLayout, FiPlus, FiSave } from 'react-icons/fi';
 import ReactModal from 'react-modal';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useContent } from '../../hooks/useContent';
@@ -353,33 +353,40 @@ const PromptTemplatePage: React.FC = () => {
   return (
     <div className="min-h-full bg-white font-sans">
       <div className="px-4 sm:px-6 lg:px-8 py-8 w-full">
-        <button
-          onClick={async () => {
-            try {
-              const res = await fetch(`${API.BASE_URL()}/api/prompt-templates/seed`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: localStorage.getItem('token')
-                    ? `Bearer ${localStorage.getItem('token')}`
-                    : '',
-                },
-              });
-              if (res.ok) {
-                console.log('Database seeded successfully');
-                // Retry fetching templates
-                window.location.reload();
-              } else {
-                console.error('Failed to seed database');
-              }
-            } catch (error) {
-              console.error('Error seeding database:', error);
-            }
-          }}
-          className="ml-2 text-sm text-red-600 hover:text-black-800 underline"
-        >
-          Seed Database
-        </button>
+        {workspaceTypes.length === 0 || (selectedType && (!selectedType.sections || selectedType.sections.length === 0)) ? (
+          !saving && (
+            <button
+              onClick={async () => {
+                try {
+                  setSaving(true);
+                  const res = await fetch(`${API.BASE_URL()}/api/prompt-templates/seed`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: localStorage.getItem('token')
+                        ? `Bearer ${localStorage.getItem('token')}`
+                        : '',
+                    },
+                  });
+                  if (res.ok) {
+                    console.log('Database seeded successfully');
+                    // Retry fetching templates
+                    window.location.reload();
+                  } else {
+                    console.error('Failed to seed database');
+                  }
+                } catch (error) {
+                  console.error('Error seeding database:', error);
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              className="ml-2 text-sm text-red-600 hover:text-black-800 underline"
+            >
+              Seed Database
+            </button>
+          )
+        ) : null}
         <div className="bg-white rounded-2xl shadow-md border border-gray-100 w-full p-6 mb-6">
           <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
             <div>

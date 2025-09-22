@@ -71,21 +71,27 @@ def detect_heading(text: str) -> bool:
 
     text = text.strip()
 
+    # Skip single numbers or very short text
+    if len(text) <= 3 and text.isdigit():
+        return False
+
     # Check for common heading patterns
     heading_patterns = [
-        r'^[A-Z][A-Z\s]+$',  # ALL CAPS
-        r'^\d+\.?\s+[A-Z]',  # Numbered headings
-        r'^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*$',  # Title Case
-        r'^[IVX]+\.?\s+[A-Z]',  # Roman numerals
-        r'^[A-Z]\.\s+[A-Z]',  # Letter numbering
+        r'^[A-Z][A-Z\s]+$',  # ALL CAPS (but not single letters)
+        r'^\d+\.?\s+[A-Z][a-z]',  # Numbered headings (must have text after number)
+        r'^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*$',  # Title Case (multiple words)
+        r'^[IVX]+\.?\s+[A-Z][a-z]',  # Roman numerals (must have text after)
+        r'^[A-Z]\.\s+[A-Z][a-z]',  # Letter numbering (must have text after)
     ]
 
     for pattern in heading_patterns:
         if re.match(pattern, text):
             return True
 
-    # Check if text is short and contains important words
-    if len(text) < 100 and any(word in text.lower() for word in ['introduction', 'overview', 'summary', 'conclusion', 'methodology', 'results', 'analysis', 'discussion']):
+    # Check if text is short and contains important words (but not just numbers)
+    if (len(text) < 100 and 
+        not text.isdigit() and 
+        any(word in text.lower() for word in ['introduction', 'overview', 'summary', 'conclusion', 'methodology', 'results', 'analysis', 'discussion'])):
         return True
 
     return False
@@ -153,7 +159,7 @@ def auto_tag_chunk(content: str, major_title: str = None) -> List[str]:
             tags.append(kebab(term))
 
     # Prune overly generic/short tags and dedupe; cap to 3
-    generic_blocklist = {"data", "information", "content", "section"}
+    generic_blocklist = {"data", "information", "content", "section", "text", "page", "document"}
     cleaned = []
     for t in tags:
         if not t or len(t) < 3:
@@ -162,6 +168,9 @@ def auto_tag_chunk(content: str, major_title: str = None) -> List[str]:
             continue
         if t not in cleaned:
             cleaned.append(t)
+        # Stop at 3 tags to avoid excessive tagging
+        if len(cleaned) >= 3:
+            break
 
     return cleaned[:3]
 
@@ -187,9 +196,10 @@ def _merge_minor_chunks(minor_chunks: List[Dict], max_minors: int = 6, min_chars
             prev_txt = content_text(prev)
             combined = (prev_txt + "\n\n" + txt).strip()
             prev["content"] = [{"text": combined, "page_number": None}]
-            # Re-title based on combined and merge tags
+            # Re-title based on combined and merge tags (limit to 3)
             prev["tag"] = generate_meaningful_title(combined)
-            prev["tags"] = list(dict.fromkeys((prev.get("tags") or []) + (mc.get("tags") or [])))
+            all_tags = list(dict.fromkeys((prev.get("tags") or []) + (mc.get("tags") or [])))
+            prev["tags"] = all_tags[:3]
         else:
             merged.append(mc)
 
@@ -205,10 +215,11 @@ def _merge_minor_chunks(minor_chunks: List[Dict], max_minors: int = 6, min_chars
             a_txt = content_text(a)
             b_txt = content_text(b)
             combined = (a_txt + "\n\n" + b_txt).strip()
+            all_tags = list(dict.fromkeys((a.get("tags") or []) + (b.get("tags") or [])))
             combined_mc = {
                 "tag": generate_meaningful_title(combined),
                 "content": [{"text": combined, "page_number": None}],
-                "tags": list(dict.fromkeys((a.get("tags") or []) + (b.get("tags") or [])))
+                "tags": all_tags[:3]
             }
             new_list.append(combined_mc)
             i += 2
@@ -237,7 +248,7 @@ def _merge_fallback_chunks_to_max(chunks: List[Dict], max_chunks: int = 20) -> L
                 "file_source": a.get("file_source"),
                 "label": title,
                 "content": combined_text,
-                "tags": auto_tag_chunk(combined_text)
+                "tags": auto_tag_chunk(combined_text)[:3]
             }
             new_list.append(new_chunk)
             i += 2
