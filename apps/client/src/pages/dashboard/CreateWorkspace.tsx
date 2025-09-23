@@ -77,7 +77,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
   const fetchChunksForSource = async (sourceId: number) => {
     if (sourceChunks[sourceId]) return; // already fetched
     try {
-      const res = await fetch(`http://localhost:8000/api/sources/${sourceId}/chunks`);
+      const res = await fetch(`${API.BASE_URL()}${API.ENDPOINTS.SOURCES.BASE_URL()}${API.ENDPOINTS.SOURCES.CHUNKS(sourceId)}`);
       const data = await res.json();
       setSourceChunks((prev) => ({ ...prev, [sourceId]: data.chunks || [] }));
     } catch {
@@ -641,7 +641,7 @@ const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({ onClose, onWorkspaceC
             chunks={sourceChunks[selectingSourceId as number] || []}
             fetchChunks={async (sourceId: number) => {
               if (!sourceChunks[sourceId]) {
-                const res = await fetch(`http://localhost:8000/api/sources/${sourceId}/chunks`);
+                const res = await fetch(`${API.BASE_URL()}${API.ENDPOINTS.SOURCES.BASE_URL()}${API.ENDPOINTS.SOURCES.CHUNKS(sourceId)}`);
                 const data = await res.json();
                 setSourceChunks((prev) => ({ ...prev, [sourceId]: data.chunks || [] }));
                 return data.chunks || [];
