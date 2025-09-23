@@ -18,15 +18,15 @@ import string
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize NLTK components
-# try:
-#     nltk.data.find('tokenizers/punkt')
-#     nltk.data.find('corpora/stopwords')
-#     nltk.data.find('corpora/wordnet')
-# except LookupError:
-#     nltk.download('punkt')
-#     nltk.download('stopwords')
-#     nltk.download('wordnet')
+Initialize NLTK components
+try:
+    nltk.data.find('tokenizers/punkt')
+    nltk.data.find('corpora/stopwords')
+    nltk.data.find('corpora/wordnet')
+except LookupError:
+    nltk.download('punkt')
+    nltk.download('stopwords')
+    nltk.download('wordnet')
 
 lemmatizer = WordNetLemmatizer()
 stop_words = set(stopwords.words('english'))
