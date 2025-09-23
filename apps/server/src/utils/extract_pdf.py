@@ -18,7 +18,7 @@ import string
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-Initialize NLTK components
+# Initialize NLTK components
 try:
     nltk.data.find('tokenizers/punkt')
     nltk.data.find('corpora/stopwords')
