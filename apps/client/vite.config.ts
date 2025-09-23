@@ -6,12 +6,13 @@ export default defineConfig({
   plugins: [react(), wasm()],
   server: {
     host: '0.0.0.0',
-    allowedHosts: [ 'hex-author-s3l2.onrender.com'],
     port: 8501,
+    // Remove allowedHosts—Render doesn't need it
     proxy: {
-      '/api': 'http://localhost:8000',
-      '/api': 'https://proposal-craft-utwe.onrender.com',
+      // Conditional proxy: Local dev -> localhost, Render -> backend Render URL
+      '/api': process.env.NODE_ENV === 'production' 
+        ? 'https://proposal-craft-utwe.onrender.com'  // Your backend Render URL
+        : 'http://localhost:8000'
     },
   },
 });
-
