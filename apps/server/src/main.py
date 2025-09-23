@@ -33,7 +33,7 @@ async def shutdown_event():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501", "https://your-frontend-render-url.onrender.com"],  # Add your frontend Render URL here for CORS
+    allow_origins=["http://localhost:8501", "https://your-frontend-render-url.onrender.com","*"],  # Add your frontend Render URL here for CORS
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

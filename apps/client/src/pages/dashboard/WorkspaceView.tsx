@@ -291,7 +291,7 @@ const WorkspaceView: React.FC = () => {
   const fetchChunksForSource = async (sourceId: number): Promise<any[]> => {
     if (sourceChunks[sourceId]) return sourceChunks[sourceId]; // already fetched
     try {
-      const res = await fetch(`http://localhost:8000/api/sources/${sourceId}/chunks`);
+      const res = await fetch(`${API.BASE_URL()}${API.ENDPOINTS.SOURCES.BASE_URL()}${API.ENDPOINTS.SOURCES.CHUNKS(sourceId)}`);
       const data = await res.json();
       setSourceChunks((prev) => ({ ...prev, [sourceId]: data.chunks || [] }));
       return data.chunks || [];
