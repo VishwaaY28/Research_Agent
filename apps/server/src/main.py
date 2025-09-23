@@ -32,7 +32,7 @@ async def shutdown_event():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:8501"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "main:app",
-        host=env["HOST"],
+        host='0.0.0.0',
         port=int(env["PORT"]),
         log_level=env["LOG_LEVEL"].lower(),
         reload=True,

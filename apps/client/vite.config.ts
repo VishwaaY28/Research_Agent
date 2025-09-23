@@ -5,7 +5,8 @@ import wasm from 'vite-plugin-wasm';
 export default defineConfig({
   plugins: [react(), wasm()],
   server: {
-    port: 3000,
+    host: '0.0.0.0'
+    port: 8501,
     proxy: {
       '/api': 'http://localhost:8000',
     },
