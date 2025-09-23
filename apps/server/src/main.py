@@ -72,7 +72,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host='0.0.0.0',
-        port=int(env["PORT"]),
+        port=8000,
         log_level=env["LOG_LEVEL"].lower(),
         reload=True,
     )
