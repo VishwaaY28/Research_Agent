@@ -10,6 +10,7 @@ export default defineConfig({
     port: 8501,
     proxy: {
       '/api': 'http://localhost:8000',
+      '/api': 'https://proposal-craft-utwe.onrender.com',
     },
   },
 });
