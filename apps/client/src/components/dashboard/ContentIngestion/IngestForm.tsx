@@ -36,6 +36,10 @@ const IngestForm: React.FC<IngestFormProps> = ({
   const [selectedSources, setSelectedSources] = useState<ContentSource[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loadingExisting, setLoadingExisting] = useState(false);
+  const [topics, setTopics] = useState<string>('');
+  const [discoveredUrls, setDiscoveredUrls] = useState<string[]>([]);
+  const [approvedUrls, setApprovedUrls] = useState<string[]>([]);
+  const [isFindingUrls, setIsFindingUrls] = useState<boolean>(false);
 
   const { uploadSources } = useSources();
 
@@ -149,6 +153,68 @@ const IngestForm: React.FC<IngestFormProps> = ({
     setErrors((prev) => ({ ...prev, url: undefined }));
   };
 
+  const handleTopicsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTopics(e.target.value);
+  };
+
+  const handleToggleApprove = (url: string) => {
+    setApprovedUrls((prev) => (prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url]));
+    setWebLinks((prev) => {
+      const list = prev
+        .split(/[\n,]+/)
+        .map((u) => u.trim())
+        .filter(Boolean);
+      const set = new Set(list);
+      if (set.has(url)) {
+        // unapprove => remove
+        set.delete(url);
+      } else {
+        // approve => add at top
+        set.add(url);
+      }
+      return Array.from(set).join('\n');
+    });
+  };
+
+  const handleFindUrls = async () => {
+    const topicList = topics
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    if (topicList.length === 0) {
+      toast.error('Please enter at least one topic');
+      return;
+    }
+
+    try {
+      setIsFindingUrls(true);
+      setDiscoveredUrls([]);
+      setApprovedUrls([]);
+
+      const res = await fetch(
+        `${API.BASE_URL()}${API.ENDPOINTS.SOURCES.BASE_URL()}${API.ENDPOINTS.SOURCES.FIND_URLS()}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topics: topicList, limit: 10 }),
+        },
+      );
+      const data = await res.json();
+      if (data.success && Array.isArray(data.urls)) {
+        setDiscoveredUrls(data.urls);
+        toast.success(`Found ${data.urls.length} URLs`);
+      } else {
+        toast.error(data.error || 'Failed to find URLs');
+      }
+    } catch (err) {
+      console.error('Find URLs error', err);
+      toast.error('Failed to find URLs');
+    } finally {
+      setIsFindingUrls(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -166,7 +232,8 @@ const IngestForm: React.FC<IngestFormProps> = ({
           .split(/[\n,]+/)
           .map((u) => u.trim())
           .filter(Boolean);
-        const uploadResponse = await uploadSources({ urls });
+        const allUrls = Array.from(new Set([...approvedUrls, ...urls]));
+        const uploadResponse = await uploadSources({ urls: allUrls });
         // For URLs, the response might be an array or single object
         results = Array.isArray(uploadResponse) ? uploadResponse : [uploadResponse];
       } else if (uploadType === 'existing' && selectedSources.length > 0) {
@@ -414,20 +481,79 @@ const IngestForm: React.FC<IngestFormProps> = ({
         )}
 
         {uploadType === 'url' && (
-          <div className="space-y-4">
-            <textarea
-              placeholder="https://example.com/article (one per line or comma separated)"
-              value={webLinks}
-              onChange={handleUrlChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-              rows={4}
-              disabled={isProcessing}
-            />
-            {errors.url && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-red-600 text-sm">{errors.url}</p>
-              </div>
-            )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2 space-y-4">
+              <label className="block text-sm font-medium text-neutral-700">Links</label>
+              <textarea
+                placeholder="https://example.com/article (one per line or comma separated)"
+                value={webLinks}
+                onChange={handleUrlChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                rows={6}
+                disabled={isProcessing}
+              />
+              {errors.url && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-600 text-sm">{errors.url}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-neutral-700">Topics</label>
+              <input
+                type="text"
+                placeholder="e.g., sustainability, annual report, privacy policy"
+                value={topics}
+                onChange={handleTopicsChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                disabled={isProcessing}
+              />
+              <button
+                type="button"
+                onClick={handleFindUrls}
+                disabled={isFindingUrls || isProcessing || topics.trim().length === 0}
+                className={`w-full py-3 px-4 rounded-lg font-semibold transition-all duration-200 ${
+                  isFindingUrls || isProcessing
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    : 'bg-primary text-white hover:bg-primary/90'
+                }`}
+              >
+                {isFindingUrls ? (
+                  <>
+                    <FiLoader className="w-5 h-5 inline mr-2 animate-spin" /> Finding URLs...
+                  </>
+                ) : (
+                  <>
+                    <FiSearch className="w-5 h-5 inline mr-2" /> Find URLs
+                  </>
+                )}
+              </button>
+
+              {discoveredUrls.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-neutral-700">Discovered URLs</p>
+                  <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg divide-y">
+                    {discoveredUrls.map((u) => (
+                      <div key={u} className="flex items-center justify-between p-2">
+                        <div className="truncate text-sm text-neutral-700 pr-2" title={u}>{u}</div>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleApprove(u)}
+                          className={`px-3 py-1 rounded text-sm font-medium ${
+                            approvedUrls.includes(u)
+                              ? 'bg-green-100 text-green-700 border border-green-300'
+                              : 'bg-gray-100 text-gray-700 border border-gray-300'
+                          }`}
+                        >
+                          {approvedUrls.includes(u) ? 'Approved' : 'Approve'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

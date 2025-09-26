@@ -1,6 +1,5 @@
 from database.models import ContentSources
 from tortoise.exceptions import DoesNotExist
-
 class ContentSourceRepository:
     async def upsert(self, name, source_url, extracted_url, type):
         try:
