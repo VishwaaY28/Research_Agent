@@ -19,14 +19,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize NLTK components
-try:
-    nltk.data.find('tokenizers/punkt')
-    nltk.data.find('corpora/stopwords')
-    nltk.data.find('corpora/wordnet')
-except LookupError:
-    nltk.download('punkt')
-    nltk.download('stopwords')
-    nltk.download('wordnet')
+# try:
+#     nltk.data.find('tokenizers/punkt')
+#     nltk.data.find('corpora/stopwords')
+#     nltk.data.find('corpora/wordnet')
+# except LookupError:
+#     nltk.download('punkt')
+#     nltk.download('stopwords')
+#     nltk.download('wordnet')
 
 lemmatizer = WordNetLemmatizer()
 stop_words = set(stopwords.words('english'))
@@ -89,8 +89,8 @@ def detect_heading(text: str) -> bool:
             return True
 
     # Check if text is short and contains important words (but not just numbers)
-    if (len(text) < 100 and 
-        not text.isdigit() and 
+    if (len(text) < 100 and
+        not text.isdigit() and
         any(word in text.lower() for word in ['introduction', 'overview', 'summary', 'conclusion', 'methodology', 'results', 'analysis', 'discussion'])):
         return True
 

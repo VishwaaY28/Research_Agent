@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Form, Query
+from fastapi import APIRouter, UploadFile, File, Form, Query, Body
 from typing import List, Optional
 
 from api.handlers import sources as sources_handlers
@@ -17,6 +17,13 @@ async def upload_and_extract(
 @router.get("/list")
 async def list_content_sources():
     return await sources_handlers.list_content_sources()
+
+@router.post("/find-urls")
+async def find_urls(
+    topics: List[str] = Body(..., embed=True, description="List of topics to search for"),
+    limit: int = Body(10, embed=True, description="Max URLs to return")
+):
+    return await sources_handlers.find_urls(topics, limit)
 
 @router.get("/{content_source_id}")
 async def get_content_source_details(content_source_id: int):

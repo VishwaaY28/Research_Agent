@@ -439,7 +439,7 @@ const ProposalAuthoring: React.FC = () => {
 
       if (!cancelled) {
         setTotalInputTokens(total);
-        setTokenLimitExceeded(total > 1000);
+        setTokenLimitExceeded(total > 5000);
       }
     }
 
@@ -877,7 +877,7 @@ const ProposalAuthoring: React.FC = () => {
                 <span
                   className={`font-medium ${tokenLimitExceeded ? 'text-red-600' : 'text-gray-600'}`}
                 >
-                  Total Input Tokens: {totalInputTokens.toLocaleString()}/1,000
+                  Total Input Tokens: {totalInputTokens.toLocaleString()}/5,000
                 </span>
                 {tokenLimitExceeded && (
                   <span className="text-red-600 text-xs font-medium">
@@ -888,7 +888,7 @@ const ProposalAuthoring: React.FC = () => {
               <div className="w-32 bg-gray-200 rounded-full h-2">
                 <div
                   className={`h-2 rounded-full transition-all duration-300 ${tokenLimitExceeded ? 'bg-red-500' : 'bg-indigo-500'}`}
-                  style={{ width: `${Math.min((totalInputTokens / 1000) * 100, 100)}%` }}
+                  style={{ width: `${Math.min((totalInputTokens / 5000) * 100, 100)}%` }}
                 />
               </div>
             </div>

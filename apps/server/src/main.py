@@ -70,12 +70,12 @@ if __name__ == "__main__":
 
     # Dynamic port: Use Render's PORT env var, fallback to 8000 for local dev
     port = int(os.environ.get('PORT', 8000))
-    reload = os.environ.get('ENV') == 'development'  # Optional: Enable reload only in dev (set ENV=development locally)
+    # reload = os.environ.get('ENV') == 'development'  # Optional: Enable reload only in dev (set ENV=development locally)
 
     uvicorn.run(
         "main:app",
         host='0.0.0.0',
         port=port,
         log_level=env["LOG_LEVEL"].lower(),
-        reload=reload,  # Set to False for production
+        reload=True,  # Set to False for production
     )
