@@ -52,7 +52,7 @@ async def create_workspace(data: WorkspaceCreateRequest):
             client=data.client,
             tag_names=data.tags,
             workspace_type=data.workspace_type,
-            user_id=user.id
+            # user_id=user.id
         )
 
         # Associate all sections from selected sources
@@ -217,7 +217,7 @@ async def fetch_all_workspaces():
     user = getattr(request.state, 'user', None) if request else None
     if not user:
         raise HTTPException(status_code=401, detail="User not authenticated")
-    workspaces = await workspace_repository.fetch_all_workspaces(user_id=user.id)
+    workspaces = await workspace_repository.fetch_all_workspaces()
     result = []
     for ws in workspaces:
         tag_relations = await ws.tags.all().prefetch_related("tag")
