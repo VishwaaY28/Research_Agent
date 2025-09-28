@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
@@ -10,6 +9,7 @@ import {
   FiPlus,
   FiSearch,
   FiTag,
+  FiTrash2,
   FiX,
   FiZap,
 } from 'react-icons/fi';
@@ -95,7 +95,10 @@ const WorkspaceView: React.FC = () => {
     name: string;
     type: 'section';
     closeModal?: () => void;
+    ids?: (string | number)[];
   }>(null);
+  const [selectedSections, setSelectedSections] = useState<(string | number)[]>([]);
+  const [selectAll, setSelectAll] = useState<boolean>(false);
   const [isAddSectionModalOpen, setIsAddSectionModalOpen] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
   const [newSectionPrompt, setNewSectionPrompt] = useState('');
@@ -106,7 +109,7 @@ const WorkspaceView: React.FC = () => {
   const debouncedSearch = useDebounce(search, 500);
 
   const { fetchWorkspace } = useWorkspace();
-  const { fetchSections, searchSections } = useSections();
+  const { fetchSections, searchSections, deleteSection } = useSections();
   const { fetchAllSectionTags } = useTags();
 
   useEffect(() => {
@@ -185,6 +188,68 @@ const WorkspaceView: React.FC = () => {
 
     loadWorkspaceData();
   }, [id]);
+
+  // Handle selection of a section
+  const handleSectionSelection = (sectionId: string | number) => {
+    setSelectedSections((prev) => {
+      if (prev.includes(sectionId)) {
+        // If already selected, remove it
+        const newSelected = prev.filter((id) => id !== sectionId);
+        // If no sections are selected after removal, set selectAll to false
+        if (newSelected.length === 0) setSelectAll(false);
+        return newSelected;
+      } else {
+        // If all sections are now selected, set selectAll to true
+        const newSelected = [...prev, sectionId];
+        if (newSelected.length === filteredData.length) setSelectAll(true);
+        return newSelected;
+      }
+    });
+  };
+
+  // Handle select all functionality
+  const handleSelectAll = () => {
+    setSelectAll((prev) => {
+      if (prev) {
+        // If currently all selected, deselect all
+        setSelectedSections([]);
+        return false;
+      } else {
+        // Select all sections
+        setSelectedSections(filteredData.map((section) => section.id));
+        return true;
+      }
+    });
+  };
+
+  // Handle bulk delete of sections
+  const handleBulkDelete = () => {
+    if (selectedSections.length === 0) return;
+
+    // Get names of first 3 sections for display
+    const selectedNames = selectedSections
+      .map((id) => {
+        const section = sections.find((s) => s.id === id);
+        return section?.name || 'Content Chunk';
+      })
+      .slice(0, 3);
+
+    // Create display text
+    const nameDisplay = selectedNames.join(', ');
+    const additionalCount = selectedSections.length - selectedNames.length;
+    const displayName =
+      additionalCount > 0
+        ? `${nameDisplay} and ${additionalCount} more item${additionalCount > 1 ? 's' : ''}`
+        : nameDisplay;
+
+    // Set delete target with multiple IDs
+    setDeleteTarget({
+      id: selectedSections[0], // We'll still use the first ID for display
+      name: `${selectedSections.length} selected item${selectedSections.length > 1 ? 's' : ''} (${displayName})`,
+      type: 'section',
+      ids: selectedSections,
+    });
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -291,7 +356,9 @@ const WorkspaceView: React.FC = () => {
   const fetchChunksForSource = async (sourceId: number): Promise<any[]> => {
     if (sourceChunks[sourceId]) return sourceChunks[sourceId]; // already fetched
     try {
-      const res = await fetch(`${API.BASE_URL()}${API.ENDPOINTS.SOURCES.BASE_URL()}${API.ENDPOINTS.SOURCES.CHUNKS(sourceId)}`);
+      const res = await fetch(
+        `${API.BASE_URL()}${API.ENDPOINTS.SOURCES.BASE_URL()}${API.ENDPOINTS.SOURCES.CHUNKS(sourceId)}`,
+      );
       const data = await res.json();
       setSourceChunks((prev) => ({ ...prev, [sourceId]: data.chunks || [] }));
       return data.chunks || [];
@@ -950,7 +1017,7 @@ const WorkspaceView: React.FC = () => {
                   className="bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 text-sm"
                 >
                   <FiZap className="w-3 h-3" />
-                  Author Proposal
+                  Author
                 </button>
               </div>
             </div>
@@ -997,15 +1064,35 @@ const WorkspaceView: React.FC = () => {
           {tab === 'content' && (
             <>
               <div className="mb-8 space-y-4">
-                <div className="relative">
-                  <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                  <input
-                    type="text"
-                    placeholder="Search sections by content, name, source, or tags..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full md:w-96 pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-200"
-                  />
+                <div className="flex items-center justify-between">
+                  <div className="relative mr-4">
+                    <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                      type="text"
+                      placeholder="Search sections by content, name, source, or tags..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="w-full md:w-96 pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-200"
+                    />
+                  </div>
+
+                  {filteredData.length > 0 && (
+                    <div className="flex items-center whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={selectAll}
+                        onChange={handleSelectAll}
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        id="select-all-checkbox"
+                      />
+                      <label
+                        htmlFor="select-all-checkbox"
+                        className="ml-2 text-sm font-medium text-gray-700"
+                      >
+                        Select All
+                      </label>
+                    </div>
+                  )}
                 </div>
 
                 {allTags.length > 0 && (
@@ -1075,16 +1162,40 @@ const WorkspaceView: React.FC = () => {
                   </div>
                 )}
               </div>
-
+              {/* Bulk Delete Button */}
+              {selectedSections.length > 0 && (
+                <div className="flex items-center justify-end mb-4">
+                  <button
+                    onClick={handleBulkDelete}
+                    className="flex items-center text-sm font-medium text-red-600 hover:text-red-800"
+                  >
+                    <FiTrash2 className="h-4 w-4 mr-1" />
+                    Delete Selected ({selectedSections.length})
+                  </button>
+                </div>
+              )}{' '}
               {filteredData.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {filteredData.map((section) => (
                     <div
                       key={section.id}
-                      className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md hover:border-gray-300 transition-all duration-200 group cursor-pointer"
+                      className={`bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md hover:border-gray-300 transition-all duration-200 group cursor-pointer ${
+                        selectedSections.includes(section.id)
+                          ? 'ring-2 ring-primary ring-opacity-50'
+                          : ''
+                      }`}
                     >
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
+                          <div className="flex items-center mb-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedSections.includes(section.id)}
+                              onChange={() => handleSectionSelection(section.id)}
+                              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
                           {section.tags && section.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mb-3">
                               {section.tags.map((tag, index) => (
@@ -1700,6 +1811,101 @@ const WorkspaceView: React.FC = () => {
                     <span>Add Section</span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-black">Delete Confirmation</h3>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-6 text-gray-700">
+              Are you sure you want to delete{' '}
+              <span className="font-semibold">{deleteTarget.name}</span>? This action cannot be
+              undone.
+            </div>
+
+            <div className="flex justify-end space-x-4">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (deleteTarget.type === 'section') {
+                    try {
+                      // If we have multiple IDs to delete
+                      if (deleteTarget.ids && deleteTarget.ids.length > 0) {
+                        // Track success/failure counts
+                        let successCount = 0;
+                        let failCount = 0;
+
+                        // Delete each section one by one
+                        for (const id of deleteTarget.ids) {
+                          try {
+                            await deleteSection(id, true); // Using hard delete
+                            successCount++;
+                          } catch (err) {
+                            console.error(`Error deleting section ${id}:`, err);
+                            failCount++;
+                          }
+                        }
+
+                        // Update the sections lists after all deletions
+                        setSections((prev) =>
+                          prev.filter((s) => !deleteTarget.ids?.includes(s.id)),
+                        );
+                        setAllSections((prev) =>
+                          prev.filter((s) => !deleteTarget.ids?.includes(s.id)),
+                        );
+
+                        // Clear selected sections
+                        setSelectedSections([]);
+                        setSelectAll(false);
+
+                        // Show appropriate toast message
+                        if (failCount === 0) {
+                          toast.success(
+                            `${successCount} ${successCount === 1 ? 'section' : 'sections'} deleted successfully`,
+                          );
+                        } else if (successCount === 0) {
+                          toast.error('Failed to delete sections');
+                        } else {
+                          toast.success(
+                            `${successCount} ${successCount === 1 ? 'section' : 'sections'} deleted successfully, ${failCount} failed`,
+                          );
+                        }
+                      } else {
+                        // Handle single delete
+                        await deleteSection(deleteTarget.id, true); // Using hard delete
+                        setSections((prev) => prev.filter((s) => s.id !== deleteTarget.id));
+                        setAllSections((prev) => prev.filter((s) => s.id !== deleteTarget.id));
+                        toast.success('Section deleted successfully');
+                      }
+                    } catch (err) {
+                      console.error('Error deleting section:', err);
+                      toast.error('Failed to delete section');
+                    }
+                  }
+                  setDeleteTarget(null);
+                }}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Delete
               </button>
             </div>
           </div>

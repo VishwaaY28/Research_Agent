@@ -6,33 +6,33 @@ const features = [
   {
     title: 'Smart Content Reuse',
     icon: <FiUpload className="w-6 h-6 text-primary" />,
-    desc: 'Import content from past proposals, PDFs, Word docs, or web pages. No more starting from scratch.',
+    desc: 'Import content from past documents, PDFs, Word docs, or web pages. No more starting from scratch.',
   },
   {
     title: 'Selective Highlighting',
     icon: <BiHighlight className="w-6 h-6 text-amber-500" />,
-    desc: 'Pick only the sections you need. Build your proposal with the best content, fast.',
+    desc: 'Pick only the sections you need. Build your document with the best content, fast.',
   },
   {
     title: 'Organized Workspaces',
     icon: <FiFolder className="w-6 h-6 text-blue-600" />,
-    desc: 'Keep all your resources, drafts, and references in one place for each proposal.',
+    desc: 'Keep all your resources, drafts, and references in one place for each document.',
   },
-  {
-    title: 'AI-Powered Drafting',
-    icon: <FiZap className="w-6 h-6 text-emerald-500" />,
-    desc: 'Let AI generate sections like company intro or solution overview. Just give a prompt.',
-  },
-  {
-    title: 'Effortless Export',
-    icon: <FiDownload className="w-6 h-6 text-purple-500" />,
-    desc: 'Export your finished proposal as a polished Word document, ready to send.',
-  },
-  {
-    title: 'Collaboration Ready',
-    icon: <FiUsers className="w-6 h-6 text-pink-500" />,
-    desc: 'Work with your team in real time. Share, review, and refine together.',
-  },
+//   {
+//     title: 'AI-Powered Drafting',
+//     icon: <FiZap className="w-6 h-6 text-emerald-500" />,
+//     desc: 'Let AI generate sections like company intro or solution overview. Just give a prompt.',
+//   },
+//   {
+//     title: 'Effortless Export',
+//     icon: <FiDownload className="w-6 h-6 text-purple-500" />,
+//     desc: 'Export your finished document as a polished Word document, ready to send.',
+//   },
+//   {
+//     title: 'Collaboration Ready',
+//     icon: <FiUsers className="w-6 h-6 text-pink-500" />,
+//     desc: 'Work with your team in real time. Share, review, and refine together.',
+//   },
 ];
 
 const Bento: React.FC = () => (
@@ -46,11 +46,11 @@ const Bento: React.FC = () => (
           Features
         </div>
         <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-5">
-          Everything you need to <span className="text-primary">craft winning proposals</span>
+          Everything you need to <span className="text-primary">craft winning documents</span>
         </h2>
         <p className="text-lg text-gray-600">
           A complete toolkit that combines AI power with human creativity—designed to help your team
-          create consistent, high-quality proposals in less time.
+          create consistent, high-quality documents in less time.
         </p>
       </div>
 
