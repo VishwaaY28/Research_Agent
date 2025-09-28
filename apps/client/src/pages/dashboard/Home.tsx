@@ -9,6 +9,7 @@ import {
   FiTag,
   FiZap,
 } from 'react-icons/fi';
+import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
 import { useContent, type GeneratedContent } from '../../hooks/useContent';
 import { useDashboard } from '../../hooks/useDashboard';
@@ -347,13 +348,6 @@ const Home: React.FC = () => {
                       Quick access to your recent generations
                     </p>
                   </div>
-                  <button
-                    onClick={() => navigate('/dashboard/workspaces')}
-                    className="px-5 py-2.5 bg-white text-gray-700 rounded-lg text-sm font-medium border border-gray-200 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 transition-all duration-200 flex items-center gap-2 shadow-sm"
-                  >
-                    View workspaces
-                    <FiArrowRight className="w-4 h-4" />
-                  </button>
                 </div>
               </div>
               <div className="p-6">
@@ -415,10 +409,12 @@ const Home: React.FC = () => {
                                   </div>
                                 )}
                               </div>
-                              {/* Preview first 100 chars of content */}
-                              <div className="mt-2 text-sm text-gray-600 line-clamp-2 text-ellipsis">
-                                {content.content.substring(0, 100)}
-                                {content.content.length > 100 ? '...' : ''}
+                              {/* Display content with markdown support */}
+                              <div className="mt-2 text-sm text-gray-600 line-clamp-2 prose prose-sm max-w-none">
+                                <ReactMarkdown>
+                                  {content.content.substring(0, 150) +
+                                    (content.content.length > 150 ? '...' : '')}
+                                </ReactMarkdown>
                               </div>
                             </div>
                             <div className="transform translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-200">
