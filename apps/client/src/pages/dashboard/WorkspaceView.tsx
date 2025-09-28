@@ -29,6 +29,7 @@ import { API } from '../../utils/constants';
 import SelectChunksModal from './SelectChunksModal';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import ReactMarkdown from 'react-markdown';
 
 type Workspace = {
   id: string;
@@ -1301,9 +1302,16 @@ const WorkspaceView: React.FC = () => {
                                 <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
                                   {heading}
                                 </h3>
-                                <p className="text-gray-700 text-sm leading-relaxed line-clamp-4">
-                                  {previewText || 'No content available'}
-                                </p>
+                                <div className="text-gray-700 text-sm leading-relaxed line-clamp-4 prose prose-sm max-w-none">
+                                  {(previewText && previewText.includes('#')) ||
+                                  previewText.includes('- ') ||
+                                  previewText.includes('## ') ||
+                                  previewText.includes('*') ? (
+                                    <ReactMarkdown>{previewText}</ReactMarkdown>
+                                  ) : (
+                                    previewText || 'No content available'
+                                  )}
+                                </div>
                               </>
                             );
                           })()}
@@ -1503,8 +1511,8 @@ const WorkspaceView: React.FC = () => {
                         </div>
                       </div>
                       <div className="mb-2">
-                        <div className="text-gray-700 text-sm whitespace-pre-line line-clamp-6">
-                          {item.content}
+                        <div className="text-gray-700 text-sm line-clamp-6 prose prose-sm max-w-none">
+                          <ReactMarkdown>{item.content}</ReactMarkdown>
                         </div>
                       </div>
                       {item.tags && item.tags.length > 0 && (
@@ -1553,8 +1561,8 @@ const WorkspaceView: React.FC = () => {
               </button>
             </div>
             <div className="p-5">
-              <div className="text-gray-800 whitespace-pre-wrap leading-relaxed">
-                {viewingGenerated.content}
+              <div className="text-gray-800 prose max-w-none">
+                <ReactMarkdown>{viewingGenerated.content}</ReactMarkdown>
               </div>
               {viewingGenerated.tags && viewingGenerated.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-4">
@@ -1636,7 +1644,7 @@ const WorkspaceView: React.FC = () => {
               )}
 
               <div className="prose max-w-none">
-                <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                <div className="text-gray-700 prose max-w-none">
                   {(() => {
                     // Debug: log the content
                     console.log('Modal viewingSection.content:', viewingSection.content);
@@ -1652,6 +1660,17 @@ const WorkspaceView: React.FC = () => {
                     let parsedContent: any[] = [];
                     if (typeof viewingSection.content === 'string') {
                       try {
+                        // First check if the content is markdown
+                        if (
+                          viewingSection.content.includes('#') ||
+                          viewingSection.content.includes('*') ||
+                          viewingSection.content.includes('- ') ||
+                          viewingSection.content.includes('## ')
+                        ) {
+                          return <ReactMarkdown>{viewingSection.content}</ReactMarkdown>;
+                        }
+
+                        // Otherwise try to parse as JSON
                         parsedContent = JSON.parse(viewingSection.content.replace(/'/g, '"'));
                       } catch (e) {
                         parsedContent = [];
@@ -1659,7 +1678,7 @@ const WorkspaceView: React.FC = () => {
                     }
 
                     if (Array.isArray(parsedContent) && parsedContent.length > 0) {
-                      return parsedContent
+                      const formattedContent = parsedContent
                         .map((item: any) => {
                           // If item has a content array, use the old logic
                           if (Array.isArray(item.content)) {
@@ -1677,6 +1696,19 @@ const WorkspaceView: React.FC = () => {
                           );
                         })
                         .join('\n\n');
+
+                      return <ReactMarkdown>{formattedContent}</ReactMarkdown>;
+                    }
+
+                    // Check if the content might be markdown
+                    if (
+                      typeof viewingSection.content === 'string' &&
+                      (viewingSection.content.includes('#') ||
+                        viewingSection.content.includes('*') ||
+                        viewingSection.content.includes('- ') ||
+                        viewingSection.content.includes('## '))
+                    ) {
+                      return <ReactMarkdown>{viewingSection.content}</ReactMarkdown>;
                     }
 
                     // Otherwise, just show the raw content as plain text

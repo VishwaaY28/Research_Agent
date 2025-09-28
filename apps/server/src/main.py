@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 
 from api.middlewares.auth import AuthMiddleware
 from api.routes.auth import router as auth_router
@@ -17,19 +18,20 @@ from config.env import env
 from database.db import init_db, close_db
 import os  # Add this import for dynamic PORT
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize database
+    await init_db()
+    yield
+    # Shutdown: Close database
+    await close_db()
+
 app = FastAPI(
     title="Proposal Craft API",
     description="API for Proposal Craft application",
-    root_path_in_servers=False
+    root_path_in_servers=False,
+    lifespan=lifespan
 )
-
-@app.on_event("startup")
-async def startup_event():
-    await init_db()
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    await close_db()
 
 app.add_middleware(
     CORSMiddleware,

@@ -23,7 +23,7 @@ class PromptRequest(BaseModel):
 class GenerateContentRequest(BaseModel):
     prompt: str
     section_ids: Optional[List[int]] = []
-    section_name: Optional[str] = "Generated Content"
+    section_name: Optional[str] = ""
 
 class SaveGeneratedContentRequest(BaseModel):
     prompt: str
@@ -94,7 +94,7 @@ async def generate_content(workspace_id: int, request: GenerateContentRequest):
         result = await client.generate_content(
             prompt=request.prompt,
             context_sections=context_sections,
-            section_name=request.section_name or "Generated Content"
+            section_name=request.section_name
         )
 
         return JSONResponse({
