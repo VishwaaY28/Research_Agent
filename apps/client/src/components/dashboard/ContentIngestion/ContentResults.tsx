@@ -2,15 +2,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-    FiCheck,
-    FiChevronDown,
-    FiChevronRight,
-    FiEye,
-    FiPlus,
-    FiSave,
-    FiSearch,
-    FiTag,
-    FiX,
+  FiCheck,
+  FiChevronDown,
+  FiChevronRight,
+  FiEye,
+  FiPlus,
+  FiSave,
+  FiSearch,
+  FiTag,
+  FiX,
 } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '../../../hooks/useDebounce';
@@ -162,13 +162,36 @@ const ContentResults: React.FC<ContentResultsProps> = ({
           break;
       }
 
+      // Collect all possible tags from the item
+      let itemTags: string[] = [];
+
+      // If the item has an explicit tags property, include those tags
+      if ('tags' in item && Array.isArray(item.tags)) {
+        itemTags = [...itemTags, ...item.tags];
+      }
+
+      // If it's a structured chunk, include all section tags
+      if (type === 'chunk' && isStructuredChunk(item as Chunk)) {
+        const sectionTags = (item as StructuredChunk).content
+          .map((section) => section.tag)
+          .filter(Boolean);
+        itemTags = [...itemTags, ...sectionTags];
+      }
+      // If it has a tag property, include it as a tag
+      else if ('tag' in item && typeof item.tag === 'string') {
+        itemTags = [...itemTags, item.tag];
+      }
+
+      // Remove duplicates
+      itemTags = [...new Set(itemTags)];
+
       const newItem: SelectedItem = {
         type,
         sourceId,
         sourceName,
         name,
         content,
-        tags: [],
+        tags: itemTags,
         uniqueId,
         originalData: item,
       };
@@ -1099,7 +1122,14 @@ const ContentResults: React.FC<ContentResultsProps> = ({
                   : 'label' in chunk
                     ? (chunk as any).label
                     : 'Untitled',
-              tags: [],
+              // Include both the explicit tags array and the tag property as a tag if it exists
+              tags: [
+                ...(chunk.tags || []),
+                ...('tag' in chunk && typeof chunk.tag === 'string' ? [chunk.tag] : []),
+                ...(isStructuredChunk(chunk)
+                  ? chunk.content.map((section) => section.tag).filter(Boolean)
+                  : []),
+              ],
             };
           }),
         );

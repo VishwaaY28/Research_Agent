@@ -1,7 +1,14 @@
-
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { FiAlertCircle, FiChevronDown, FiEdit3, FiFileText, FiLayout, FiPlus, FiSave } from 'react-icons/fi';
+import {
+  FiAlertCircle,
+  FiChevronDown,
+  FiEdit3,
+  FiFileText,
+  FiLayout,
+  FiPlus,
+  FiSave,
+} from 'react-icons/fi';
 import ReactModal from 'react-modal';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useContent } from '../../hooks/useContent';
@@ -44,6 +51,7 @@ const PromptTemplatePage: React.FC = () => {
   const [sectionsLoading, setSectionsLoading] = useState(false);
   const [typesLoading, setTypesLoading] = useState(false);
   const { workspaces, fetchWorkspaces } = useWorkspace();
+  const [filteredWorkspaces, setFilteredWorkspaces] = useState<typeof workspaces>([]);
 
   useEffect(() => {
     fetchWorkspaces();
@@ -149,8 +157,14 @@ const PromptTemplatePage: React.FC = () => {
   useEffect(() => {
     if (selectedType && selectedType.id) {
       loadSectionsForType(selectedType);
+
+      // Filter workspaces by the selected workspace type
+      const filtered = workspaces.filter(
+        (workspace) => workspace.workspace_type === selectedType.name,
+      );
+      setFilteredWorkspaces(filtered);
     }
-  }, [selectedType?.id]);
+  }, [selectedType?.id, workspaces]);
 
   // Pre-select workspace and type from navigation state
   useEffect(() => {
@@ -178,6 +192,12 @@ const PromptTemplatePage: React.FC = () => {
     let workspace = workspaces.find((w) => String(w.id) === String(workspaceId));
     if (!workspace) {
       toast.error('Please select a workspace');
+      return;
+    }
+
+    // Check if the selected workspace matches the selected type
+    if (workspace.workspace_type !== selectedType.name) {
+      toast.error(`The selected workspace must be of type "${selectedType.name}"`);
       return;
     }
     setSaving(true);
@@ -353,40 +373,41 @@ const PromptTemplatePage: React.FC = () => {
   return (
     <div className="min-h-full bg-white font-sans">
       <div className="px-4 sm:px-6 lg:px-8 py-8 w-full">
-        {workspaceTypes.length === 0 || (selectedType && (!selectedType.sections || selectedType.sections.length === 0)) ? (
-          !saving && (
-            <button
-              onClick={async () => {
-                try {
-                  setSaving(true);
-                  const res = await fetch(`${API.BASE_URL()}/api/prompt-templates/seed`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      Authorization: localStorage.getItem('token')
-                        ? `Bearer ${localStorage.getItem('token')}`
-                        : '',
-                    },
-                  });
-                  if (res.ok) {
-                    console.log('Database seeded successfully');
-                    // Retry fetching templates
-                    window.location.reload();
-                  } else {
-                    console.error('Failed to seed database');
+        {workspaceTypes.length === 0 ||
+        (selectedType && (!selectedType.sections || selectedType.sections.length === 0))
+          ? !saving && (
+              <button
+                onClick={async () => {
+                  try {
+                    setSaving(true);
+                    const res = await fetch(`${API.BASE_URL()}/api/prompt-templates/seed`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: localStorage.getItem('token')
+                          ? `Bearer ${localStorage.getItem('token')}`
+                          : '',
+                      },
+                    });
+                    if (res.ok) {
+                      console.log('Database seeded successfully');
+                      // Retry fetching templates
+                      window.location.reload();
+                    } else {
+                      console.error('Failed to seed database');
+                    }
+                  } catch (error) {
+                    console.error('Error seeding database:', error);
+                  } finally {
+                    setSaving(false);
                   }
-                } catch (error) {
-                  console.error('Error seeding database:', error);
-                } finally {
-                  setSaving(false);
-                }
-              }}
-              className="ml-2 text-sm text-red-600 hover:text-black-800 underline"
-            >
-              Seed Database
-            </button>
-          )
-        ) : null}
+                }}
+                className="ml-2 text-sm text-red-600 hover:text-black-800 underline"
+              >
+                Seed Database
+              </button>
+            )
+          : null}
         <div className="bg-white rounded-2xl shadow-md border border-gray-100 w-full p-6 mb-6">
           <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
             <div>
@@ -571,7 +592,9 @@ const PromptTemplatePage: React.FC = () => {
                 {/* Workspace selector if not navigated from a workspace */}
                 {!location.state?.workspaceId && (
                   <div className="mb-6">
-                    <label className="block mb-2 font-medium text-gray-700">Select Workspace</label>
+                    <label className="block mb-2 font-medium text-gray-700">
+                      Select Workspace ({selectedType?.name} type only)
+                    </label>
                     <div className="relative">
                       <select
                         className="w-full bg-gray-50 border border-gray-100 rounded-md px-3 py-2 text-gray-800
@@ -581,11 +604,17 @@ const PromptTemplatePage: React.FC = () => {
                         onChange={(e) => setSelectedWorkspaceId(e.target.value)}
                       >
                         <option value="">Choose a workspace...</option>
-                        {workspaces.map((ws) => (
-                          <option key={ws.id} value={ws.id}>
-                            {ws.name}
+                        {filteredWorkspaces.length > 0 ? (
+                          filteredWorkspaces.map((ws) => (
+                            <option key={ws.id} value={ws.id}>
+                              {ws.name}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="" disabled>
+                            No workspaces available for this type
                           </option>
-                        ))}
+                        )}
                       </select>
                       <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
                         <FiChevronDown className="w-5 h-5 text-gray-400" />
