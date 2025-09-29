@@ -157,7 +157,7 @@ class ContentRepository:
         workspace = await Workspace.get_or_none(id=workspace_id)
         if not workspace or workspace.workspace_type != workspace_type:
             return []
-        
+
         return await Prompt.filter(
             workspace_id=workspace_id,
             deleted_at__isnull=True

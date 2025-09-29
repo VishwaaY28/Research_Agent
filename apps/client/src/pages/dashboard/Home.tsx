@@ -145,8 +145,12 @@ const Home: React.FC = () => {
                     <FiPlus className="w-4 h-4" />
                   </div>
                   <div className="flex-1">
-                    <h4 className="font-medium text-gray-900 text-sm group-hover:text-blue-600">New Workspace</h4>
-                    <p className="text-xs text-gray-600 group-hover:text-gray-700">Create a new content workspace</p>
+                    <h4 className="font-medium text-gray-900 text-sm group-hover:text-blue-600">
+                      New Workspace
+                    </h4>
+                    <p className="text-xs text-gray-600 group-hover:text-gray-700">
+                      Create a new content workspace
+                    </p>
                   </div>
                 </div>
               </button>
@@ -159,8 +163,12 @@ const Home: React.FC = () => {
                     <FiEdit className="w-4 h-4" />
                   </div>
                   <div className="flex-1">
-                    <h4 className="font-medium text-gray-900 text-sm group-hover:text-purple-600">View Prompts</h4>
-                    <p className="text-xs text-gray-600 group-hover:text-gray-700">Manage prompt templates</p>
+                    <h4 className="font-medium text-gray-900 text-sm group-hover:text-purple-600">
+                      View Prompts
+                    </h4>
+                    <p className="text-xs text-gray-600 group-hover:text-gray-700">
+                      Manage prompt templates
+                    </p>
                   </div>
                 </div>
               </button>
@@ -173,8 +181,12 @@ const Home: React.FC = () => {
                     <FiFileText className="w-4 h-4" />
                   </div>
                   <div className="flex-1">
-                    <h4 className="font-medium text-gray-900 text-sm group-hover:text-emerald-600">Upload Content</h4>
-                    <p className="text-xs text-gray-600 group-hover:text-gray-700">Add new content resources</p>
+                    <h4 className="font-medium text-gray-900 text-sm group-hover:text-emerald-600">
+                      Upload Content
+                    </h4>
+                    <p className="text-xs text-gray-600 group-hover:text-gray-700">
+                      Add new content resources
+                    </p>
                   </div>
                 </div>
               </button>
@@ -188,7 +200,9 @@ const Home: React.FC = () => {
               <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-xl font-semibold text-gray-900">Recently Used Workspaces</h2>
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      Recently Used Workspaces
+                    </h2>
                     <p className="text-gray-600 text-sm mt-1">
                       Quick access to your active workspaces
                     </p>
@@ -219,7 +233,9 @@ const Home: React.FC = () => {
                                 <div className="p-2 rounded-lg bg-primary/10 text-primary">
                                   <FiFolder className="w-4 h-4" />
                                 </div>
-                                <h3 className="font-semibold text-gray-900 group-hover:text-primary transition-colors">{ws.name}</h3>
+                                <h3 className="font-semibold text-gray-900 group-hover:text-primary transition-colors">
+                                  {ws.name}
+                                </h3>
                               </div>
                               <div className="flex items-center gap-4 text-sm text-gray-600">
                                 <div className="flex items-center gap-1.5">
@@ -270,9 +286,7 @@ const Home: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900">Recently Used Prompts</h2>
-                    <p className="text-gray-600 text-sm mt-1">
-                      Quick access to your saved prompts
-                    </p>
+                    <p className="text-gray-600 text-sm mt-1">Quick access to your saved prompts</p>
                   </div>
                   <button
                     onClick={() => navigate('/dashboard/prompt-templates')}
@@ -300,12 +314,16 @@ const Home: React.FC = () => {
                                 <div className="p-2 rounded-lg bg-purple-100 text-purple-600">
                                   <FiEdit className="w-4 h-4" />
                                 </div>
-                                <h3 className="font-semibold text-gray-900 group-hover:text-purple-600 transition-colors">{prompt.name}</h3>
+                                <h3 className="font-semibold text-gray-900 group-hover:text-purple-600 transition-colors">
+                                  {prompt.name}
+                                </h3>
                               </div>
                               <div className="flex items-center gap-4 text-sm text-gray-600">
                                 <div className="flex items-center gap-1.5">
                                   <FiClock className="w-4 h-4 text-gray-400" />
-                                  {prompt.last_used_at ? formatTimeAgo(prompt.last_used_at) : 'Never used'}
+                                  {prompt.last_used_at
+                                    ? formatTimeAgo(prompt.last_used_at)
+                                    : 'Never used'}
                                 </div>
                               </div>
                             </div>

@@ -1,6 +1,6 @@
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, validator
 
 from database.repositories.users import user_repository
 from utils.hash import hash_password, verify_password
@@ -10,6 +10,20 @@ class RegisterRequest(BaseModel):
     name: str
     email: EmailStr
     password: str
+
+    @validator('password')
+    def validate_password(cls, v):
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(c.islower() for c in v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one number")
+        if not any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?" for c in v):
+            raise ValueError("Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)")
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters long")
+        return v
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -36,3 +50,9 @@ async def get_session(request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return JSONResponse({"id": user.id, "email": user.email, "name": user.name})
+
+async def logout(request: Request):
+    if not request.state.user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    # In a real-world application, you might want to blacklist the token here
+    return JSONResponse({"message": "Successfully logged out"})
