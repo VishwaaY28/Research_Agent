@@ -6,7 +6,6 @@ export const API = {
       REGISTER: () => '/register',
       LOGIN: () => '/login',
       SESSION: () => '/session',
-      LOGOUT: () => '/logout',
     },
     DATA: {
       BASE_URL: () => '/api/data',
