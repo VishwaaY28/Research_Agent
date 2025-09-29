@@ -11,11 +11,11 @@ const Hero: React.FC<{ onGetStarted?: () => void }> = ({ onGetStarted }) => (
         <div className="md:col-span-6 max-w-2xl">
           <div className="inline-flex items-center px-3 py-1.5 mb-6 rounded-full bg-primary/10 text-primary font-medium text-sm">
             <span className="flex h-2 w-2 rounded-full bg-primary mr-2"></span>
-            Proposal Software Reimagined
+            Authoring Tool
           </div>
 
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 tracking-tight mb-6">
-            Create winning proposals with{' '}
+            Create winning Documents with{' '}
             <span className="text-primary relative">
               AI precision
               <span className="absolute bottom-1 left-0 w-full h-3 bg-primary/15 -z-10 rounded"></span>
@@ -23,7 +23,7 @@ const Hero: React.FC<{ onGetStarted?: () => void }> = ({ onGetStarted }) => (
           </h1>
 
           <p className="text-lg text-gray-600 leading-relaxed mb-6">
-            Supercharge your proposal process with intelligent content reuse, AI-powered drafting,
+            Supercharge your document process with intelligent content reuse, AI-powered drafting,
             and seamless team collaboration—all in one platform.
           </p>
 
@@ -48,7 +48,7 @@ const Hero: React.FC<{ onGetStarted?: () => void }> = ({ onGetStarted }) => (
                 <div className="flex items-center bg-white rounded-md px-4 py-1.5 flex-grow border border-gray-200">
                   <FiFileText className="text-primary mr-2" />
                   <span className="text-sm font-medium text-gray-700 truncate">
-                    Acme Corporation - Service Proposal
+                    Hexaware Tehnologies - Service Proposal
                   </span>
                 </div>
               </div>

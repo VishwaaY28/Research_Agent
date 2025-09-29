@@ -121,8 +121,16 @@ export function useSections() {
         ? API.ENDPOINTS.SECTIONS.DELETE_HARD(sectionId)
         : API.ENDPOINTS.SECTIONS.DELETE_SOFT(sectionId);
 
-      const response = await fetch(`${baseUrl}${endpoint}`, {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+
+      const response = await fetch(`${baseUrl}${API.ENDPOINTS.SECTIONS.BASE_URL()}${endpoint}`, {
         method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       if (!response.ok) {

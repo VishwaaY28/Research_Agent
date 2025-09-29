@@ -33,26 +33,11 @@ async def create_workspace(data: WorkspaceCreateRequest):
     try:
         logger.info(f"Creating workspace with data: name={data.name}, client={data.client}, tags={data.tags}, workspace_type={data.workspace_type}, source_ids={getattr(data, 'source_ids', None)}, chunks={getattr(data, 'chunks', None)}")
 
-        # Get user from request context (assumes dependency injection or middleware sets request.state.user)
-        from fastapi import Request
-        import inspect
-        frame = inspect.currentframe()
-        while frame:
-            if 'request' in frame.f_locals:
-                request = frame.f_locals['request']
-                break
-            frame = frame.f_back
-        else:
-            request = None
-        user = getattr(request.state, 'user', None) if request else None
-        if not user:
-            raise HTTPException(status_code=401, detail="User not authenticated")
         workspace = await workspace_repository.create_workspace(
             name=data.name,
             client=data.client,
             tag_names=data.tags,
-            workspace_type=data.workspace_type,
-            # user_id=user.id
+            workspace_type=data.workspace_type
         )
 
         # Associate all sections from selected sources
@@ -131,24 +116,9 @@ async def create_workspace(data: WorkspaceCreateRequest):
 
 async def filter_workspaces(data: dict):
     filter_data = WorkspaceFilterRequest(**data)
-    # Get user from request context
-    from fastapi import Request
-    import inspect
-    frame = inspect.currentframe()
-    while frame:
-        if 'request' in frame.f_locals:
-            request = frame.f_locals['request']
-            break
-        frame = frame.f_back
-    else:
-        request = None
-    user = getattr(request.state, 'user', None) if request else None
-    if not user:
-        raise HTTPException(status_code=401, detail="User not authenticated")
     workspaces = await workspace_repository.filter_workspaces(
         name_query=filter_data.name_query,
-        tag_names=filter_data.tags,
-        user_id=user.id
+        tag_names=filter_data.tags
     )
     result = []
     for ws in workspaces:
@@ -203,20 +173,6 @@ async def search_workspaces(data: dict):
     return JSONResponse(result, status_code=200)
 
 async def fetch_all_workspaces():
-    # Get user from request context
-    from fastapi import Request
-    import inspect
-    frame = inspect.currentframe()
-    while frame:
-        if 'request' in frame.f_locals:
-            request = frame.f_locals['request']
-            break
-        frame = frame.f_back
-    else:
-        request = None
-    user = getattr(request.state, 'user', None) if request else None
-    if not user:
-        raise HTTPException(status_code=401, detail="User not authenticated")
     workspaces = await workspace_repository.fetch_all_workspaces()
     result = []
     for ws in workspaces:
