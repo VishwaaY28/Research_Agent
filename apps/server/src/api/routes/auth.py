@@ -16,3 +16,7 @@ async def login(request: Request, data: LoginRequest):
 @router.get("/session")
 async def get_session(request: Request):
     return await auth_handlers.get_session(request)
+
+@router.post("/logout")
+async def logout(request: Request):
+    return await auth_handlers.logout(request)
