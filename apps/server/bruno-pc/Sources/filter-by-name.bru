@@ -1,0 +1,15 @@
+meta {
+  name: filter-by-name
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseurl}}/sources/list/filter/1?filename=Proposal Authoring Tool v0.3.pdf
+  body: none
+  auth: inherit
+}
+
+params:query {
+  filename: Proposal Authoring Tool v0.3.pdf
+}

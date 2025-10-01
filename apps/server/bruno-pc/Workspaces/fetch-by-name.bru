@@ -1,0 +1,15 @@
+meta {
+  name: fetch-by-name
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseurl}}/workspaces/by-name/Sample Workspace
+  body: none
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NTE1NjE2NTd9.htJWzQsL-B8msxVfrYx_a7YNG2IroqN2rgQeO52ws98
+}

@@ -1,0 +1,15 @@
+meta {
+  name: add-image-tags
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseurl}}/sources/1/images/1/tags
+  body: json
+  auth: inherit
+}
+
+body:json {
+  ["diagram", "chart"]
+}

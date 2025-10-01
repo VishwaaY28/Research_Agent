@@ -1,0 +1,17 @@
+meta {
+  name: upload-and-extract
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseurl}}/sources/1
+  body: multipartForm
+  auth: inherit
+}
+
+body:multipart-form {
+  files: @file(/Users/rishiviswanathan/Documents/proposal-craft/apps/server/sources/Annexure-1-Business Domain Validation-ICGv1.6_ formatted.pdf)
+  files: @file(/Users/rishiviswanathan/Documents/proposal-craft/apps/server/sources/Proposal-Example.pdf)
+  ~urls: https://hexaware.com
+}

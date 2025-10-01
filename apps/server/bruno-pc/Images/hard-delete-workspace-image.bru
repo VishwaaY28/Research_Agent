@@ -1,0 +1,11 @@
+meta {
+  name: hard-delete-workspace-image
+  type: http
+  seq: 8
+}
+
+delete {
+  url: {{baseurl}}/workspaces/1/images/1/hard
+  body: none
+  auth: inherit
+}

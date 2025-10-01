@@ -1,0 +1,11 @@
+meta {
+  name: get-workspace-images
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseurl}}/workspaces/1/images
+  body: none
+  auth: inherit
+}

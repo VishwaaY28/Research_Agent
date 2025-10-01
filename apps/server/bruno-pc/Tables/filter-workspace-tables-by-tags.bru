@@ -1,0 +1,15 @@
+meta {
+  name: filter-workspace-tables-by-tags
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseurl}}/workspaces/1/tables/filter
+  body: json
+  auth: inherit
+}
+
+body:json {
+  ["financial", "metrics"]
+}
