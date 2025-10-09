@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-  FiAlertCircle,
   FiChevronDown,
+  FiChevronUp,
   FiEdit3,
   FiFileText,
   FiLayout,
@@ -10,7 +10,7 @@ import {
   FiSave,
 } from 'react-icons/fi';
 import ReactModal from 'react-modal';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useContent } from '../../hooks/useContent';
 import { useWorkspace } from '../../hooks/useWorkspace';
 import { API } from '../../utils/constants';
@@ -30,6 +30,8 @@ interface WorkspaceType {
 
 const PromptTemplatePage: React.FC = () => {
   const [selectedType, setSelectedType] = useState<WorkspaceType | null>(null);
+  const [typesCollapsed, setTypesCollapsed] = useState(false);
+  const [sectionsCollapsed, setSectionsCollapsed] = useState(false);
   const [selectedSection, setSelectedSection] = useState<{
     id: number;
     name: string;
@@ -37,8 +39,7 @@ const PromptTemplatePage: React.FC = () => {
   } | null>(null);
   const [editablePrompt, setEditablePrompt] = useState('');
   const [saving, setSaving] = useState(false);
-  const userInputRef = useRef(null);
-  const navigate = useNavigate();
+  // Removed unused userInputRef and navigate
   const location = useLocation();
   const { savePromptToWorkspace } = useContent();
   const [workspaceTypes, setWorkspaceTypes] = useState<WorkspaceType[]>([]);
@@ -210,7 +211,7 @@ const PromptTemplatePage: React.FC = () => {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         },
       );
-      let promptTemplates = [];
+      let promptTemplates: any[] = [];
       if (promptTemplatesResp.ok) {
         promptTemplates = await promptTemplatesResp.json();
       }
@@ -372,289 +373,244 @@ const PromptTemplatePage: React.FC = () => {
 
   return (
     <div className="min-h-full bg-white font-sans">
-      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full">
-        {workspaceTypes.length === 0 ||
-        (selectedType && (!selectedType.sections || selectedType.sections.length === 0))
-          ? !saving && (
+      <div className="flex flex-col md:flex-row h-full w-full px-2 md:px-8 py-8 gap-6">
+        {/* Left Panel: Types & Sections */}
+        <div className="w-full md:w-1/3 max-w-xs border-r border-gray-100 pr-0 md:pr-6 flex flex-col gap-6">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xl font-bold text-black-700 flex items-center gap-2">
+              <FiFileText className="w-5 h-5 text-indigo-600" />
+              Prompt Templates
+            </h2>
+            {/* <div className="flex items-center gap-1">
               <button
-                onClick={async () => {
-                  try {
-                    setSaving(true);
-                    const res = await fetch(`${API.BASE_URL()}/api/prompt-templates/seed`, {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: localStorage.getItem('token')
-                          ? `Bearer ${localStorage.getItem('token')}`
-                          : '',
-                      },
-                    });
-                    if (res.ok) {
-                      console.log('Database seeded successfully');
-                      // Retry fetching templates
-                      window.location.reload();
-                    } else {
-                      console.error('Failed to seed database');
-                    }
-                  } catch (error) {
-                    console.error('Error seeding database:', error);
-                  } finally {
-                    setSaving(false);
-                  }
-                }}
-                className="ml-2 text-sm text-red-600 hover:text-black-800 underline"
+                onClick={() => setTypesCollapsed((c) => !c)}
+                className="p-2 bg-gray-50 hover:bg-gray-100 rounded-md text-gray-500"
+                title={typesCollapsed ? 'Expand Types' : 'Collapse Types'}
               >
-                Seed Database
+                <span
+                  className={`transition-transform ${typesCollapsed ? 'rotate-180' : ''}`}
+                ></span>
               </button>
-            )
-          : null}
-        <div className="bg-white rounded-2xl shadow-md border border-gray-100 w-full p-6 mb-6">
-          <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
-            <div>
-              <h2 className="text-2xl font-bold text-black-700 tracking-tight flex items-center gap-2">
-                <FiFileText className="w-6 h-6 text-indigo-600" /> Prompt Templates
-              </h2>
-              <p className="text-gray-500 mt-2">Manage and organize your workspace templates</p>
-            </div>
-            <button
-              onClick={() => setShowAddTypeModal(true)}
-              className="px-4 py-1.5 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-2 text-sm"
-            >
-              <FiPlus className="w-4 h-4" /> Add Workspace Type
-            </button>
+            </div> */}
           </div>
-
-          {/* Workspace Type Card Selector */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            {typesLoading ? (
-              <div className="col-span-full text-center py-8">
-                <div className="animate-pulse flex flex-col items-center">
-                  <div className="w-12 h-12 bg-indigo-200 rounded-full mb-4"></div>
-                  <div className="h-4 bg-indigo-100 rounded w-48"></div>
-                </div>
-              </div>
-            ) : workspaceTypes.length === 0 ? (
-              <div className="col-span-full text-center py-8 rounded-2xl border border-dashed border-gray-200">
-                <FiAlertCircle className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-600 font-medium">No workspace types found.</p>
-                <p className="text-gray-400 text-sm mt-1">
-                  Click "Seed Demo Data" to add default types.
-                </p>
-              </div>
-            ) : (
-              <>
-                {workspaceTypes.map((type) => (
-                  <button
-                    key={type.id}
-                    className={`px-3 py-2 rounded-md font-medium transition-all duration-150 text-sm
-                      flex items-center gap-3 shadow-sm group
-                      ${
-                        selectedType && selectedType.id === type.id
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-white text-gray-700 border border-gray-200 hover:border-indigo-200 hover:bg-indigo-50'
-                      }
-                    `}
-                    onClick={() => {
-                      setSelectedType(type);
-                      setSelectedSection(null);
-                    }}
-                  >
-                    <div
-                      className={`w-7 h-7 rounded-md flex items-center justify-center
-                      ${
-                        selectedType && selectedType.id === type.id
-                          ? 'bg-white/10'
-                          : 'bg-indigo-50 group-hover:bg-indigo-100'
-                      }
-                    `}
-                    >
-                      <FiFileText
-                        className={`w-4 h-4 ${
-                          selectedType && selectedType.id === type.id
-                            ? 'text-white'
-                            : 'text-indigo-400'
-                        }`}
-                      />
-                    </div>
-                    <div className="flex flex-col items-start min-w-0">
-                      <span className="font-medium text-sm truncate w-full">{type.name}</span>
-                    </div>
-                  </button>
-                ))}
-              </>
-            )}
-          </div>
-
-          {/* Section Selector for Selected Type */}
-          {selectedType && (
-            <div className="mb-6 w-full">
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base font-semibold text-gray-700">Sections</h3>
-                  <button
-                    className="px-3 py-1.5 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-2 text-sm"
-                    onClick={() => setShowAddSectionModal(true)}
-                    type="button"
-                  >
-                    <FiPlus className="w-4 h-4" /> Add Section
-                  </button>
-                </div>
-                <div className="flex gap-2 flex-wrap items-center">
-                  {sectionsLoading ? (
-                    <div className="w-full py-6">
-                      <div className="animate-pulse flex gap-3">
-                        {[1, 2, 3].map((n) => (
-                          <div key={n} className="h-9 bg-gray-100 rounded-md w-28"></div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (selectedType?.sections?.length ?? 0) === 0 ? (
-                    <div className="w-full text-center py-6 rounded-md border border-dashed border-gray-200">
-                      <FiLayout className="w-7 h-7 text-gray-400 mx-auto mb-2" />
-                      <p className="text-gray-600">No sections found for this type.</p>
-                    </div>
+          <div className="flex-1 overflow-y-auto">
+            {/* Workspace Type Heading */}
+            <div className="flex items-center justify-between mb-1 mt-2">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Workspace Type
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setTypesCollapsed((c) => !c)}
+                  className="p-1.5 bg-gray-50 hover:bg-gray-100 rounded-md text-gray-500"
+                  title={typesCollapsed ? 'Expand Types' : 'Collapse Types'}
+                >
+                  {typesCollapsed ? (
+                    <FiChevronDown className="w-4 h-4" />
                   ) : (
-                    selectedType?.sections?.map((section) => (
-                      <button
-                        key={section.id}
-                        className={`px-3 py-2 rounded-md font-medium transition-all duration-150 text-sm
-                          flex items-center gap-3 shadow-sm group
-                          ${
-                            selectedSection && selectedSection.id === section.id
-                              ? 'bg-indigo-600 text-white'
-                              : 'bg-white text-gray-700 border border-gray-200 hover:border-indigo-200 hover:bg-indigo-50'
-                          }`}
-                        onClick={() => {
-                          setSelectedSection(section);
-                          setEditablePrompt(section.prompt || '');
-                        }}
-                      >
-                        <div
-                          className={`w-7 h-7 rounded-md flex items-center justify-center
-                          ${
-                            selectedSection && selectedSection.id === section.id
-                              ? 'bg-white/10'
-                              : 'bg-indigo-50 group-hover:bg-indigo-100'
-                          }`}
-                        >
-                          <FiLayout
-                            className={`w-4 h-4 ${
-                              selectedSection && selectedSection.id === section.id
-                                ? 'text-white'
-                                : 'text-indigo-400'
-                            }`}
-                          />
-                        </div>
-                        {section.name}
-                      </button>
-                    ))
+                    <FiChevronUp className="w-4 h-4" />
                   )}
-                </div>
+                </button>
+                <button
+                  onClick={() => setShowAddTypeModal(true)}
+                  className="p-1.5 bg-indigo-50 hover:bg-indigo-100 rounded-md text-indigo-600"
+                  title="Add Workspace Type"
+                >
+                  <FiPlus className="w-4 h-4" />
+                </button>
               </div>
             </div>
-          )}
-
-          {/* Prompt for Selected Section */}
-          {selectedType && selectedSection ? (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-md overflow-hidden">
-              <div className="border-b border-gray-100 bg-gray-50 px-6 py-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-md bg-indigo-100 flex items-center justify-center">
-                      <FiEdit3 className="w-4 h-4 text-indigo-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900 text-lg">
-                        {selectedSection.name}
-                      </h3>
-                      <p className="text-sm text-gray-500">Edit prompt template</p>
-                    </div>
+            {!typesCollapsed && (
+              <div className="flex flex-col gap-1">
+                {typesLoading ? (
+                  <div className="text-center py-8 text-gray-400">Loading types...</div>
+                ) : workspaceTypes.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400">
+                    No workspace types found.
+                    <br />
+                    <button
+                      onClick={handleSeedData}
+                      className="mt-2 text-xs text-indigo-600 underline hover:text-indigo-800"
+                    >
+                      Seed Demo Data
+                    </button>
                   </div>
-                  {saving && (
-                    <div className="flex items-center gap-2 text-indigo-600">
-                      <div className="animate-spin w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full"></div>
-                      <span className="text-sm font-medium">Saving...</span>
-                    </div>
-                  )}
-                </div>
+                ) : (
+                  workspaceTypes.map((type) => (
+                    <button
+                      key={type.id}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-md text-left transition-all text-sm font-medium
+                        ${
+                          selectedType && selectedType.id === type.id
+                            ? 'bg-indigo-600 text-white'
+                            : 'hover:bg-indigo-50 text-gray-700'
+                        }
+                      `}
+                      onClick={() => {
+                        setSelectedType(type);
+                        setSelectedSection(null);
+                        setSectionsCollapsed(false);
+                      }}
+                    >
+                      <FiFileText className="w-4 h-4" />
+                      <span className="truncate">{type.name}</span>
+                    </button>
+                  ))
+                )}
               </div>
-
-              <div className="p-4">
-                <textarea
-                  value={editablePrompt}
-                  onChange={(e) => setEditablePrompt(e.target.value)}
-                  className="w-full bg-gray-50/50 border border-indigo-100 rounded-xl px-4 py-3 text-gray-800
-                    placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 mb-6
-                    min-h-[160px] resize-y transition-all duration-150"
-                  placeholder="Edit the prompt for this section..."
-                />
-
-                {/* Workspace selector if not navigated from a workspace */}
-                {!location.state?.workspaceId && (
-                  <div className="mb-6">
-                    <label className="block mb-2 font-medium text-gray-700">
-                      Select Workspace ({selectedType?.name} type only)
-                    </label>
-                    <div className="relative">
-                      <select
-                        className="w-full bg-gray-50 border border-gray-100 rounded-md px-3 py-2 text-gray-800
-                            appearance-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
-                            transition-all duration-150"
-                        value={selectedWorkspaceId}
-                        onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-                      >
-                        <option value="">Choose a workspace...</option>
-                        {filteredWorkspaces.length > 0 ? (
-                          filteredWorkspaces.map((ws) => (
-                            <option key={ws.id} value={ws.id}>
-                              {ws.name}
-                            </option>
-                          ))
-                        ) : (
-                          <option value="" disabled>
-                            No workspaces available for this type
-                          </option>
-                        )}
-                      </select>
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                        <FiChevronDown className="w-5 h-5 text-gray-400" />
-                      </div>
-                    </div>
+            )}
+            {/* Sections for selected type */}
+            {selectedType && (
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-gray-700">Sections</h3>
+                  <div className="flex items-center gap-1">
+                    <button
+                      className="p-1.5 bg-gray-50 hover:bg-gray-100 rounded-md text-gray-500"
+                      onClick={() => setSectionsCollapsed((c) => !c)}
+                      title={sectionsCollapsed ? 'Expand Sections' : 'Collapse Sections'}
+                    >
+                      {sectionsCollapsed ? (
+                        <FiChevronDown className="w-4 h-4" />
+                      ) : (
+                        <FiChevronUp className="w-4 h-4" />
+                      )}
+                    </button>
+                    <button
+                      className="p-1.5 bg-indigo-50 hover:bg-indigo-100 rounded-md text-indigo-600"
+                      onClick={() => setShowAddSectionModal(true)}
+                      title="Add Section"
+                    >
+                      <FiPlus className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                {!sectionsCollapsed && (
+                  <div className="flex flex-col gap-1">
+                    {sectionsLoading ? (
+                      <div className="text-center py-4 text-gray-400">Loading sections...</div>
+                    ) : (selectedType?.sections?.length ?? 0) === 0 ? (
+                      <div className="text-center py-4 text-gray-400">No sections found.</div>
+                    ) : (
+                      selectedType.sections.map((section) => (
+                        <button
+                          key={section.id}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-md text-left transition-all text-sm font-medium
+                            ${
+                              selectedSection && selectedSection.id === section.id
+                                ? 'bg-indigo-500 text-white'
+                                : 'hover:bg-indigo-50 text-gray-700'
+                            }
+                          `}
+                          onClick={() => {
+                            setSelectedSection(section);
+                            setEditablePrompt(section.prompt || '');
+                          }}
+                        >
+                          <FiLayout className="w-4 h-4" />
+                          <span className="truncate">{section.name}</span>
+                        </button>
+                      ))
+                    )}
                   </div>
                 )}
-
-                <div className="flex justify-end">
-                  <button
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-md
-                      font-medium hover:bg-indigo-700 transition-colors
-                      disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm shadow-sm"
-                    onClick={handleSaveToWorkspace}
-                    disabled={saving || (!location.state?.workspaceId && !selectedWorkspaceId)}
-                  >
-                    <FiSave className="w-4 h-4" />
-                    {saving ? 'Saving...' : 'Save to Workspace'}
-                  </button>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* Right Panel: Prompt Editor */}
+        <div className="flex-1 flex flex-col items-stretch min-w-0">
+          {selectedType && selectedSection ? (
+            <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-6 flex flex-col gap-4 max-w-2xl mx-auto w-full">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded bg-indigo-100 flex items-center justify-center">
+                  <FiEdit3 className="w-4 h-4 text-indigo-600" />
                 </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 text-lg mb-0.5">
+                    {selectedSection.name}
+                  </h3>
+                  <p className="text-xs text-gray-500">Edit prompt template</p>
+                </div>
+                {saving && (
+                  <div className="flex items-center gap-2 text-indigo-600 ml-4">
+                    <div className="animate-spin w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full"></div>
+                    <span className="text-sm font-medium">Saving...</span>
+                  </div>
+                )}
+              </div>
+              <textarea
+                value={editablePrompt}
+                onChange={(e) => setEditablePrompt(e.target.value)}
+                className="w-full bg-gray-50 border border-indigo-100 rounded-lg px-4 py-3 text-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[120px] resize-y transition-all duration-150"
+                placeholder="Edit the prompt for this section..."
+              />
+              {/* Workspace selector if not navigated from a workspace */}
+              {!location.state?.workspaceId && (
+                <div>
+                  <label className="block mb-2 font-medium text-gray-700 text-sm">
+                    Select Workspace ({selectedType?.name} type only)
+                  </label>
+                  <div className="relative">
+                    <select
+                      className="w-full bg-gray-50 border border-gray-100 rounded-md px-3 py-2 text-gray-800 appearance-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      value={selectedWorkspaceId}
+                      onChange={(e) => setSelectedWorkspaceId(e.target.value)}
+                    >
+                      <option value="">Choose a workspace...</option>
+                      {filteredWorkspaces.length > 0 ? (
+                        filteredWorkspaces.map((ws) => (
+                          <option key={ws.id} value={ws.id}>
+                            {ws.name}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="" disabled>
+                          No workspaces available for this type
+                        </option>
+                      )}
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <FiChevronDown className="w-5 h-5 text-gray-400" />
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div className="flex justify-end gap-2 mt-2">
+                <button
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md font-medium hover:bg-gray-200 transition-colors text-sm"
+                  onClick={() => setEditablePrompt(selectedSection.prompt || '')}
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm shadow-sm"
+                  onClick={handleSaveToWorkspace}
+                  disabled={saving || (!location.state?.workspaceId && !selectedWorkspaceId)}
+                >
+                  <FiSave className="w-4 h-4" />
+                  {saving ? 'Saving...' : 'Save to Workspace'}
+                </button>
               </div>
             </div>
           ) : (
-            <div className="text-center py-16 bg-indigo-50/30 rounded-2xl border border-dashed border-indigo-200">
-              <FiFileText className="w-16 h-16 text-indigo-300 mx-auto mb-4" />
-              <p className="text-gray-600 text-lg font-medium">
+            <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-center text-gray-400">
+              <FiFileText className="w-16 h-16 text-indigo-200 mb-4" />
+              <div className="text-lg font-medium">
                 {selectedType
                   ? 'Select a section to view its prompt template'
                   : 'Select a workspace type to get started'}
-              </p>
-              <p className="text-gray-400 mt-2">
+              </div>
+              <div className="text-gray-400 mt-2 text-sm">
                 {selectedType
-                  ? 'Choose a section from above to edit its prompt template'
+                  ? 'Choose a section from the left to edit its prompt template'
                   : 'Choose a workspace type to view and edit prompt templates'}
-              </p>
+              </div>
             </div>
           )}
         </div>
-
-        {/* Add Workspace Type Modal */}
+        {/* Modals */}
         {showAddTypeModal && (
           <ReactModal
             isOpen={showAddTypeModal}
@@ -664,33 +620,23 @@ const PromptTemplatePage: React.FC = () => {
             className="fixed inset-0 flex items-center justify-center z-50"
             overlayClassName="fixed inset-0 bg-black/40 backdrop-blur-sm"
           >
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md transform transition-all duration-300 scale-100">
-              <div className="border-b border-gray-100 px-6 py-3 bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-primary-100 flex items-center justify-center">
-                    <FiLayout className="w-5 h-5 text-primary-600" />
-                  </div>
-                  <h2 className="text-xl font-bold text-gray-900">Add Workspace Type</h2>
-                </div>
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+              <div className="border-b border-gray-100 px-6 py-3 bg-gray-50 flex items-center gap-3">
+                <FiLayout className="w-5 h-5 text-indigo-600" />
+                <h2 className="text-lg font-bold text-gray-900">Add Workspace Type</h2>
               </div>
-
               <div className="p-6">
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Type Name</label>
-                  <input
-                    type="text"
-                    className="w-full bg-gray-50/50 border border-indigo-100 rounded-xl px-4 py-3
-                      text-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500
-                      focus:border-indigo-500 transition-all duration-200"
-                    placeholder="Enter workspace type name..."
-                    value={newTypeName}
-                    onChange={(e) => setNewTypeName(e.target.value)}
-                  />
-                </div>
-
-                <div className="flex justify-end gap-3">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Type Name</label>
+                <input
+                  type="text"
+                  className="w-full bg-gray-50 border border-indigo-100 rounded-xl px-4 py-3 text-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Enter workspace type name..."
+                  value={newTypeName}
+                  onChange={(e) => setNewTypeName(e.target.value)}
+                />
+                <div className="flex justify-end gap-3 mt-6">
                   <button
-                    className="px-3 py-1.5 rounded-md text-gray-600 hover:bg-gray-100 transition-colors font-medium"
+                    className="px-3 py-1.5 rounded-md text-gray-600 hover:bg-gray-100 font-medium"
                     onClick={() => {
                       setShowAddTypeModal(false);
                       setNewTypeName('');
@@ -699,7 +645,7 @@ const PromptTemplatePage: React.FC = () => {
                     Cancel
                   </button>
                   <button
-                    className="px-4 py-1.5 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-4 py-1.5 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     onClick={handleAddType}
                     disabled={!newTypeName.trim()}
                   >
@@ -710,8 +656,6 @@ const PromptTemplatePage: React.FC = () => {
             </div>
           </ReactModal>
         )}
-
-        {/* Add Section Modal */}
         {showAddSectionModal && (
           <ReactModal
             isOpen={showAddSectionModal}
@@ -721,53 +665,33 @@ const PromptTemplatePage: React.FC = () => {
             className="fixed inset-0 flex items-center justify-center z-50"
             overlayClassName="fixed inset-0 bg-black/40 backdrop-blur-sm"
           >
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl transform transition-all duration-300 scale-100">
-              <div className="border-b border-gray-100 px-6 py-3 bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                    <FiEdit3 className="w-5 h-5 text-indigo-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">Add New Section</h2>
-                    <p className="text-sm text-gray-500">to {selectedType?.name}</p>
-                  </div>
-                </div>
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+              <div className="border-b border-gray-100 px-6 py-3 bg-gray-50 flex items-center gap-3">
+                <FiEdit3 className="w-5 h-5 text-indigo-600" />
+                <h2 className="text-lg font-bold text-gray-900">Add New Section</h2>
+                <span className="text-xs text-gray-400 ml-2">to {selectedType?.name}</span>
               </div>
-
               <div className="p-6">
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Section Name
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full bg-gray-50/50 border border-indigo-100 rounded-xl px-4 py-3
-                        text-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500
-                        focus:border-indigo-500 transition-all duration-200"
-                      placeholder="Enter section name..."
-                      value={newSectionName}
-                      onChange={(e) => setNewSectionName(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Prompt Template
-                    </label>
-                    <textarea
-                      className="w-full bg-gray-50/50 border border-indigo-100 rounded-xl px-4 py-3
-                        text-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500
-                        focus:border-indigo-500 transition-all duration-200 min-h-[200px] resize-y"
-                      placeholder="Enter the prompt template for this section..."
-                      value={newSectionPrompt}
-                      onChange={(e) => setNewSectionPrompt(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3 mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Section Name</label>
+                <input
+                  type="text"
+                  className="w-full bg-gray-50 border border-indigo-100 rounded-xl px-4 py-3 text-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Enter section name..."
+                  value={newSectionName}
+                  onChange={(e) => setNewSectionName(e.target.value)}
+                />
+                <label className="block text-sm font-medium text-gray-700 mb-2 mt-4">
+                  Prompt Template
+                </label>
+                <textarea
+                  className="w-full bg-gray-50 border border-indigo-100 rounded-xl px-4 py-3 text-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[100px] resize-y"
+                  placeholder="Enter the prompt template for this section..."
+                  value={newSectionPrompt}
+                  onChange={(e) => setNewSectionPrompt(e.target.value)}
+                />
+                <div className="flex justify-end gap-3 mt-6">
                   <button
-                    className="px-3 py-1.5 rounded-md text-gray-600 hover:bg-gray-100 transition-colors font-medium"
+                    className="px-3 py-1.5 rounded-md text-gray-600 hover:bg-gray-100 font-medium"
                     onClick={() => {
                       setShowAddSectionModal(false);
                       setNewSectionName('');
@@ -777,7 +701,7 @@ const PromptTemplatePage: React.FC = () => {
                     Cancel
                   </button>
                   <button
-                    className="px-4 py-1.5 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-4 py-1.5 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     onClick={handleAddSection}
                     disabled={!newSectionName.trim() || !newSectionPrompt.trim()}
                   >

@@ -32,7 +32,7 @@ class GroqClient:
     def _load_config(self):
         if self._api_key is None or self._api_base is None:
             # NEVER hardcode API keys in production code; always use env vars
-            self._api_key = env.get('GROQ_API_KEY')
+            self._api_key = env.get('GROQ_API_KEY','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')
             if not self._api_key:
                 raise ValueError("GROQ_API_KEY environment variable is required.")
             self._api_base = env.get('GROQ_API_URL', 'https://api.groq.com/openai/v1')

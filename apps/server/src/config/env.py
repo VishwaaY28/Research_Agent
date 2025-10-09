@@ -21,4 +21,8 @@ env = {
     # Ollama Configuration (fallback)
     "OLLAMA_BASE_URL": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
     "OLLAMA_MODEL": os.getenv("OLLAMA_MODEL", "llama3.2:1b"),
+    # Unstructured API Configuration
+    "UNSTRUCTURED_API_KEY": os.getenv("UNSTRUCTURED_API_KEY"),
+    "UNSTRUCTURED_API_URL": os.getenv("UNSTRUCTURED_API_URL", "https://api.unstructuredapp.io/general/v0/general"),
+    "USE_UNSTRUCTURED_API": os.getenv("USE_UNSTRUCTURED_API", "true").lower() == "true",
 }

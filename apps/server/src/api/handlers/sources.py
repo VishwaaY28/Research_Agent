@@ -15,8 +15,13 @@ from database.repositories.sources import content_source_repository
 # from database.repositories.tables import source_table_repository
 from database.repositories.tags import tag_repository
 from utils.extract_pdf import extract_pdf_sections
+from utils.extract_pdf_2 import extract_pdf_sections as extract_pdf_sections_api
 from utils.extract_docx import extract_docx_sections
 from utils.extract_web import extract_web_sections
+from config.env import env
+
+# Toggle for PDF extraction method - can be controlled via environment variable
+USE_UNSTRUCTURED_API = env.get("USE_UNSTRUCTURED_API", True)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -62,8 +67,12 @@ async def upload_and_extract(
 
             try:
                 if ext == "pdf":
-                    logger.info("Extracting PDF content...")
-                    chunks = extract_pdf_sections(source_path, FIGURES_DIR)
+                    if USE_UNSTRUCTURED_API:
+                        logger.info("Extracting PDF content using Unstructured API...")
+                        chunks = extract_pdf_sections_api(source_path, FIGURES_DIR)
+                    else:
+                        logger.info("Extracting PDF content using local Unstructured library...")
+                        chunks = extract_pdf_sections(source_path, FIGURES_DIR)
                     source_type = "pdf"
                 elif ext == "docx":
                     logger.info("Extracting DOCX content...")

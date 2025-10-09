@@ -192,10 +192,21 @@ class SectionRepository:
 
     async def create_section(self, workspace_id: int, name: str, content: str, source: str = None, tags: list = None, content_source_id: int = None):
         from database.models import Workspace, Section, ContentSources
+        from database.repositories.sources import content_source_repository
         workspace = await Workspace.get(id=workspace_id, deleted_at=None)
         content_source = None
         if content_source_id is not None:
             content_source = await ContentSources.get(id=content_source_id)
+        else:
+            # Ensure a content source exists for manual entries
+            manual_name = source or "Manual"
+            manual_url = f"manual://{workspace_id}"
+            content_source = await content_source_repository.upsert(
+                name=manual_name,
+                source_url=manual_url,
+                extracted_url=manual_url,
+                type="web",
+            )
         # Always stringify content
         if not isinstance(content, str):
             try:

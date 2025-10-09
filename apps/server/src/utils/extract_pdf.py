@@ -438,7 +438,7 @@ def extract_pdf_sections(filepath: str, figures_dir: str) -> List[Dict]:
             sections_dicts = json.load(f)
     else:
         logger.info("Extracting sections with default settings...")
-        elements = partition_pdf(filename=filepath, pdf_infer_table_structure =False)
+        elements = partition_pdf(filename=filepath, pdf_infer_table_structure=False)
         sections_dicts = [el.to_dict() if hasattr(el, "to_dict") else el for el in elements]
         with open(output_json_name, "w") as f:
             json.dump(sections_dicts, f)
@@ -518,3 +518,91 @@ def extract_pdf_sections(filepath: str, figures_dir: str) -> List[Dict]:
     save_extracted_cache(filepath, cache_data)
     logger.info(f"Extraction complete: {len(chunks)} chunks")
     return chunks
+    
+    if not os.path.exists(pdf_path):
+        raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+
+    if cache_dir:
+        cached_result = check_extracted_cache(pdf_path, cache_dir)
+        if cached_result:
+            return cached_result
+
+    try:
+        elements = partition_pdf(
+            filename=pdf_path,
+            strategy="hi_res",
+            infer_table_structure=True,
+            include_metadata=True
+        )
+    except Exception as e:
+        logger.error(f"Error extracting PDF content: {e}")
+        raise
+
+    # Process the library output into chunks
+    chunks = []
+    current_chunk = {"content": [], "start_page": None}
+    current_length = 0
+
+    for element in elements:
+        text = clean_content(element.text)
+        if not text:
+            continue
+
+        metadata = element.metadata
+        page_number = metadata.get("page_number", 1) if metadata else 1
+
+        # Start new chunk if current is too large
+        if current_length >= max_chunk_chars:
+            if current_chunk["content"]:
+                chunks.append(current_chunk)
+            current_chunk = {"content": [], "start_page": page_number}
+            current_length = 0
+
+        # Add content to current chunk
+        current_chunk["content"].append({
+            "text": text,
+            "page_number": page_number
+        })
+        
+        if current_chunk["start_page"] is None:
+            current_chunk["start_page"] = page_number
+            
+        current_length += len(text)
+
+    # Add the last chunk if it has content
+    if current_chunk["content"]:
+        chunks.append(current_chunk)
+
+    # Process chunks into major and minor sections
+    major_chunks = []
+    minor_chunks = []
+
+    for chunk in chunks:
+        chunk_text = " ".join([c["text"] for c in chunk["content"]])
+        chunk_dict = {
+            "content": chunk["content"],
+            "page_range": (chunk["start_page"], chunk["content"][-1]["page_number"]),
+            "tag": generate_meaningful_title(chunk_text),
+            "auto_tags": auto_tag_chunk(chunk_text),
+        }
+
+        # Determine if chunk is major or minor based on content characteristics
+        is_major = any([
+            len(chunk_text) > max_chunk_chars,
+            detect_heading(chunk["content"][0]["text"]),
+            len(chunk["content"]) > 5
+        ])
+
+        if is_major:
+            major_chunks.append(chunk_dict)
+        else:
+            minor_chunks.append(chunk_dict)
+
+    # Merge small minor chunks
+    minor_chunks = _merge_minor_chunks(minor_chunks, min_chars=min_chunk_chars)
+
+    # Cache the results if cache_dir is provided
+    if cache_dir:
+        save_extracted_cache(pdf_path, cache_dir, (major_chunks, minor_chunks))
+
+    return major_chunks, minor_chunks

@@ -1,7 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { FiCalendar, FiEye, FiFile, FiFileText, FiGlobe, FiTrash, FiX } from 'react-icons/fi';
+import {
+  FiCalendar,
+  FiEye,
+  FiFile,
+  FiFileText,
+  FiGlobe,
+  FiMoreVertical,
+  FiTrash,
+  FiX,
+} from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { API } from '../../utils/constants';
 
@@ -18,6 +27,22 @@ const ContentSources: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedType, setSelectedType] = useState<'all' | 'pdf' | 'docx' | 'web'>('all');
   const [deleteTarget, setDeleteTarget] = useState<null | { id: number; name: string }>(null);
+  const [menuOpenId, setMenuOpenId] = useState<number | null>(null);
+  // Close menu on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.three-dot-menu')) {
+        setMenuOpenId(null);
+      }
+    };
+    if (menuOpenId !== null) {
+      document.addEventListener('mousedown', handleClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+    };
+  }, [menuOpenId]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -76,15 +101,22 @@ const ContentSources: React.FC = () => {
   }
 
   return (
-    <div className="p-2">
-      <div className="mb-8">
-        <h1 className="text-2xl font-medium text-black mb-3">Content Sources</h1>
-        <p className="text-neutral-600">View and manage all your extracted content sources</p>
+    <div className="min-h-screen bg-white px-4 md:px-8">
+      {/* Compact Header */}
+      <div className="flex items-center justify-between px-4 pt-4 pb-2 border-b border-gray-100">
+        <h1 className="text-lg font-bold text-black">Content Sources</h1>
+        <button
+          onClick={() => navigate('/dashboard/content-ingestion')}
+          className="bg-white text-primary border border-primary px-3 py-1.5 rounded font-medium text-sm hover:bg-primary hover:text-white transition-colors"
+        >
+          + Upload
+        </button>
       </div>
 
-      <div className="flex flex-row flex-wrap gap-2 mb-6 bg-gray-100 p-1 rounded-lg max-w-sm">
+      {/* Horizontal Filter Bar */}
+      <div className="flex flex-row gap-2 px-4 py-2 border-b border-gray-100 bg-gray-50">
         {[
-          { key: 'all', label: 'All Sources' },
+          { key: 'all', label: 'All' },
           { key: 'pdf', label: 'PDF' },
           { key: 'docx', label: 'DOCX' },
           { key: 'web', label: 'Web' },
@@ -92,10 +124,10 @@ const ContentSources: React.FC = () => {
           <button
             key={tab.key}
             onClick={() => setSelectedType(tab.key as any)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors border ${
               selectedType === tab.key
-                ? 'bg-white text-primary shadow-sm'
-                : 'text-neutral-600 hover:text-neutral-800'
+                ? 'bg-primary text-white border-primary'
+                : 'bg-white text-gray-700 border-gray-200 hover:bg-primary/10'
             }`}
           >
             {tab.label}
@@ -103,98 +135,123 @@ const ContentSources: React.FC = () => {
         ))}
       </div>
 
-      {filteredSources.length === 0 ? (
-        <div className="text-center py-12">
-          <FiFile className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No content sources found</h3>
-          <p className="text-gray-500 mb-4">
-            {selectedType === 'all'
-              ? "You haven't uploaded any content sources yet."
-              : `No ${selectedType.toUpperCase()} sources found.`}
-          </p>
-          <button
-            onClick={() => navigate('/dashboard/content-ingestion')}
-            className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
-          >
-            Upload Content
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredSources.map((source) => (
-            <div
-              key={source.id}
-              className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-200 group"
+      {/* Main Content */}
+      <div className="px-2 py-4">
+        {filteredSources.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <FiFile className="w-10 h-10 text-gray-300 mb-2" />
+            <h3 className="text-base font-semibold text-gray-900 mb-1">No content sources</h3>
+            <p className="text-gray-500 mb-2 text-xs text-center max-w-xs">
+              {selectedType === 'all'
+                ? "You haven't uploaded any content sources yet."
+                : `No ${selectedType.toUpperCase()} sources found.`}
+            </p>
+            <button
+              onClick={() => navigate('/dashboard/content-ingestion')}
+              className="bg-white text-primary border border-primary px-3 py-1.5 rounded font-medium text-xs hover:bg-primary hover:text-white transition-colors"
             >
-              {/* Card Header with Icon and Type */}
-              <div className="p-6 pb-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-gray-50 rounded-lg group-hover:bg-gray-100 transition-colors">
-                    {getSourceIcon(source.type)}
-                  </div>
-                  <span className="text-xs font-medium bg-gray-100 text-gray-600 px-3 py-1 rounded-full">
-                    {source.type.toUpperCase()}
-                  </span>
-                </div>
-
-                {/* File Name */}
-                <h3
-                  className="font-semibold text-gray-900 mb-2 line-clamp-2 min-h-[2.5rem]"
-                  title={source.name}
-                >
-                  {truncateName(source.name, 40)}
-                </h3>
-
-                {/* Date */}
-                <div className="flex items-center text-sm text-gray-500">
-                  <FiCalendar className="w-4 h-4 mr-2" />
-                  {new Date(source.created_at).toLocaleDateString()}
-                </div>
-              </div>
-
-              {/* Card Actions */}
-              <div className="border-t border-gray-100">
-                <div className="flex divide-x divide-gray-100">
-                  <button
-                    onClick={() => navigate(`/dashboard/content-sources/${source.id}`)}
-                    className="flex-1 flex items-center justify-center px-4 py-3 text-sm font-medium text-primary hover:bg-gray-50 transition-colors"
-                  >
-                    <FiEye className="w-4 h-4 mr-2" />
-                    View
-                  </button>
-                  <button
-                    onClick={() => handleDeleteSource(source.id, source.name)}
-                    className="flex-1 flex items-center justify-center px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
-                  >
-                    <FiTrash className="w-4 h-4 mr-2" />
-                    Delete
-                  </button>
-                </div>
-              </div>
+              Upload Content
+            </button>
+          </div>
+        ) : (
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm mt-2">
+            <div className="hidden md:grid grid-cols-12 gap-2 px-4 py-2 border-b border-gray-100 text-xs font-semibold text-gray-500 bg-gray-50">
+              <div className="col-span-1">Type</div>
+              <div className="col-span-4">Name</div>
+              <div className="col-span-3">Source URL</div>
+              <div className="col-span-2">Date</div>
+              <div className="col-span-2 text-center">Actions</div>
             </div>
-          ))}
-        </div>
-      )}
+            <div>
+              {filteredSources.map((source) => (
+                <div
+                  key={source.id}
+                  className="grid grid-cols-12 gap-2 items-center px-4 py-2 border-b last:border-b-0 hover:bg-gray-50 text-sm"
+                >
+                  <div className="col-span-1 flex items-center">
+                    {getSourceIcon(source.type)}
+                    <span className="ml-1 text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full md:hidden">
+                      {source.type.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="col-span-4 truncate" title={source.name}>
+                    {truncateName(source.name, 40)}
+                  </div>
+                  <div
+                    className="col-span-3 truncate text-blue-700 underline"
+                    title={source.source_url}
+                  >
+                    {source.source_url ? (
+                      <a href={source.source_url} target="_blank" rel="noopener noreferrer">
+                        {truncateName(source.source_url, 40)}
+                      </a>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </div>
+                  <div className="col-span-2 text-xs text-gray-500">
+                    <FiCalendar className="w-3 h-3 mr-1 inline" />
+                    {new Date(source.created_at).toLocaleDateString()}
+                  </div>
+                  <div className="col-span-2 flex justify-center relative three-dot-menu">
+                    <button
+                      onClick={() => setMenuOpenId(menuOpenId === source.id ? null : source.id)}
+                      className="p-2 rounded-full hover:bg-gray-100 focus:outline-none"
+                      aria-label="Actions"
+                    >
+                      <FiMoreVertical className="w-5 h-5 text-gray-600" />
+                    </button>
+                    {menuOpenId === source.id && (
+                      <div className="absolute right-0 top-8 z-10 w-32 bg-white border border-gray-200 rounded shadow-md py-1">
+                        <button
+                          onClick={() => {
+                            setMenuOpenId(null);
+                            navigate(`/dashboard/content-sources/${source.id}`);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
+                        >
+                          <FiEye className="w-4 h-4" /> View
+                        </button>
+                        <button
+                          onClick={() => {
+                            setMenuOpenId(null);
+                            handleDeleteSource(source.id, source.name);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 text-left"
+                        >
+                          <FiTrash className="w-4 h-4" /> Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
-{deleteTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-black">Delete Content Source</h3>
+      {/* Delete Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-4 w-full max-w-xs mx-2 shadow-xl border border-gray-100">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-base font-bold text-black">Delete Source</h3>
               <button
                 onClick={() => setDeleteTarget(null)}
-                className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                className="p-1 text-gray-400 hover:text-gray-600 transition-colors rounded-full"
               >
                 <FiX className="w-5 h-5" />
               </button>
             </div>
-            <div className="mb-6 text-neutral-700">
-              Are you sure you want to delete <span className="font-semibold">{deleteTarget.name}</span>? This action cannot be undone.
+            <div className="mb-4 text-neutral-700 text-xs">
+              Are you sure you want to delete{' '}
+              <span className="font-semibold">{deleteTarget.name}</span>? This cannot be undone.
             </div>
-            <div className="flex space-x-3">
+            <div className="flex space-x-2">
               <button
                 onClick={() => setDeleteTarget(null)}
-                className="flex-1 py-3 px-4 border border-gray-300 rounded-lg text-neutral-700 hover:bg-gray-50 transition-colors"
+                className="flex-1 py-2 px-2 border border-gray-300 rounded text-neutral-700 hover:bg-gray-50 transition-colors text-xs font-medium"
               >
                 Cancel
               </button>
@@ -217,7 +274,7 @@ const ContentSources: React.FC = () => {
                     setDeleteTarget(null);
                   }
                 }}
-                className="flex-1 py-3 px-4 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
+                className="flex-1 py-2 px-2 rounded bg-red-600 text-white hover:bg-red-700 transition-colors text-xs font-medium"
               >
                 Delete
               </button>
@@ -225,7 +282,6 @@ const ContentSources: React.FC = () => {
           </div>
         </div>
       )}
-
     </div>
   );
 };

@@ -3,22 +3,23 @@ import jsPDF from 'jspdf';
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-  FiArrowLeft,
-  FiChevronDown,
-  FiChevronUp,
-  FiCopy,
-  FiFileText,
-  FiLoader,
-  FiPlus,
-  FiRefreshCw,
-  FiSave,
-  FiSearch,
-  FiTag,
-  FiX,
-  FiZap,
+    FiArrowLeft,
+    FiChevronDown,
+    FiChevronUp,
+    FiCopy,
+    FiFileText,
+    FiLoader,
+    FiPlus,
+    FiRefreshCw,
+    FiSave,
+    FiSearch,
+    FiTag,
+    FiX,
+    FiZap,
 } from 'react-icons/fi';
 import ReactMarkdown from 'react-markdown';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import Select from 'react-select';
 import { useContent, type Section, type WorkspaceContent } from '../../hooks/useContent';
 import type { Workspace } from '../../hooks/useWorkspace';
 import { useWorkspace } from '../../hooks/useWorkspace';
@@ -35,7 +36,8 @@ const ProposalAuthoring: React.FC = () => {
   const [workspaceContent, setWorkspaceContent] = useState<WorkspaceContent | null>(null);
   const [prompt, setPrompt] = useState('');
   const [userPrompt, setUserPrompt] = useState('');
-  const [selectedSections, setSelectedSections] = useState<number[]>([]);
+  const [selectedSections, setSelectedSections] = useState<number[]>([]); // For dropdown selections
+  const [selectedContentSections, setSelectedContentSections] = useState<number[]>([]); // For checkbox selections
   const [generatedContent, setGeneratedContent] = useState<string>('');
   const [tokenInfo, setTokenInfo] = useState<{
     context_tokens: number;
@@ -55,7 +57,7 @@ const ProposalAuthoring: React.FC = () => {
   const [expandedMajors, setExpandedMajors] = useState<Record<string, boolean>>({});
   const [selectedMinorChunks, setSelectedMinorChunks] = useState<Record<string, Set<number>>>({});
   const [sectionTemplates, setSectionTemplates] = useState<
-    { id: number; name: string; order: number; prompt?: string }[]
+    { id: number; name: string; order: number; prompt?: string; default_content?: string }[]
   >([]);
   const [sectionTemplatesLoading, setSectionTemplatesLoading] = useState(false);
   const [workspaceTypes, setWorkspaceTypes] = useState<{ id: number; name: string }[]>([]);
@@ -274,21 +276,29 @@ const ProposalAuthoring: React.FC = () => {
   }, [selectedWorkspace, selectedSectionId]);
 
   useEffect(() => {
-    if (selectedSectionId && sectionTemplates.length > 0) {
-      const selectedTemplate = sectionTemplates.find(
-        (template) => String(template.id) === selectedSectionId,
+    if (selectedSections.length > 0 && sectionTemplates.length > 0) {
+      const selectedTemplates = sectionTemplates.filter((template) =>
+        selectedSections.includes(template.id),
       );
-      if (selectedTemplate) {
-        setSelectedSectionName(selectedTemplate.name);
-        if (selectedTemplate.prompt) {
-          setPrompt(selectedTemplate.prompt);
-        } else {
-          setPrompt('');
-        }
+
+      if (selectedTemplates.length > 0) {
+        const combinedPrompts = selectedTemplates
+          .map((template) => {
+            const sectionHeader = `Section: ${template.name}\n`;
+            return template.prompt ? sectionHeader + template.prompt : sectionHeader;
+          })
+          .join('\n\n');
+
+        setPrompt(combinedPrompts);
+        setSelectedSectionName(selectedTemplates.map((t) => t.name).join(', '));
         setUserPrompt('');
       }
+    } else if (selectedSections.length === 0) {
+      setPrompt('');
+      setSelectedSectionName('');
+      setUserPrompt('');
     }
-  }, [selectedSectionId, sectionTemplates]);
+  }, [selectedSections, sectionTemplates]);
 
   // (sectionList removed - not used)
 
@@ -304,13 +314,60 @@ const ProposalAuthoring: React.FC = () => {
   };
 
   const fetchSectionPrompts = async () => {
-    return;
+    try {
+      // Already have section templates list with default_content from /types/{id}/sections
+      const selectedId = Number(selectedSectionId);
+      const template = sectionTemplates.find((t) => t.id === selectedId);
+      if (!template) return;
+      // Fetch prompts for this section
+      const res = await fetch(
+        `${API.BASE_URL()}/api/prompt-templates/sections/${selectedId}/prompts`,
+        {
+          headers: {
+            Authorization: localStorage.getItem('token')
+              ? `Bearer ${localStorage.getItem('token')}`
+              : '',
+          },
+        },
+      );
+      if (!res.ok) return;
+      const prompts = await res.json();
+      const defaultPrompt = prompts?.[0]?.prompt || '';
+      const sectionHeader = `Section: ${template.name}`;
+      const combined = [sectionHeader, defaultPrompt].filter(Boolean).join('\n');
+      setPrompt(combined);
+      setSelectedSectionName(template.name);
+      // Optionally: surface default content in UI somewhere if needed
+    } catch {
+      // ignore small failures
+    }
   };
 
   const handleSectionToggle = (sectionId: number) => {
-    setSelectedSections((prev) =>
-      prev.includes(sectionId) ? prev.filter((id) => id !== sectionId) : [...prev, sectionId],
-    );
+    setSelectedSections((prev) => {
+      const newSections = prev.includes(sectionId)
+        ? prev.filter((id) => id !== sectionId)
+        : [...prev, sectionId];
+
+      // Update the prompts when sections are toggled
+      if (sectionTemplates.length > 0) {
+        const selectedTemplates = sectionTemplates.filter((template) =>
+          newSections.includes(template.id),
+        );
+
+        const combinedPrompts = selectedTemplates
+          .map((template) => {
+            const sectionHeader = `Section: ${template.name}\n`;
+            return template.prompt ? sectionHeader + template.prompt : sectionHeader;
+          })
+          .join('\n\n');
+
+        setPrompt(combinedPrompts);
+        setSelectedSectionName(selectedTemplates.map((t) => t.name).join(', '));
+      }
+
+      return newSections;
+    });
   };
 
   const handleGenerate = async () => {
@@ -401,12 +458,12 @@ const ProposalAuthoring: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
     async function updateTokens() {
-      if (!workspaceContent || selectedSections.length === 0) {
+      if (!workspaceContent || selectedContentSections.length === 0) {
         setSelectedTokens(0);
         return;
       }
       const selected = workspaceContent.sections.filter((section) =>
-        selectedSections.includes(section.id),
+        selectedContentSections.includes(section.id),
       );
       const encoder = await encoding_for_model('gpt-3.5-turbo');
       let totalTokens = 0;
@@ -596,9 +653,7 @@ const ProposalAuthoring: React.FC = () => {
             <FiArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-black mb-2">
-            Author
-            </h1>
+            <h1 className="text-3xl font-bold text-black mb-2">Author</h1>
             <p className="text-neutral-600 text-lg">
               Create, refine, and generate proposals using your workspace content.
             </p>
@@ -617,64 +672,104 @@ const ProposalAuthoring: React.FC = () => {
               </div>
 
               {selectedWorkspace && (
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-semibold text-gray-700">Section</label>
-                  <select
-                    value={selectedSectionId}
-                    onChange={(e) => setSelectedSectionId(e.target.value)}
-                    className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-                    disabled={sectionTemplatesLoading || !sectionTemplates.length}
-                  >
-                    <option value="">
-                      {sectionTemplatesLoading ? 'Loading...' : 'Section...'}
-                    </option>
-                    {sectionTemplates.map((section) => (
-                      <option key={section.id} value={section.id}>
-                        {section.name}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex flex-col gap-4 w-full max-w-md">
+                  <Select
+                    isMulti
+                    value={sectionTemplates
+                      .filter((template) => selectedSections.includes(template.id))
+                      .map((template) => ({
+                        value: template.id,
+                        label: template.name,
+                      }))}
+                    onChange={(selectedOptions) => {
+                      const newSelectedSections = selectedOptions
+                        ? selectedOptions.map((option) => Number(option.value))
+                        : [];
+                      setSelectedSections(newSelectedSections);
+
+                      // Update prompts when selections change
+                      if (sectionTemplates.length > 0) {
+                        const selectedTemplates = sectionTemplates.filter((template) =>
+                          newSelectedSections.includes(template.id),
+                        );
+
+                        const combinedPrompts = selectedTemplates
+                          .map((template) => {
+                            const sectionHeader = `Section: ${template.name}\n`;
+                            return template.prompt
+                              ? sectionHeader + template.prompt
+                              : sectionHeader;
+                          })
+                          .join('\n\n');
+
+                        setPrompt(combinedPrompts);
+                        setSelectedSectionName(selectedTemplates.map((t) => t.name).join(', '));
+                      }
+                    }}
+                    options={sectionTemplates.map((template) => ({
+                      value: template.id,
+                      label: template.name,
+                    }))}
+                    className="w-full"
+                    classNames={{
+                      control: (state) =>
+                        'bg-white border border-gray-300 rounded-lg shadow-sm hover:border-blue-500',
+                      multiValue: () => 'bg-blue-50 border border-blue-100 rounded-md',
+                      multiValueLabel: () => 'text-blue-700 text-sm px-2 py-1',
+                      multiValueRemove: () =>
+                        'text-blue-500 hover:text-blue-700 hover:bg-blue-100 rounded-r-md px-1',
+                      menu: () => 'bg-white border border-gray-200 rounded-lg shadow-lg mt-1',
+                      option: (state) =>
+                        `px-3 py-2 ${state.isFocused ? 'bg-blue-50' : 'bg-white'} ${
+                          state.isSelected ? 'bg-blue-100 text-blue-700' : 'text-gray-700'
+                        } hover:bg-blue-50`,
+                    }}
+                    placeholder="Select sections..."
+                    noOptionsMessage={() => 'No sections available'}
+                    isSearchable
+                    isClearable
+                  />
                 </div>
               )}
-            <div className="flex-shrink-0 w-full sm:w-auto">
-            <div className="mb-1">
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={newTag}
-                  onChange={(e) => setNewTag(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                  placeholder="Add a tag..."
-                />
-                <button
-                  onClick={handleAddTag}
-                  className="px-3 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-50"
-                  disabled={!newTag.trim()}
-                >
-                  <FiPlus className="w-4 h-4" />
-                </button>
-              </div>
-              {tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary text-xs rounded-full"
+              <div className="flex-shrink-0 w-full sm:w-auto">
+                <div className="mb-1">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+                      className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                      placeholder="Add a tag..."
+                    />
+                    <button
+                      onClick={handleAddTag}
+                      className="px-3 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-50"
+                      disabled={!newTag.trim()}
                     >
-                      <span>{tag}</span>
-                      <button
-                        onClick={() => handleRemoveTag(tag)}
-                        className="p-1 rounded hover:bg-white/20 text-primary"
-                      >
-                        <FiX className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
+                      <FiPlus className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary text-xs rounded-full"
+                        >
+                          <span>{tag}</span>
+                          <button
+                            onClick={() => handleRemoveTag(tag)}
+                            className="p-1 rounded hover:bg-white/20 text-primary"
+                          >
+                            <FiX className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
             </div>
           </div>
         </div>
@@ -682,6 +777,7 @@ const ProposalAuthoring: React.FC = () => {
         {/* Context list under the workspace panel */}
         {workspaceContent && !contextCollapsed && (
           <div className="mt-3 bg-white border border-gray-200 rounded-lg p-3 max-h-48 overflow-y-auto">
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Contents</h3>
             <div className="flex items-center gap-3 mb-2">
               <div className="relative flex-1">
                 <input
@@ -696,45 +792,46 @@ const ProposalAuthoring: React.FC = () => {
                 </div>
               </div>
               {workspaceContent && (
-              <div className="mb-2">
-                <div className="flex items-center gap-3">
-                  <div className="text-xs text-gray-500">
-                    ~{selectedTokens.toLocaleString()} tokens
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="select-all-context-sections-top"
-                      checked={
-                        selectedSections.length === (workspaceContent.sections?.length || 0) &&
-                        (workspaceContent.sections?.length || 0) > 0
-                      }
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedSections(
-                            (workspaceContent.sections || []).map((s: any) => s.id),
-                          );
-                          const newSelected: Record<string, Set<number>> = {};
-                          (workspaceContent.sections || []).forEach((s: any) => {
-                            const minors = Array.isArray(s.content) ? s.content.length : 0;
-                            newSelected[String(s.id)] = new Set(
-                              Array.from({ length: minors }, (_, i) => i),
-                            );
-                          });
-                          setSelectedMinorChunks(newSelected);
-                        } else {
-                          setSelectedSections([]);
-                          setSelectedMinorChunks({});
+                <div className="mb-2">
+                  <div className="flex items-center gap-3">
+                    <div className="text-xs text-gray-500">
+                      ~{selectedTokens.toLocaleString()} tokens
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="select-all-context-sections-top"
+                        checked={
+                          selectedContentSections.length ===
+                            (workspaceContent.sections?.length || 0) &&
+                          (workspaceContent.sections?.length || 0) > 0
                         }
-                      }}
-                    />
-                    <label htmlFor="select-all-context-sections-top" className="text-sm">
-                      Select All
-                    </label>
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedContentSections(
+                              (workspaceContent.sections || []).map((s: any) => s.id),
+                            );
+                            const newSelected: Record<string, Set<number>> = {};
+                            (workspaceContent.sections || []).forEach((s: any) => {
+                              const minors = Array.isArray(s.content) ? s.content.length : 0;
+                              newSelected[String(s.id)] = new Set(
+                                Array.from({ length: minors }, (_, i) => i),
+                              );
+                            });
+                            setSelectedMinorChunks(newSelected);
+                          } else {
+                            setSelectedContentSections([]);
+                            setSelectedMinorChunks({});
+                          }
+                        }}
+                      />
+                      <label htmlFor="select-all-context-sections-top" className="text-sm">
+                        Select All
+                      </label>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
             </div>
 
             <div className="space-y-2">
@@ -760,15 +857,17 @@ const ProposalAuthoring: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <input
                         type="checkbox"
-                        checked={selectedSections.includes(section.id)}
+                        checked={selectedContentSections.includes(section.id)}
                         onChange={() => {
-                          if (selectedSections.includes(section.id)) {
-                            setSelectedSections((prev) => prev.filter((id) => id !== section.id));
+                          if (selectedContentSections.includes(section.id)) {
+                            setSelectedContentSections((prev) =>
+                              prev.filter((id) => id !== section.id),
+                            );
                             const copy = { ...selectedMinorChunks };
                             delete copy[sectId];
                             setSelectedMinorChunks(copy);
                           } else {
-                            setSelectedSections((prev) => [...prev, section.id]);
+                            setSelectedContentSections((prev) => [...prev, section.id]);
                             const allIdx = new Set<number>();
                             minors.forEach((_, i) => allIdx.add(i));
                             setSelectedMinorChunks((prev) => ({ ...prev, [sectId]: allIdx }));
@@ -857,10 +956,28 @@ const ProposalAuthoring: React.FC = () => {
       {/* Main area: prompt input and generated content */}
       <main className="px-8 pb-8">
         <div className="pt-6">
-          <h2 className="text-xl font-bold text-gray-900">{selectedSectionName || 'Section'}</h2>
-          {selectedSectionName && prompt && (
-            <div className="bg-gray-50 rounded-md p-3 text-gray-800 whitespace-pre-line select-none border border-gray-200 text-sm mt-2">
+          <h2 className="text-xl font-bold text-gray-900">
+            {selectedSections.length > 0
+              ? `Selected Sections: ${selectedSectionName}`
+              : 'Select Sections'}
+          </h2>
+          {selectedSections.length > 0 && prompt && (
+            <div className="bg-gray-50 rounded-md p-3 text-gray-800 whitespace-pre-line border border-gray-200 text-sm mt-2">
               {prompt}
+            </div>
+          )}
+
+          {/* Default content cards for selected sections */}
+          {selectedSections.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {sectionTemplates
+                .filter((t) => selectedSections.includes(t.id) && (t.default_content?.trim()?.length || 0) > 0)
+                .map((t) => (
+                  <div key={t.id} className="bg-white rounded-md border border-gray-200 p-3">
+                    <div className="text-sm font-semibold text-gray-900 mb-1">Default Section: {t.name}</div>
+                    <div className="text-sm text-gray-700 whitespace-pre-line">{t.default_content}</div>
+                  </div>
+                ))}
             </div>
           )}
 
