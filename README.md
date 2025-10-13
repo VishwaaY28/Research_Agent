@@ -1,6 +1,6 @@
-# Proposal Craft
+# HexAuthor
 
-Proposal Craft is a full‑stack proposal authoring tool that helps teams ingest content (PDFs and more), organize it into meaningful sections and tags, and generate high‑quality proposal sections with the help of LLMs.
+HexAuthor is a full‑stack authoring tool that helps teams ingest content (PDFs and more), organize it into meaningful sections and tags, and generate high‑quality  sections with the help of LLMs.
 
 It includes:
 - FastAPI backend for content ingestion, parsing, tagging, and prompt/authoring workflows
