@@ -149,7 +149,7 @@ const ContentSourceView: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <button
-              onClick={() => navigate('/dashboard/content-ingestion')}
+              onClick={() => navigate('/dashboard/content-sources')}
               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <FiArrowLeft className="w-5 h-5" />

@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from fastapi.staticfiles import StaticFiles
 
 from api.middlewares.auth import AuthMiddleware
 from api.routes.auth import router as auth_router
@@ -33,9 +34,15 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Serve uploaded source files from the local 'source_files' directory so clients can open PDFs/DOCX
+sources_dir = os.path.abspath(os.path.join(os.getcwd(), 'source_files'))
+if not os.path.exists(sources_dir):
+    os.makedirs(sources_dir, exist_ok=True)
+app.mount("/source_files", StaticFiles(directory=sources_dir), name="source_files")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501", "https://your-frontend-render-url.onrender.com","*"],  # Add your frontend Render URL here for CORS
+    allow_origins=["http://localhost:8501","*"],  # Add your frontend Render URL here for CORS
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -77,7 +84,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host='0.0.0.0',
-        port=port,
+        port=8000,
         log_level=env["LOG_LEVEL"].lower(),
         reload=True,  # Set to False for production
     )

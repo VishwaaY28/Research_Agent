@@ -158,7 +158,9 @@ const IngestForm: React.FC<IngestFormProps> = ({
   };
 
   const handleToggleApprove = (url: string) => {
-    setApprovedUrls((prev) => (prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url]));
+    setApprovedUrls((prev) =>
+      prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url],
+    );
     setWebLinks((prev) => {
       const list = prev
         .split(/[\n,]+/)
@@ -252,44 +254,44 @@ const IngestForm: React.FC<IngestFormProps> = ({
       }
 
       let finalResults: any[] = [];
-      
+
       if (uploadType === 'file' && results.length > 0) {
         // For file uploads, we need to wait for background processing to create content sources
         const response = results[0]; // File upload returns single response
-        
-        if (response.success && response.message === "Chunking started in background.") {
+
+        if (response.success && response.message === 'Chunking started in background.') {
           // Show processing toast
           toast.loading('Processing content...', { id: 'processing' });
-          
+
           // Poll for new content sources to be created
-          const pollInterval = 2000; // 2 seconds
-          const maxPollAttempts = 60; // 2 minutes max
-          
+          const pollInterval = 10000; // 2 seconds
+          const maxPollAttempts = 200; // 2 minutes max
+
           async function pollForNewSources(attempt = 0): Promise<any[]> {
             try {
               // Get list of all sources to find newly created ones
               const sourcesResponse = await fetch(
-                `${API.BASE_URL()}${API.ENDPOINTS.SOURCES.BASE_URL()}${API.ENDPOINTS.SOURCES.LIST()}`
+                `${API.BASE_URL()}${API.ENDPOINTS.SOURCES.BASE_URL()}${API.ENDPOINTS.SOURCES.LIST()}`,
               );
-              
+
               if (!sourcesResponse.ok) {
                 throw new Error('Failed to fetch sources');
               }
-              
+
               const sourcesData = await sourcesResponse.json();
               const sources = sourcesData.sources || [];
-              
+
               // Find sources that match our uploaded filenames
-              const matchingSources = sources.filter((source: any) => 
-                response.filenames && response.filenames.includes(source.name)
+              const matchingSources = sources.filter(
+                (source: any) => response.filenames && response.filenames.includes(source.name),
               );
-              
+
               if (matchingSources.length > 0) {
                 // Found sources, now poll for chunks
                 const chunkResults = await Promise.all(
                   matchingSources.map(async (source: any) => {
                     const chunksResponse = await fetch(
-                      `${API.BASE_URL()}${API.ENDPOINTS.SOURCES.BASE_URL()}/${source.id}/chunks`
+                      `${API.BASE_URL()}${API.ENDPOINTS.SOURCES.BASE_URL()}/${source.id}/chunks`,
                     );
                     if (chunksResponse.ok) {
                       const chunksData = await chunksResponse.json();
@@ -299,20 +301,20 @@ const IngestForm: React.FC<IngestFormProps> = ({
                           content_source_id: source.id,
                           chunks: chunksData.chunks,
                           filename: source.name,
-                          type: source.type
+                          type: source.type,
                         };
                       }
                     }
                     return null;
-                  })
+                  }),
                 );
-                
-                const validResults = chunkResults.filter(r => r !== null);
+
+                const validResults = chunkResults.filter((r) => r !== null);
                 if (validResults.length > 0) {
                   return validResults;
                 }
               }
-              
+
               if (attempt < maxPollAttempts) {
                 await new Promise((resolve) => setTimeout(resolve, pollInterval));
                 return pollForNewSources(attempt + 1);
@@ -328,11 +330,13 @@ const IngestForm: React.FC<IngestFormProps> = ({
               }
             }
           }
-          
+
           try {
             finalResults = await pollForNewSources();
             if (finalResults.length > 0) {
-              toast.success('Content processing completed! You can now select chunks.', { id: 'processing' });
+              toast.success('Content processing completed! You can now select chunks.', {
+                id: 'processing',
+              });
               onContentUploaded(finalResults);
             } else {
               toast.error('Failed to process content. Please try again.', { id: 'processing' });
@@ -388,162 +392,171 @@ const IngestForm: React.FC<IngestFormProps> = ({
         <p className="text-neutral-600">Upload new documents or web content</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div
-          className={`p-6 border-2 rounded-2xl cursor-pointer transition-all duration-200 hover:shadow-lg ${
-            uploadType === 'file'
-              ? 'border-primary bg-gradient-to-br from-primary/5 to-primary/10 shadow-md'
-              : 'border-gray-200 hover:border-gray-300'
-          }`}
-          onClick={() => !isProcessing && setUploadType('file')}
-        >
-          <div className="flex items-center mb-4">
-            <div className="p-2 bg-primary/10 rounded-lg mr-3">
-              <FiFile className="w-6 h-6 text-primary" />
-            </div>
-            <h3 className="text-lg font-semibold text-black">File Upload</h3>
-          </div>
-          <p className="text-neutral-600 text-sm">Upload PDF or DOCX documents for extraction</p>
-        </div>
-
-        <div
-          className={`p-6 border-2 rounded-2xl cursor-pointer transition-all duration-200 hover:shadow-lg ${
-            uploadType === 'url'
-              ? 'border-primary bg-gradient-to-br from-primary/5 to-primary/10 shadow-md'
-              : 'border-gray-200 hover:border-gray-300'
-          }`}
-          onClick={() => !isProcessing && setUploadType('url')}
-        >
-          <div className="flex items-center mb-4">
-            <div className="p-2 bg-primary/10 rounded-lg mr-3">
-              <FiGlobe className="w-6 h-6 text-primary" />
-            </div>
-            <h3 className="text-lg font-semibold text-black">Web Link</h3>
-          </div>
-          <p className="text-neutral-600 text-sm">Extract content from web pages and articles</p>
-        </div>
-      </div>
-
-      <div className="mb-8">
-        {uploadType === 'file' && (
-          <div className="space-y-4">
-            <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-primary transition-colors">
-              <input
-                type="file"
-                accept=".pdf,.doc,.docx"
-                onChange={handleFileChange}
-                className="hidden"
-                id="file-upload"
-                multiple
-                disabled={isProcessing}
-              />
-              <label
-                htmlFor="file-upload"
-                className={`cursor-pointer ${isProcessing ? 'cursor-not-allowed opacity-50' : ''}`}
-              >
-                <FiUpload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-neutral-600">Click to upload or drag and drop</p>
-                <p className="text-sm text-neutral-500 mt-1">PDF, DOC, DOCX up to 10MB</p>
-              </label>
-            </div>
-
-            {errors.file && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-red-600 text-sm">{errors.file}</p>
+      <div className="flex flex-col md:flex-row gap-8 px-8 mb-8">
+        {/* Left: Cards stacked vertically */}
+        <div className="flex flex-col gap-3 md:w-1/3">
+          <div
+            className={`p-3 border rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md ${
+              uploadType === 'file'
+                ? 'border-primary bg-gradient-to-br from-primary/5 to-primary/10 shadow'
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+            onClick={() => !isProcessing && setUploadType('file')}
+            style={{ minWidth: 0 }}
+          >
+            <div className="flex items-center mb-2">
+              <div className="p-1 bg-primary/10 rounded mr-2">
+                <FiFile className="w-4 h-4 text-primary" />
               </div>
-            )}
+              <h3 className="text-base font-semibold text-black">File Upload</h3>
+            </div>
+            <p className="text-neutral-600 text-xs">Upload PDF or DOCX documents</p>
+          </div>
+          <div
+            className={`p-3 border rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md ${
+              uploadType === 'url'
+                ? 'border-primary bg-gradient-to-br from-primary/5 to-primary/10 shadow'
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+            onClick={() => !isProcessing && setUploadType('url')}
+            style={{ minWidth: 0 }}
+          >
+            <div className="flex items-center mb-2">
+              <div className="p-1 bg-primary/10 rounded mr-2">
+                <FiGlobe className="w-4 h-4 text-primary" />
+              </div>
+              <h3 className="text-base font-semibold text-black">Web Link</h3>
+            </div>
+            <p className="text-neutral-600 text-xs">Extract from web pages</p>
+          </div>
+        </div>
 
-            {selectedFiles.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-neutral-700">
-                  Selected Files ({selectedFiles.length}):
-                </p>
-                <div className="space-y-1">
-                  {selectedFiles.map((file, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-2 bg-green-50 border border-green-200 rounded-lg"
-                    >
-                      <span className="text-green-700 text-sm">{file.name}</span>
-                      <button
-                        onClick={() => removeFile(index)}
-                        disabled={isProcessing}
-                        className="text-red-500 hover:text-red-700 text-sm"
-                      >
-                        <BiTrash className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+        {/* Right: Upload area */}
+        <div className="flex-1">
+          {uploadType === 'file' && (
+            <div className="space-y-4">
+              <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-primary transition-colors">
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  onChange={handleFileChange}
+                  className="hidden"
+                  id="file-upload"
+                  multiple
+                  disabled={isProcessing}
+                />
+                <label
+                  htmlFor="file-upload"
+                  className={`cursor-pointer ${isProcessing ? 'cursor-not-allowed opacity-50' : ''}`}
+                >
+                  <FiUpload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-neutral-600">Click to upload or drag and drop</p>
+                  <p className="text-sm text-neutral-500 mt-1">PDF, DOC, DOCX up to 10MB</p>
+                </label>
+              </div>
+
+              {errors.file && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-600 text-sm">{errors.file}</p>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
+              )}
 
-        {uploadType === 'url' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2 space-y-4">
-              <label className="block text-sm font-medium text-neutral-700">Links</label>
+              {selectedFiles.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-neutral-700">
+                    Selected Files ({selectedFiles.length}):
+                  </p>
+                  <div className="space-y-1">
+                    {selectedFiles.map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-2 bg-green-50 border border-green-200 rounded-lg"
+                      >
+                        <span className="text-green-700 text-sm">{file.name}</span>
+                        <button
+                          onClick={() => removeFile(index)}
+                          disabled={isProcessing}
+                          className="text-red-500 hover:text-red-700 text-sm"
+                        >
+                          <BiTrash className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {uploadType === 'url' && (
+            <div className="space-y-3 max-w-xl">
+              {/* <label className="block text-xs font-semibold text-neutral-700 mb-1">Web Links</label> */}
               <textarea
                 placeholder="https://example.com/article (one per line or comma separated)"
                 value={webLinks}
                 onChange={handleUrlChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                rows={6}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                rows={4}
                 disabled={isProcessing}
               />
               {errors.url && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-red-600 text-sm">{errors.url}</p>
+                <div className="p-2 bg-red-50 border border-red-200 rounded text-xs">
+                  <p className="text-red-600">{errors.url}</p>
                 </div>
               )}
-            </div>
 
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-neutral-700">Topics</label>
+              <label className="block text-xs font-semibold text-neutral-700 mt-2 mb-1">
+                Topics (optional)
+              </label>
               <input
                 type="text"
                 placeholder="e.g., sustainability, annual report, privacy policy"
                 value={topics}
                 onChange={handleTopicsChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
                 disabled={isProcessing}
               />
               <button
                 type="button"
                 onClick={handleFindUrls}
                 disabled={isFindingUrls || isProcessing || topics.trim().length === 0}
-                className={`w-full py-3 px-4 rounded-lg font-semibold transition-all duration-200 ${
+                className={`py-2 rounded font-semibold text-sm transition-all duration-200 mt-2 ${
                   isFindingUrls || isProcessing
                     ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                     : 'bg-primary text-white hover:bg-primary/90'
                 }`}
+                style={{ minWidth: '220px' }}
               >
                 {isFindingUrls ? (
                   <>
-                    <FiLoader className="w-5 h-5 inline mr-2 animate-spin" /> Finding URLs...
+                    <FiLoader className="w-4 h-4 inline mr-2 animate-spin" /> Finding URLs...
                   </>
                 ) : (
                   <>
-                    <FiSearch className="w-5 h-5 inline mr-2" /> Find URLs
+                    <FiSearch className="w-4 h-4 inline mr-2" /> Find URLs
                   </>
                 )}
               </button>
 
               {discoveredUrls.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-neutral-700">Discovered URLs</p>
-                  <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg divide-y">
+                <div>
+                  <p className="text-xs font-semibold text-neutral-700 mb-1">Discovered URLs</p>
+                  <div
+                    className="overflow-y-auto border border-gray-200 rounded divide-y bg-white"
+                    style={{ maxHeight: '90px' }}
+                  >
                     {discoveredUrls.map((u) => (
-                      <div key={u} className="flex items-center justify-between p-2">
-                        <div className="truncate text-sm text-neutral-700 pr-2" title={u}>{u}</div>
+                      <div key={u} className="flex items-center justify-between px-2 py-1">
+                        <div className="truncate text-xs text-neutral-700 pr-2" title={u}>
+                          {u}
+                        </div>
                         <button
                           type="button"
                           onClick={() => handleToggleApprove(u)}
-                          className={`px-3 py-1 rounded text-sm font-medium ${
+                          className={`px-2 py-0.5 rounded text-xs font-medium border ${
                             approvedUrls.includes(u)
-                              ? 'bg-green-100 text-green-700 border border-green-300'
-                              : 'bg-gray-100 text-gray-700 border border-gray-300'
+                              ? 'bg-green-100 text-green-700 border-green-300'
+                              : 'bg-gray-100 text-gray-700 border-gray-300'
                           }`}
                         >
                           {approvedUrls.includes(u) ? 'Approved' : 'Approve'}
@@ -554,88 +567,90 @@ const IngestForm: React.FC<IngestFormProps> = ({
                 </div>
               )}
             </div>
-          </div>
-        )}
+          )}
 
-        {uploadType === 'existing' && (
-          <div className="space-y-4">
-            <div className="relative">
-              <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Search existing sources..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-            </div>
-            {loadingExisting ? (
-              <div className="text-center py-8">
-                <FiLoader className="w-8 h-8 animate-spin text-primary mx-auto mb-2" />
-                <p className="text-gray-500">Loading existing sources...</p>
+          {uploadType === 'existing' && (
+            <div className="space-y-4">
+              <div className="relative">
+                <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="Search existing sources..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
               </div>
-            ) : (
-              <div className="max-h-64 overflow-y-auto space-y-2">
-                {filteredExistingSources.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    {existingSources.length === 0
-                      ? 'No existing sources found'
-                      : 'No sources match your search'}
-                  </div>
-                ) : (
-                  filteredExistingSources.map((source) => (
-                    <div
-                      key={source.id}
-                      className={`p-3 border rounded-lg cursor-pointer transition-all ${
-                        selectedSources.find((s) => s.id === source.id)
-                          ? 'border-primary bg-primary/5'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                      onClick={() => toggleSourceSelection(source)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          {getSourceIcon(source.type)}
-                          <div>
-                            <h4 className="font-medium text-black">{source.name}</h4>
-                            <p className="text-sm text-gray-500">
-                              {source.type.toUpperCase()} •{' '}
-                              {new Date(source.created_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={!!selectedSources.find((s) => s.id === source.id)}
-                          onChange={() => toggleSourceSelection(source)}
-                          className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary"
-                        />
-                      </div>
+              {loadingExisting ? (
+                <div className="text-center py-8">
+                  <FiLoader className="w-8 h-8 animate-spin text-primary mx-auto mb-2" />
+                  <p className="text-gray-500">Loading existing sources...</p>
+                </div>
+              ) : (
+                <div className="max-h-64 overflow-y-auto space-y-2">
+                  {filteredExistingSources.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      {existingSources.length === 0
+                        ? 'No existing sources found'
+                        : 'No sources match your search'}
                     </div>
-                  ))
-                )}
-              </div>
-            )}
-            {selectedSources.length > 0 && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-blue-800 text-sm">
-                  {selectedSources.length} source{selectedSources.length !== 1 ? 's' : ''} selected
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+                  ) : (
+                    filteredExistingSources.map((source) => (
+                      <div
+                        key={source.id}
+                        className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                          selectedSources.find((s) => s.id === source.id)
+                            ? 'border-primary bg-primary/5'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        onClick={() => toggleSourceSelection(source)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            {getSourceIcon(source.type)}
+                            <div>
+                              <h4 className="font-medium text-black">{source.name}</h4>
+                              <p className="text-sm text-gray-500">
+                                {source.type.toUpperCase()} •{' '}
+                                {new Date(source.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={!!selectedSources.find((s) => s.id === source.id)}
+                            onChange={() => toggleSourceSelection(source)}
+                            className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary"
+                          />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+              {selectedSources.length > 0 && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-blue-800 text-sm">
+                    {selectedSources.length} source{selectedSources.length !== 1 ? 's' : ''}{' '}
+                    selected
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="flex justify-center mt-4">
         <button
           type="submit"
           disabled={!canSubmit}
-          className={`w-full py-4 px-8 rounded-xl font-semibold transition-all duration-200 ${
+          className={`py-3 px-12 rounded-xl font-semibold transition-all duration-200 block ${
             canSubmit
               ? 'bg-primary text-white hover:bg-primary/90 shadow-lg hover:shadow-xl'
               : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-          }`}
+          } ml-[-180px]`}
+          style={{ minWidth: '220px' }}
         >
           {isProcessing ? (
             <>

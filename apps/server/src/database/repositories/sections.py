@@ -13,31 +13,49 @@ class SectionRepository:
         except DoesNotExist:
             raise ValueError(f"Workspace with id {workspace_id} not found")
 
-        # Use upsert to handle duplicate filenames gracefully
+        # We'll prefer any content_source_id provided on individual chunks. Only
+        # fall back to creating/upserting a content source for the supplied
+        # filename when a chunk doesn't specify an existing source id.
         from database.repositories.sources import content_source_repository
-        
-        if filename.startswith(('http://', 'https://')):
-            content_source = await content_source_repository.upsert(
-                name=filename,
-                source_url=filename,
-                extracted_url=filename,
-                type="web"
-            )
-        else:
-            content_source = await content_source_repository.upsert(
-                name=filename,
-                source_url=f"file://{filename}",
-                extracted_url=f"file://{filename}_{workspace_id}",  # Make extracted_url unique by adding workspace_id
-                type="pdf" if filename.endswith('.pdf') else "docx"
-            )
 
-        if not content_source:
-            available_sources = await self._list_available_sources()
-            raise ValueError(f"Content source not found for filename '{filename}'. Available sources: {available_sources}")
+        # Helper to resolve a content source by id or from the filename
+        async def resolve_content_source_for_chunk(chunk):
+            # If the client provided an explicit content_source_id, try to use it
+            cid = None
+            if isinstance(chunk, dict) and "content_source_id" in chunk:
+                try:
+                    cid = int(chunk.get("content_source_id"))
+                except Exception:
+                    cid = None
+
+            if cid is not None:
+                cs = await content_source_repository.get_by_id(cid)
+                if cs:
+                    return cs
+
+            # Fallback: upsert a content source using the filename (legacy behavior)
+            if isinstance(filename, str) and filename.startswith(('http://', 'https://')):
+                return await content_source_repository.upsert(
+                    name=filename,
+                    source_url=filename,
+                    extracted_url=filename,
+                    type="web",
+                )
+            else:
+                return await content_source_repository.upsert(
+                    name=filename,
+                    source_url=f"file://{filename}",
+                    extracted_url=f"file://{filename}_{workspace_id}",
+                    type="pdf" if isinstance(filename, str) and filename.endswith('.pdf') else "docx",
+                )
 
         created_sections = []
         for chunk in chunks:
             content = chunk["content"]
+            # Resolve content source for this specific chunk. This will use
+            # chunk.content_source_id if provided by the client, otherwise
+            # fall back to upserting based on the filename.
+            content_source = await resolve_content_source_for_chunk(chunk)
             if not isinstance(content, str):
                 try:
                     content = json.dumps(content)
@@ -51,12 +69,13 @@ class SectionRepository:
                 tags = chunk.get("tags", [])
                 
                 # Create main section
+                section_source = chunk.get("source") if isinstance(chunk, dict) and "source" in chunk else filename
                 section = await Section.create(
                     content_source=content_source,
                     workspace=workspace,
                     name=name,
                     content=content,
-                    source=filename
+                    source=section_source
                 )
                 
                 if tags:
@@ -81,12 +100,13 @@ class SectionRepository:
                         if name and name != "Untitled Section":
                             minor_tags.append(name.lower().replace(' ', '-'))
                         
+                        minor_source = chunk.get("source") if isinstance(chunk, dict) and "source" in chunk else filename
                         minor_section = await Section.create(
                             content_source=content_source,
                             workspace=workspace,
                             name=minor_name,
                             content=minor_text,
-                            source=filename
+                            source=minor_source
                         )
                         
                         if minor_tags:
@@ -100,12 +120,13 @@ class SectionRepository:
                 if not name or name == "Untitled Section":
                     name = content[:50] + "..." if len(content) > 50 else content
 
+                section_source = chunk.get("source") if isinstance(chunk, dict) and "source" in chunk else filename
                 section = await Section.create(
                     content_source=content_source,
                     workspace=workspace,
                     name=name,
                     content=content,
-                    source=filename
+                    source=section_source
                 )
 
                 if tags:
@@ -192,10 +213,21 @@ class SectionRepository:
 
     async def create_section(self, workspace_id: int, name: str, content: str, source: str = None, tags: list = None, content_source_id: int = None):
         from database.models import Workspace, Section, ContentSources
+        from database.repositories.sources import content_source_repository
         workspace = await Workspace.get(id=workspace_id, deleted_at=None)
         content_source = None
         if content_source_id is not None:
             content_source = await ContentSources.get(id=content_source_id)
+        else:
+            # Ensure a content source exists for manual entries
+            manual_name = source or "Manual"
+            manual_url = f"manual://{workspace_id}"
+            content_source = await content_source_repository.upsert(
+                name=manual_name,
+                source_url=manual_url,
+                extracted_url=manual_url,
+                type="web",
+            )
         # Always stringify content
         if not isinstance(content, str):
             try:

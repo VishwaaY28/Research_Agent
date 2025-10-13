@@ -1,12 +1,13 @@
 import { encoding_for_model } from '@dqbd/tiktoken';
 import jsPDF from 'jspdf';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
   FiArrowLeft,
   FiChevronDown,
   FiChevronUp,
   FiCopy,
+  FiEdit,
   FiFileText,
   FiLoader,
   FiPlus,
@@ -19,6 +20,7 @@ import {
 } from 'react-icons/fi';
 import ReactMarkdown from 'react-markdown';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import Select from 'react-select';
 import { useContent, type Section, type WorkspaceContent } from '../../hooks/useContent';
 import type { Workspace } from '../../hooks/useWorkspace';
 import { useWorkspace } from '../../hooks/useWorkspace';
@@ -35,7 +37,8 @@ const ProposalAuthoring: React.FC = () => {
   const [workspaceContent, setWorkspaceContent] = useState<WorkspaceContent | null>(null);
   const [prompt, setPrompt] = useState('');
   const [userPrompt, setUserPrompt] = useState('');
-  const [selectedSections, setSelectedSections] = useState<number[]>([]);
+  const [selectedSections, setSelectedSections] = useState<number[]>([]); // For dropdown selections
+  const [selectedContentSections, setSelectedContentSections] = useState<number[]>([]); // For checkbox selections
   const [generatedContent, setGeneratedContent] = useState<string>('');
   const [tokenInfo, setTokenInfo] = useState<{
     context_tokens: number;
@@ -46,18 +49,18 @@ const ProposalAuthoring: React.FC = () => {
   const [tags, setTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState('');
   const [viewingSection, setViewingSection] = useState<Section | null>(null);
-  const [selectedSectionId, setSelectedSectionId] = useState<string>('');
+  const [selectedSectionId, _setSelectedSectionId] = useState<string>('');
   const [selectedSectionName, setSelectedSectionName] = useState('');
   const [fallbackWorkspace, setFallbackWorkspace] = useState<Workspace | null>(null);
   // UI state for context panel
-  const [contextCollapsed, setContextCollapsed] = useState(false);
+  const [contextCollapsed, _setContextCollapsed] = useState(false);
   const [contextSearch, setContextSearch] = useState('');
   const [expandedMajors, setExpandedMajors] = useState<Record<string, boolean>>({});
   const [selectedMinorChunks, setSelectedMinorChunks] = useState<Record<string, Set<number>>>({});
   const [sectionTemplates, setSectionTemplates] = useState<
-    { id: number; name: string; order: number; prompt?: string }[]
+    { id: number; name: string; order: number; prompt?: string; default_content?: string }[]
   >([]);
-  const [sectionTemplatesLoading, setSectionTemplatesLoading] = useState(false);
+  const [_sectionTemplatesLoading, setSectionTemplatesLoading] = useState(false);
   const [workspaceTypes, setWorkspaceTypes] = useState<{ id: number; name: string }[]>([]);
   const [selectedTokens, setSelectedTokens] = useState(0);
   const [totalInputTokens, setTotalInputTokens] = useState(0);
@@ -274,21 +277,29 @@ const ProposalAuthoring: React.FC = () => {
   }, [selectedWorkspace, selectedSectionId]);
 
   useEffect(() => {
-    if (selectedSectionId && sectionTemplates.length > 0) {
-      const selectedTemplate = sectionTemplates.find(
-        (template) => String(template.id) === selectedSectionId,
+    if (selectedSections.length > 0 && sectionTemplates.length > 0) {
+      const selectedTemplates = sectionTemplates.filter((template) =>
+        selectedSections.includes(template.id),
       );
-      if (selectedTemplate) {
-        setSelectedSectionName(selectedTemplate.name);
-        if (selectedTemplate.prompt) {
-          setPrompt(selectedTemplate.prompt);
-        } else {
-          setPrompt('');
-        }
+
+      if (selectedTemplates.length > 0) {
+        const combinedPrompts = selectedTemplates
+          .map((template) => {
+            const sectionHeader = `Section: ${template.name}\n`;
+            return template.prompt ? sectionHeader + template.prompt : sectionHeader;
+          })
+          .join('\n\n');
+
+        setPrompt(combinedPrompts);
+        setSelectedSectionName(selectedTemplates.map((t) => t.name).join(', '));
         setUserPrompt('');
       }
+    } else if (selectedSections.length === 0) {
+      setPrompt('');
+      setSelectedSectionName('');
+      setUserPrompt('');
     }
-  }, [selectedSectionId, sectionTemplates]);
+  }, [selectedSections, sectionTemplates]);
 
   // (sectionList removed - not used)
 
@@ -304,14 +315,36 @@ const ProposalAuthoring: React.FC = () => {
   };
 
   const fetchSectionPrompts = async () => {
-    return;
+    try {
+      // Already have section templates list with default_content from /types/{id}/sections
+      const selectedId = Number(selectedSectionId);
+      const template = sectionTemplates.find((t) => t.id === selectedId);
+      if (!template) return;
+      // Fetch prompts for this section
+      const res = await fetch(
+        `${API.BASE_URL()}/api/prompt-templates/sections/${selectedId}/prompts`,
+        {
+          headers: {
+            Authorization: localStorage.getItem('token')
+              ? `Bearer ${localStorage.getItem('token')}`
+              : '',
+          },
+        },
+      );
+      if (!res.ok) return;
+      const prompts = await res.json();
+      const defaultPrompt = prompts?.[0]?.prompt || '';
+      const sectionHeader = `Section: ${template.name}`;
+      const combined = [sectionHeader, defaultPrompt].filter(Boolean).join('\n');
+      setPrompt(combined);
+      setSelectedSectionName(template.name);
+      // Optionally: surface default content in UI somewhere if needed
+    } catch {
+      // ignore small failures
+    }
   };
 
-  const handleSectionToggle = (sectionId: number) => {
-    setSelectedSections((prev) =>
-      prev.includes(sectionId) ? prev.filter((id) => id !== sectionId) : [...prev, sectionId],
-    );
-  };
+  // handleSectionToggle removed (unused) to avoid linter warnings
 
   const handleGenerate = async () => {
     if (!prompt.trim() || !selectedWorkspace) {
@@ -330,16 +363,47 @@ const ProposalAuthoring: React.FC = () => {
       ? `${prompt.trim()}\n\n${userPrompt.trim()}`
       : prompt.trim();
 
+    // If any selected section templates (from the template multi-select) include
+    // `default_content`, instruct the model NOT to generate content for those
+    // templates and instead include the exact default content verbatim. The UI
+    // displays template defaults from `sectionTemplates` when a template is
+    // chosen via `selectedSections` (the top multi-select). We add an explicit
+    // instruction prefix so the LLM doesn't generate for those templates, and
+    // as a safety-net we append any missing default contents client-side after
+    // the model response.
+    const selectedTemplates = sectionTemplates.filter((t) => selectedSections.includes(t.id));
+    const templatesWithDefaults = selectedTemplates.filter(
+      (t) => (t.default_content || '').trim().length > 0,
+    );
+    let generationPromptPrefix = '';
+    if (templatesWithDefaults.length > 0) {
+      generationPromptPrefix +=
+        'IMPORTANT: For the templates listed below, do NOT generate any new or additional content. ' +
+        'Instead include the following default content exactly as provided (verbatim) for each template in the final output under the appropriate heading.\n\n';
+      templatesWithDefaults.forEach((t) => {
+        generationPromptPrefix += `TEMPLATE: ${t.name}\nDEFAULT_CONTENT_START\n${t.default_content}\nDEFAULT_CONTENT_END\n\n`;
+      });
+      generationPromptPrefix +=
+        'For all other templates/sections, generate content as requested by the prompt.\n\n';
+    }
+
     setIsGenerating(true);
     try {
       let result: any;
-      if (selectedSections.length > 0) {
-        result = await generateContent(selectedWorkspace, combinedPrompt, selectedSections);
+      // Use the context checkbox selections (selectedContentSections) as the set of sections
+      // to include when generating content. selectedSections is used elsewhere for template
+      // selection, so using selectedContentSections avoids mixing concerns.
+      // Prepend generationPromptPrefix so the model knows which templates to skip
+      // and which default contents to include verbatim.
+      const promptToSend = generationPromptPrefix + combinedPrompt;
+
+      if ((selectedContentSections || []).length > 0) {
+        result = await generateContent(selectedWorkspace, promptToSend, selectedContentSections);
       } else {
         const sectionHeading = selectedSectionName
           ? `Section: ${selectedSectionName} (Type: ${selectedWorkspaceObj.workspace_type || 'Proposal'})\n\n`
           : '';
-        result = await generateContent(selectedWorkspace, sectionHeading + combinedPrompt, []);
+        result = await generateContent(selectedWorkspace, sectionHeading + promptToSend, []);
       }
       setGeneratedContent(result.content);
       setTokenInfo({
@@ -355,6 +419,33 @@ const ProposalAuthoring: React.FC = () => {
     }
   };
 
+  // Safety-net: ensure any selected template default_content appears verbatim
+  // in the final generatedContent. This appends missing defaults (unchanged)
+  // to the end of the generated content under a clear heading so nothing is
+  // modified for those templates.
+  useEffect(() => {
+    if (!generatedContent) return;
+    const selectedTemplates = sectionTemplates.filter((t) => selectedSections.includes(t.id));
+    const templatesWithDefaults = selectedTemplates.filter(
+      (t) => (t.default_content || '').trim().length > 0,
+    );
+    if (templatesWithDefaults.length === 0) return;
+
+    let newContent = generatedContent;
+    templatesWithDefaults.forEach((t) => {
+      const defaultText = (t.default_content || '').trim();
+      if (!defaultText) return;
+      // Check if defaultText is already present verbatim in the generated content
+      if (!newContent.includes(defaultText)) {
+        newContent += `\n\n<!-- DEFAULT CONTENT: ${t.name} START -->\n${defaultText}\n<!-- DEFAULT CONTENT: ${t.name} END -->`;
+      }
+    });
+
+    if (newContent !== generatedContent) {
+      setGeneratedContent(newContent);
+    }
+  }, [generatedContent, sectionTemplates, selectedSections]);
+
   const handleSave = async () => {
     if (!generatedContent || !selectedWorkspace) {
       toast.error('No content to save');
@@ -367,7 +458,7 @@ const ProposalAuthoring: React.FC = () => {
         selectedWorkspace,
         prompt,
         generatedContent,
-        selectedSections,
+        selectedContentSections,
         tags,
       );
       toast.success('Content saved successfully!');
@@ -386,6 +477,139 @@ const ProposalAuthoring: React.FC = () => {
     handleGenerate();
   };
 
+  // Rewrite modal state and helpers: regenerate only a specific section
+  const [rewriteOpen, setRewriteOpen] = useState(false);
+  const [rewriteTemplateId, setRewriteTemplateId] = useState<number | null>(null);
+  const [rewriteInstruction, setRewriteInstruction] = useState('');
+  const [isRewriting, setIsRewriting] = useState(false);
+
+  const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  const stripLeadingSectionHeading = (text: string, sectionName: string) => {
+    if (!text) return text;
+    const lines = text.split(/\r?\n/);
+    // remove leading markdown heading lines that include the section name
+    while (lines.length) {
+      const line = lines[0].trim();
+      if (/^#{1,6}\s*/.test(line)) {
+        const hdrText = line.replace(/^#{1,6}\s*/, '').trim();
+        if (hdrText.toLowerCase().includes(sectionName.toLowerCase())) {
+          lines.shift();
+          continue;
+        }
+      }
+      if (/^Section:\s*/i.test(line)) {
+        const hdrText = line.replace(/^Section:\s*/i, '').trim();
+        if (hdrText.toLowerCase().includes(sectionName.toLowerCase())) {
+          lines.shift();
+          continue;
+        }
+      }
+      break;
+    }
+    return lines.join('\n').trim();
+  };
+
+  // NOTE: previous implementation had a helper to replace a section block inside
+  // the existing generated content. That helper was removed because the rewrite
+  // flow now overwrites the displayed generated content entirely to avoid
+  // accidental appends or duplicated sections.
+
+  const handleOpenRewrite = () => {
+    // default the selector to first selected template (sectionTemplates) or first available template
+    let defaultId: number | null = null;
+    if (selectedSections && selectedSections.length > 0) defaultId = selectedSections[0];
+    else if (sectionTemplates && sectionTemplates.length > 0) defaultId = sectionTemplates[0].id;
+    setRewriteTemplateId(defaultId);
+    setRewriteInstruction('');
+    setRewriteOpen(true);
+  };
+
+  const handleDoRewrite = async () => {
+    if (!rewriteTemplateId || !selectedWorkspace) {
+      toast.error('Select a section to rewrite and make sure a workspace is selected');
+      return;
+    }
+
+    setIsRewriting(true);
+    try {
+      // Build a focused prompt: include the user's instruction and request the model to only output
+      // the content for the requested section template (header). This helps keep other sections unchanged.
+      const templateObj = (sectionTemplates || []).find((t: any) => t.id === rewriteTemplateId);
+      const sectionName = templateObj?.name || `Section ${rewriteTemplateId}`;
+
+      const instructionText = rewriteInstruction?.trim()
+        ? `UPDATE_INSTRUCTION:\n${rewriteInstruction.trim()}\n\n`
+        : '';
+
+      // Build a regeneration prompt that provides the current full document and instructs
+      // the model to regenerate the entire document but ONLY modify the specified section.
+      // This approach asks the model to return the whole document (so we can replace it
+      // atomically) while preserving other sections exactly.
+      const currentDoc = generatedContent || '';
+
+      const regenPrefix = `YOU ARE GIVEN THE CURRENT GENERATED DOCUMENT BELOW.\n`;
+      const regenInstruction =
+        `Regenerate the ENTIRE document and return the full document as the final output. ` +
+        `IMPORTANT: Do NOT change any section except the one named \"${sectionName}\". ` +
+        `Only update the content of that single section according to the instruction provided. ` +
+        `Preserve all other sections, headings, ordering, punctuation, and formatting exactly as they are. ` +
+        `If you cannot follow the instruction for the named section, return the original document unchanged.\n\n`;
+
+      const promptToSend =
+        regenPrefix +
+        regenInstruction +
+        instructionText +
+        '\nCURRENT_DOCUMENT_START\n' +
+        currentDoc +
+        '\nCURRENT_DOCUMENT_END\n\n';
+
+      // Request a full-document regeneration. We pass selectedContentSections as context if present
+      // so the server can include chunk-level context if it uses it.
+      const res: any = await generateContent(
+        selectedWorkspace,
+        promptToSend,
+        selectedContentSections || [],
+      );
+      const returned = (res && res.content) || '';
+
+      // Always clear the previous generated content and show only the updated result.
+      // If the response looks like a full document, use it as-is. Otherwise use the
+      // cleaned returned snippet (strip any leading section heading) and replace the
+      // displayed content with that snippet (do NOT append to the previous content).
+      const cleaned = stripLeadingSectionHeading(returned, sectionName);
+      const looksLikeFullDoc = (() => {
+        if (!returned) return false;
+        // crude heuristics: contains the sectionName heading OR contains multiple markdown headings
+        const hasSectionHeading =
+          new RegExp(`^#{1,6}\\s*${escapeRegExp(sectionName)}\\s*$`, 'im').test(returned) ||
+          new RegExp(`^Section:\\s*${escapeRegExp(sectionName)}$`, 'im').test(returned);
+        const headingCount = (returned.match(/^#{1,6}\\s+/gim) || []).length;
+        return (
+          hasSectionHeading ||
+          headingCount >= 2 ||
+          returned.includes('CURRENT_DOCUMENT_END') ||
+          returned.includes('CURRENT_DOCUMENT_START')
+        );
+      })();
+
+      if (looksLikeFullDoc) {
+        setGeneratedContent(returned);
+      } else {
+        // Overwrite the displayed content with the cleaned snippet. This ensures the
+        // old generated document isn't preserved/duplicated beneath the new content.
+        setGeneratedContent(cleaned || returned || '');
+      }
+      toast.success('Section rewritten successfully');
+      setRewriteOpen(false);
+    } catch (err) {
+      console.error('Rewrite failed', err);
+      toast.error('Failed to rewrite section');
+    } finally {
+      setIsRewriting(false);
+    }
+  };
+
   const handleAddTag = () => {
     if (newTag.trim() && !tags.includes(newTag.trim())) {
       setTags([...tags, newTag.trim()]);
@@ -397,24 +621,84 @@ const ProposalAuthoring: React.FC = () => {
     setTags(tags.filter((t) => t !== tagToRemove));
   };
 
-  // Calculate token count for selected sections using tiktoken-js
+  // Calculate token count for selected sections/minor chunks using tiktoken-js
   useEffect(() => {
     let cancelled = false;
     async function updateTokens() {
-      if (!workspaceContent || selectedSections.length === 0) {
+      if (!workspaceContent) {
         setSelectedTokens(0);
         return;
       }
-      const selected = workspaceContent.sections.filter((section) =>
-        selectedSections.includes(section.id),
-      );
+
+      // Build list of section ids that are relevant: either checked via selectedContentSections
+      // or have selected minor chunks in selectedMinorChunks
+      const sectionIds = new Set<number>();
+      (selectedContentSections || []).forEach((id) => sectionIds.add(id));
+      Object.keys(selectedMinorChunks || {}).forEach((sid) => {
+        const setFor = selectedMinorChunks[sid];
+        if (setFor && setFor.size > 0) sectionIds.add(Number(sid));
+      });
+
+      if (sectionIds.size === 0) {
+        setSelectedTokens(0);
+        return;
+      }
+
       const encoder = await encoding_for_model('gpt-3.5-turbo');
       let totalTokens = 0;
-      for (const section of selected) {
-        const content = section.content || '';
-        const tokens = encoder.encode(content);
-        totalTokens += tokens.length;
+
+      const minorText = (minor: any) => {
+        try {
+          if (!minor) return '';
+          if (typeof minor === 'string') return minor;
+          if (typeof minor === 'object') {
+            if (typeof minor.text === 'string') return minor.text;
+            if (typeof minor.content === 'string') return minor.content;
+          }
+          return String(minor || '');
+        } catch {
+          return '';
+        }
+      };
+
+      for (const sid of Array.from(sectionIds)) {
+        const section = (workspaceContent.sections || []).find((s: any) => s.id === sid);
+        if (!section) continue;
+
+        // normalize minors
+        let minors: any[] = [];
+        try {
+          if (typeof section.content === 'string') {
+            const parsed = JSON.parse(section.content);
+            minors = Array.isArray(parsed) ? parsed : [{ text: section.content }];
+          } else if (Array.isArray(section.content)) {
+            minors = section.content;
+          } else if (section.content) {
+            minors = [{ text: section.content }];
+          }
+        } catch {
+          minors = Array.isArray(section.content) ? section.content : [{ text: section.content }];
+        }
+
+        const setFor = selectedMinorChunks[String(sid)];
+        if (setFor && setFor.size > 0) {
+          for (const mi of Array.from(setFor)) {
+            const m = minors[mi];
+            const text = minorText(m) || '';
+            if (!text) continue;
+            const tokens = encoder.encode(text || '');
+            totalTokens += tokens.length;
+          }
+        } else {
+          // count whole section
+          const allText = minors.map((m) => minorText(m)).join('\n');
+          if (allText) {
+            const tokens = encoder.encode(allText || '');
+            totalTokens += tokens.length;
+          }
+        }
       }
+
       encoder.free();
       if (!cancelled) setSelectedTokens(totalTokens);
     }
@@ -422,7 +706,7 @@ const ProposalAuthoring: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [selectedSections, workspaceContent]);
+  }, [selectedContentSections, selectedMinorChunks, workspaceContent]);
 
   // Calculate total input tokens (prompt + user prompt + selected sections)
   useEffect(() => {
@@ -456,6 +740,177 @@ const ProposalAuthoring: React.FC = () => {
     } catch (error) {
       toast.error('Failed to copy content');
       console.error('Error copying content:', error);
+    }
+  };
+
+  const generatedRef = useRef<HTMLDivElement | null>(null);
+
+  const handleDownloadPdf = async () => {
+    if (!generatedContent) {
+      toast.error('No content to download');
+      return;
+    }
+
+    // Derive filename from first heading or fallbacks; ensure sanitized non-empty name
+    let filename = 'proposal.pdf';
+    try {
+      let title = '';
+      if (generatedContent) {
+        // prefer an obvious top-level markdown heading
+        const mdHeading = generatedContent.match(/^#{1,6}\s*(.+)$/m);
+        if (mdHeading && mdHeading[1]) {
+          title = mdHeading[1].trim();
+        }
+
+        // next prefer a 'Section: Name' style first occurrence
+        if (!title) {
+          const sectionLine = generatedContent.match(/^Section:\s*(.+)$/im);
+          if (sectionLine && sectionLine[1]) title = sectionLine[1].trim();
+        }
+
+        // next prefer HTML headings if present
+        if (!title) {
+          const htmlH =
+            generatedContent.match(/<h1[^>]*>(.*?)<\/h1>/i) ||
+            generatedContent.match(/<h2[^>]*>(.*?)<\/h2>/i);
+          if (htmlH && htmlH[1]) title = htmlH[1].trim();
+        }
+
+        // fallback to explicit selected section template name
+        if (!title && selectedSectionName) title = selectedSectionName;
+
+        // final fallback: first few words (strip HTML comments and excessive whitespace)
+        if (!title) {
+          const cleaned = generatedContent
+            .replace(/<!--([\s\S]*?)-->/g, '')
+            .replace(/<[^>]+>/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+          title = cleaned.split(/\s+/).slice(0, 6).join(' ');
+        }
+      }
+
+      // sanitize and ensure non-empty
+      title = (title || 'generatedContent').replace(/[\\/:*?"<>|]+/g, '').trim();
+      if (!title) title = 'generatedContent';
+      const safe = title.replace(/[^a-zA-Z0-9 _-]/g, '').trim();
+      filename = `${safe || 'generatedContent'}.pdf`;
+    } catch (e) {
+      filename = 'generatedContent.pdf';
+    }
+
+    const doc = new jsPDF('p', 'pt', 'a4');
+
+    const source = generatedRef.current;
+    if (!source) {
+      // fallback to plain-text
+      const lines = doc.splitTextToSize(generatedContent, 500);
+      doc.text(lines, 10, 10);
+      doc.save(filename);
+      return;
+    }
+
+    try {
+      // Try dynamic import of html2canvas for more reliable capture
+      const html2canvasModule = await import(
+        /* webpackChunkName: "html2canvas" */ 'html2canvas'
+      ).catch(() => null);
+
+      // Make sure element is visible/layouted. Temporarily toggle a class if needed.
+      const previousVisibility = source.style.visibility;
+      const previousOpacity = source.style.opacity;
+      try {
+        source.style.visibility = 'visible';
+        source.style.opacity = '1';
+
+        // allow a tick for font loading/layout
+        await new Promise((res) => setTimeout(res, 150));
+
+        if (html2canvasModule && html2canvasModule.default) {
+          const canvas = await html2canvasModule.default(source as HTMLElement, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff',
+          });
+
+          // Paginate the canvas into multiple PDF pages if it's taller than one page.
+          const imgWidth = canvas.width;
+          const imgHeight = canvas.height;
+
+          const pdfPageWidth = doc.internal.pageSize.getWidth();
+          const pdfPageHeight = doc.internal.pageSize.getHeight();
+          const margin = 20; // left/right/top/bottom
+          const pdfUsableWidth = pdfPageWidth - margin * 2;
+          const pdfUsableHeight = pdfPageHeight - margin * 2;
+
+          // Ratio between canvas px and PDF pts
+          const pxToPtRatio = pdfUsableWidth / imgWidth;
+
+          // How many canvas pixels fit on one PDF page vertically
+          const pageHeightPx = Math.floor(pdfUsableHeight / pxToPtRatio);
+
+          let renderedHeight = 0;
+          let pageIndex = 0;
+
+          while (renderedHeight < imgHeight) {
+            const chunkHeightPx = Math.min(pageHeightPx, imgHeight - renderedHeight);
+
+            // Create a temporary canvas for this page chunk
+            const pageCanvas = document.createElement('canvas');
+            pageCanvas.width = imgWidth;
+            pageCanvas.height = chunkHeightPx;
+            const ctx = pageCanvas.getContext('2d');
+            if (!ctx) break;
+
+            // Draw the chunk from the full canvas into the page canvas
+            ctx.drawImage(
+              canvas,
+              0,
+              renderedHeight,
+              imgWidth,
+              chunkHeightPx,
+              0,
+              0,
+              imgWidth,
+              chunkHeightPx,
+            );
+
+            const imgData = pageCanvas.toDataURL('image/png');
+
+            const imgProps = doc.getImageProperties(imgData);
+            const renderPdfWidth = pdfUsableWidth;
+            const renderPdfHeight = (imgProps.height * renderPdfWidth) / imgProps.width;
+
+            if (pageIndex > 0) doc.addPage();
+            doc.addImage(imgData, 'PNG', margin, margin, renderPdfWidth, renderPdfHeight);
+
+            renderedHeight += chunkHeightPx;
+            pageIndex += 1;
+          }
+
+          doc.save(filename);
+          return;
+        }
+
+        // If html2canvas isn't available, fall back to jsPDF.html
+        await doc.html(source as HTMLElement, { x: 10, y: 10, windowWidth: 800 });
+        doc.save(filename);
+        return;
+      } finally {
+        // restore styles
+        source.style.visibility = previousVisibility;
+        source.style.opacity = previousOpacity;
+      }
+    } catch (err) {
+      console.error('PDF generation failed', err);
+      toast.error('Failed to generate PDF');
+      try {
+        const lines = doc.splitTextToSize(generatedContent, 500);
+        doc.text(lines, 10, 10);
+        doc.save(filename);
+      } catch (e) {
+        console.error('Fallback PDF save failed', e);
+      }
     }
   };
 
@@ -563,16 +1018,47 @@ const ProposalAuthoring: React.FC = () => {
               </button>
               <button
                 onClick={() => {
-                  handleSectionToggle(viewingSection.id);
+                  const sid = viewingSection.id;
+                  const sectIdStr = String(sid);
+
+                  if (selectedContentSections.includes(sid)) {
+                    // Remove section from selected content
+                    setSelectedContentSections((prev) => prev.filter((id) => id !== sid));
+                    setSelectedMinorChunks((prev) => {
+                      const copy = { ...prev };
+                      delete copy[sectIdStr];
+                      return copy;
+                    });
+                  } else {
+                    // Add section and select all minors
+                    setSelectedContentSections((prev) => [...prev, sid]);
+
+                    const minors = (() => {
+                      try {
+                        if (typeof viewingSection.content === 'string') {
+                          const parsed = JSON.parse(viewingSection.content);
+                          return Array.isArray(parsed) ? parsed : [];
+                        }
+                        return Array.isArray(viewingSection.content) ? viewingSection.content : [];
+                      } catch {
+                        return Array.isArray(viewingSection.content) ? viewingSection.content : [];
+                      }
+                    })();
+
+                    const allIdx = new Set<number>();
+                    minors.forEach((_, i) => allIdx.add(i));
+                    setSelectedMinorChunks((prev) => ({ ...prev, [sectIdStr]: allIdx }));
+                  }
+
                   setViewingSection(null);
                 }}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  selectedSections.includes(viewingSection.id)
+                  selectedContentSections.includes(viewingSection.id)
                     ? 'bg-red-600 text-white hover:bg-red-700'
                     : 'bg-primary text-white hover:bg-primary/90'
                 }`}
               >
-                {selectedSections.includes(viewingSection.id)
+                {selectedContentSections.includes(viewingSection.id)
                   ? 'Remove from Context'
                   : 'Add to Context'}
               </button>
@@ -584,6 +1070,52 @@ const ProposalAuthoring: React.FC = () => {
   };
 
   // Layout: workspace panel on top, prompt and generated content below
+  // Prepare search/filter helpers and trimmed sections list
+  const getMinorSource = (minor: any, section: any) => {
+    return (
+      minor?.source ||
+      minor?.source_file ||
+      minor?.source_filename ||
+      minor?.file ||
+      minor?.filename ||
+      section?.source ||
+      ''
+    );
+  };
+
+  const getMinorTags = (minor: any, section: any) => {
+    if (Array.isArray(minor?.tags) && minor.tags.length) return minor.tags.map(String);
+    if (minor?.tag) return [String(minor.tag)];
+    if (Array.isArray(section?.tags) && section.tags.length) return section.tags.map(String);
+    return [];
+  };
+
+  const filteredSections = (workspaceContent?.sections || []).filter((section: any) => {
+    const q = (contextSearch || '').trim().toLowerCase();
+    if (!q) return true;
+    // match section name, section source, or any minor text/tag/source
+    if ((section.name || '').toLowerCase().includes(q)) return true;
+    if ((section.source || '').toLowerCase().includes(q)) return true;
+    try {
+      const minors =
+        typeof section.content === 'string' ? JSON.parse(section.content) : section.content || [];
+      for (const minor of Array.isArray(minors) ? minors : []) {
+        const text = typeof minor === 'string' ? minor : minor?.text || minor?.content || '';
+        if ((text || '').toString().toLowerCase().includes(q)) return true;
+        const tag = minor?.tag || minor?.tags;
+        if (tag) {
+          if (Array.isArray(tag)) {
+            if (tag.join(' ').toLowerCase().includes(q)) return true;
+          } else if (String(tag).toLowerCase().includes(q)) return true;
+        }
+        const src = getMinorSource(minor, section);
+        if (src && src.toLowerCase().includes(q)) return true;
+      }
+    } catch {
+      // ignore parse errors
+    }
+    return false;
+  });
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100/50">
       <div className="w-full px-8 pt-8 pb-6 flex items-center justify-between">
@@ -596,9 +1128,7 @@ const ProposalAuthoring: React.FC = () => {
             <FiArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-black mb-2">
-            Author
-            </h1>
+            <h1 className="text-3xl font-bold text-black mb-2">Author</h1>
             <p className="text-neutral-600 text-lg">
               Create, refine, and generate proposals using your workspace content.
             </p>
@@ -617,128 +1147,181 @@ const ProposalAuthoring: React.FC = () => {
               </div>
 
               {selectedWorkspace && (
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-semibold text-gray-700">Section</label>
-                  <select
-                    value={selectedSectionId}
-                    onChange={(e) => setSelectedSectionId(e.target.value)}
-                    className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-                    disabled={sectionTemplatesLoading || !sectionTemplates.length}
-                  >
-                    <option value="">
-                      {sectionTemplatesLoading ? 'Loading...' : 'Section...'}
-                    </option>
-                    {sectionTemplates.map((section) => (
-                      <option key={section.id} value={section.id}>
-                        {section.name}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex flex-col gap-4 w-full max-w-md">
+                  <Select
+                    isMulti
+                    closeMenuOnSelect={false}
+                    hideSelectedOptions={false}
+                    value={sectionTemplates
+                      .filter((template) => selectedSections.includes(template.id))
+                      .map((template) => ({
+                        value: template.id,
+                        label: template.name,
+                      }))}
+                    onChange={(selectedOptions) => {
+                      const newSelectedSections = selectedOptions
+                        ? selectedOptions.map((option) => Number(option.value))
+                        : [];
+                      setSelectedSections(newSelectedSections);
+
+                      // Update prompts when selections change
+                      if (sectionTemplates.length > 0) {
+                        const selectedTemplates = sectionTemplates.filter((template) =>
+                          newSelectedSections.includes(template.id),
+                        );
+
+                        const combinedPrompts = selectedTemplates
+                          .map((template) => {
+                            const sectionHeader = `Section: ${template.name}\n`;
+                            return template.prompt
+                              ? sectionHeader + template.prompt
+                              : sectionHeader;
+                          })
+                          .join('\n\n');
+
+                        setPrompt(combinedPrompts);
+                        setSelectedSectionName(selectedTemplates.map((t) => t.name).join(', '));
+                      }
+                    }}
+                    options={sectionTemplates.map((template) => ({
+                      value: template.id,
+                      label: template.name,
+                    }))}
+                    className="w-full"
+                    // Render menu in a portal so it floats above sticky panels
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+                    menuPosition="fixed"
+                    menuPlacement="auto"
+                    styles={{
+                      menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+                    }}
+                    classNames={{
+                      control: () =>
+                        'bg-white border border-gray-300 rounded-lg shadow-sm hover:border-blue-500',
+                      multiValue: () => 'bg-blue-50 border border-blue-100 rounded-md',
+                      multiValueLabel: () => 'text-blue-700 text-sm px-2 py-1',
+                      multiValueRemove: () =>
+                        'text-blue-500 hover:text-blue-700 hover:bg-blue-100 rounded-r-md px-1',
+                      menu: () => 'bg-white border border-gray-200 rounded-lg shadow-lg mt-1',
+                      option: (state) =>
+                        `px-3 py-2 ${state.isFocused ? 'bg-blue-50' : 'bg-white'} ${
+                          state.isSelected ? 'bg-blue-100 text-blue-700' : 'text-gray-700'
+                        } hover:bg-blue-50`,
+                    }}
+                    placeholder="Select sections..."
+                    noOptionsMessage={() => 'No sections available'}
+                    isSearchable
+                    isClearable
+                  />
                 </div>
               )}
-            <div className="flex-shrink-0 w-full sm:w-auto">
-            <div className="mb-1">
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={newTag}
-                  onChange={(e) => setNewTag(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                  placeholder="Add a tag..."
-                />
-                <button
-                  onClick={handleAddTag}
-                  className="px-3 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-50"
-                  disabled={!newTag.trim()}
-                >
-                  <FiPlus className="w-4 h-4" />
-                </button>
-              </div>
-              {tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary text-xs rounded-full"
+              <div className="flex-shrink-0 w-full sm:w-auto">
+                <div className="mb-1">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+                      className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                      placeholder="Add a tag..."
+                    />
+                    <button
+                      onClick={handleAddTag}
+                      className="px-3 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-50"
+                      disabled={!newTag.trim()}
                     >
-                      <span>{tag}</span>
-                      <button
-                        onClick={() => handleRemoveTag(tag)}
-                        className="p-1 rounded hover:bg-white/20 text-primary"
-                      >
-                        <FiX className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
+                      <FiPlus className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary text-xs rounded-full"
+                        >
+                          <span>{tag}</span>
+                          <button
+                            onClick={() => handleRemoveTag(tag)}
+                            className="p-1 rounded hover:bg-white/20 text-primary"
+                          >
+                            <FiX className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Context list under the workspace panel */}
         {workspaceContent && !contextCollapsed && (
-          <div className="mt-3 bg-white border border-gray-200 rounded-lg p-3 max-h-48 overflow-y-auto">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={contextSearch}
-                  onChange={(e) => setContextSearch(e.target.value)}
-                  placeholder="Search context..."
-                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-md text-sm"
-                />
-                <div className="absolute left-2 top-2 text-gray-400">
-                  <FiSearch />
-                </div>
-              </div>
-              {workspaceContent && (
-              <div className="mb-2">
-                <div className="flex items-center gap-3">
-                  <div className="text-xs text-gray-500">
-                    ~{selectedTokens.toLocaleString()} tokens
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="select-all-context-sections-top"
-                      checked={
-                        selectedSections.length === (workspaceContent.sections?.length || 0) &&
-                        (workspaceContent.sections?.length || 0) > 0
-                      }
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedSections(
-                            (workspaceContent.sections || []).map((s: any) => s.id),
-                          );
-                          const newSelected: Record<string, Set<number>> = {};
-                          (workspaceContent.sections || []).forEach((s: any) => {
-                            const minors = Array.isArray(s.content) ? s.content.length : 0;
-                            newSelected[String(s.id)] = new Set(
-                              Array.from({ length: minors }, (_, i) => i),
-                            );
-                          });
-                          setSelectedMinorChunks(newSelected);
-                        } else {
-                          setSelectedSections([]);
-                          setSelectedMinorChunks({});
-                        }
-                      }}
-                    />
-                    <label htmlFor="select-all-context-sections-top" className="text-sm">
-                      Select All
-                    </label>
+          <div className="mt-3 bg-white border border-gray-200 rounded-lg p-0">
+            <div className="p-3 sticky top-0 bg-white z-10 border-b border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900 mb-1">Contents</h3>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={contextSearch}
+                    onChange={(e) => setContextSearch(e.target.value)}
+                    placeholder="Search context..."
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-md text-sm"
+                  />
+                  <div className="absolute left-2 top-2 text-gray-400">
+                    <FiSearch />
                   </div>
                 </div>
+                {workspaceContent && (
+                  <div className="mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="text-xs text-gray-500">
+                        ~{selectedTokens.toLocaleString()} tokens
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="select-all-context-sections-top"
+                          checked={
+                            selectedContentSections.length ===
+                              (workspaceContent.sections?.length || 0) &&
+                            (workspaceContent.sections?.length || 0) > 0
+                          }
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedContentSections(
+                                (workspaceContent.sections || []).map((s: any) => s.id),
+                              );
+                              const newSelected: Record<string, Set<number>> = {};
+                              (workspaceContent.sections || []).forEach((s: any) => {
+                                const minors = Array.isArray(s.content) ? s.content.length : 0;
+                                newSelected[String(s.id)] = new Set(
+                                  Array.from({ length: minors }, (_, i) => i),
+                                );
+                              });
+                              setSelectedMinorChunks(newSelected);
+                            } else {
+                              setSelectedContentSections([]);
+                              setSelectedMinorChunks({});
+                            }
+                          }}
+                        />
+                        <label htmlFor="select-all-context-sections-top" className="text-sm">
+                          Select All
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
             </div>
 
-            <div className="space-y-2">
-              {(workspaceContent.sections || []).map((section: Section, idx: number) => {
+            <div className="p-2 max-h-40 overflow-y-auto space-y-2">
+              {filteredSections.map((section: Section, idx: number) => {
                 const heading = section.name || `Section ${idx + 1}`;
                 const sectId = String(section.id);
                 const minors: any[] = (() => {
@@ -760,15 +1343,17 @@ const ProposalAuthoring: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <input
                         type="checkbox"
-                        checked={selectedSections.includes(section.id)}
+                        checked={selectedContentSections.includes(section.id)}
                         onChange={() => {
-                          if (selectedSections.includes(section.id)) {
-                            setSelectedSections((prev) => prev.filter((id) => id !== section.id));
+                          if (selectedContentSections.includes(section.id)) {
+                            setSelectedContentSections((prev) =>
+                              prev.filter((id) => id !== section.id),
+                            );
                             const copy = { ...selectedMinorChunks };
                             delete copy[sectId];
                             setSelectedMinorChunks(copy);
                           } else {
-                            setSelectedSections((prev) => [...prev, section.id]);
+                            setSelectedContentSections((prev) => [...prev, section.id]);
                             const allIdx = new Set<number>();
                             minors.forEach((_, i) => allIdx.add(i));
                             setSelectedMinorChunks((prev) => ({ ...prev, [sectId]: allIdx }));
@@ -808,6 +1393,8 @@ const ProposalAuthoring: React.FC = () => {
                           const minorText =
                             typeof minor === 'string' ? minor : minor.text || JSON.stringify(minor);
                           const isSelected = selectedSet.has(mi);
+                          const src = getMinorSource(minor, section);
+                          const tags = getMinorTags(minor, section);
                           return (
                             <div key={mi} className="flex items-start gap-2">
                               <input
@@ -835,11 +1422,28 @@ const ProposalAuthoring: React.FC = () => {
                                 }}
                                 className="w-4 h-4 mt-1"
                               />
-                              <div className="text-sm text-gray-700">
-                                <div className="font-medium">{minor.tag || `Chunk ${mi + 1}`}</div>
-                                <div className="text-xs text-gray-500 line-clamp-3">
+                              <div className="text-sm text-gray-700 w-full">
+                                <div className="flex items-center justify-between">
+                                  <div className="font-medium">
+                                    {minor.tag || `Chunk ${mi + 1}`}
+                                  </div>
+                                  <div className="text-xs text-gray-500">{src}</div>
+                                </div>
+                                <div className="text-xs text-gray-500 line-clamp-3 mt-1">
                                   {minorText}
                                 </div>
+                                {tags.length > 0 && (
+                                  <div className="mt-1 flex gap-1 flex-wrap">
+                                    {tags.map((t: string, i: number) => (
+                                      <span
+                                        key={i}
+                                        className="text-xs bg-gray-100 px-2 py-0.5 rounded"
+                                      >
+                                        {t}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
@@ -857,10 +1461,35 @@ const ProposalAuthoring: React.FC = () => {
       {/* Main area: prompt input and generated content */}
       <main className="px-8 pb-8">
         <div className="pt-6">
-          <h2 className="text-xl font-bold text-gray-900">{selectedSectionName || 'Section'}</h2>
-          {selectedSectionName && prompt && (
-            <div className="bg-gray-50 rounded-md p-3 text-gray-800 whitespace-pre-line select-none border border-gray-200 text-sm mt-2">
+          <h2 className="text-xl font-bold text-gray-900">
+            {selectedSections.length > 0
+              ? `Selected Sections: ${selectedSectionName}`
+              : 'Select Sections'}
+          </h2>
+          {selectedSections.length > 0 && prompt && (
+            <div className="bg-gray-50 rounded-md p-3 text-gray-800 whitespace-pre-line border border-gray-200 text-sm mt-2">
               {prompt}
+            </div>
+          )}
+
+          {/* Default content cards for selected sections */}
+          {selectedSections.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {sectionTemplates
+                .filter(
+                  (t) =>
+                    selectedSections.includes(t.id) && (t.default_content?.trim()?.length || 0) > 0,
+                )
+                .map((t) => (
+                  <div key={t.id} className="bg-white rounded-md border border-gray-200 p-3">
+                    <div className="text-sm font-semibold text-gray-900 mb-1">
+                      Default Section: {t.name}
+                    </div>
+                    <div className="text-sm text-gray-700 whitespace-pre-line">
+                      {t.default_content}
+                    </div>
+                  </div>
+                ))}
             </div>
           )}
 
@@ -881,7 +1510,7 @@ const ProposalAuthoring: React.FC = () => {
                 </span>
                 {tokenLimitExceeded && (
                   <span className="text-red-600 text-xs font-medium">
-                    ⚠️ Limit exceeded! Reduce content to continue.
+                    Limit exceeded! Reduce content to continue.
                   </span>
                 )}
               </div>
@@ -929,6 +1558,13 @@ const ProposalAuthoring: React.FC = () => {
                 <FiRefreshCw className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} /> Retry
               </button>
               <button
+                onClick={handleOpenRewrite}
+                disabled={isGenerating}
+                className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg text-sm disabled:opacity-50"
+              >
+                <FiEdit className="w-4 h-4" /> Rewrite
+              </button>
+              <button
                 onClick={handleSave}
                 disabled={isSaving}
                 className="flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm disabled:opacity-50"
@@ -941,12 +1577,7 @@ const ProposalAuthoring: React.FC = () => {
                 Save
               </button>
               <button
-                onClick={() => {
-                  const doc = new jsPDF();
-                  const lines = doc.splitTextToSize(generatedContent, 180);
-                  doc.text(lines, 10, 10);
-                  doc.save('proposal.pdf');
-                }}
+                onClick={handleDownloadPdf}
                 className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm"
               >
                 <FiFileText className="w-4 h-4" /> Download as PDF
@@ -966,12 +1597,76 @@ const ProposalAuthoring: React.FC = () => {
                 )}
               </div>
               <div className="prose prose-gray max-w-none">
-                <ReactMarkdown>{generatedContent}</ReactMarkdown>
+                <div ref={generatedRef}>
+                  <ReactMarkdown>{generatedContent}</ReactMarkdown>
+                </div>
               </div>
             </div>
           )}
 
           <SectionViewModal />
+          {/* Rewrite modal */}
+          {rewriteOpen && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl w-full max-w-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">Rewrite Section</h3>
+                  <button
+                    onClick={() => setRewriteOpen(false)}
+                    className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+                  >
+                    <FiX className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Section Template</label>
+                    <select
+                      value={rewriteTemplateId ?? ''}
+                      onChange={(e) => setRewriteTemplateId(Number(e.target.value))}
+                      className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-sm"
+                    >
+                      <option value="">Select a section template...</option>
+                      {(sectionTemplates || []).map((t: any) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name || `Template ${t.id}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">
+                      Instruction / Prompt
+                    </label>
+                    <textarea
+                      value={rewriteInstruction}
+                      onChange={(e) => setRewriteInstruction(e.target.value)}
+                      placeholder="Tell the AI how to update this section (be specific). Other sections must remain unchanged."
+                      className="w-full mt-1 border border-gray-200 rounded-md px-3 py-2 text-sm min-h-[80px]"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-2">
+                    <button
+                      onClick={() => setRewriteOpen(false)}
+                      className="px-4 py-2 rounded-md bg-gray-100 text-gray-700"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleDoRewrite}
+                      disabled={isRewriting || !rewriteTemplateId}
+                      className="px-4 py-2 rounded-md bg-indigo-600 text-white disabled:opacity-50"
+                    >
+                      {isRewriting ? <FiLoader className="w-4 h-4 animate-spin" /> : 'Rewrite'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>

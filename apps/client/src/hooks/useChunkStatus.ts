@@ -11,7 +11,7 @@ export function useChunkStatus(contentSourceId?: number) {
       setChunks([]);
       return;
     }
-    
+
     const interval = setInterval(async () => {
       try {
         const res = await axios.get(`/api/sources/${contentSourceId}/chunks`);
@@ -25,8 +25,8 @@ export function useChunkStatus(contentSourceId?: number) {
         setStatus('error');
         clearInterval(interval);
       }
-    }, 3000);
-    
+    }, 6000);
+
     return () => clearInterval(interval);
   }, [contentSourceId]);
 

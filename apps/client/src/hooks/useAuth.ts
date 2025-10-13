@@ -152,17 +152,32 @@ export const useAuth = () => {
     [login],
   );
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('token');
-    sessionFetchedRef.current = false;
-    fetchingSessionRef.current = false;
-    setAuthState({
-      user: null,
-      isAuthenticated: false,
-      error: null,
-      loading: false,
-    });
-    navigate('/auth');
+  const logout = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        await fetch(API.BASE_URL() + API.ENDPOINTS.AUTH.BASE_URL() + API.ENDPOINTS.AUTH.LOGOUT(), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      }
+    } catch (err) {
+      console.error('Logout error:', err);
+    } finally {
+      localStorage.removeItem('token');
+      sessionFetchedRef.current = false;
+      fetchingSessionRef.current = false;
+      setAuthState({
+        user: null,
+        isAuthenticated: false,
+        error: null,
+        loading: false,
+      });
+      navigate('/auth');
+    }
   }, [navigate]);
 
   return {

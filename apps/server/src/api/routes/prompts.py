@@ -142,7 +142,3 @@ async def delete_generated_content(
     """Delete generated content"""
     return await prompts_handlers.delete_generated_content(workspace_id, content_id)
 
-@router.get("/prompts/defaults")
-async def get_default_prompts():
-    """Get default prompts for all sections"""
-    return await prompts_handlers.get_default_prompts()

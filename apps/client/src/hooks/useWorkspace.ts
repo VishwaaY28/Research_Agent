@@ -43,7 +43,7 @@ export function useWorkspace() {
     }
   }
 
-  async function filterWorkspaces(nameQuery?: string, tags?: string[]) {
+  async function filterWorkspaces(nameQuery?: string, tags?: string[], workspaceType?: string) {
     setLoading(true);
     try {
       const res = await fetch(
@@ -59,6 +59,7 @@ export function useWorkspace() {
           body: JSON.stringify({
             name_query: nameQuery,
             tags: tags,
+            workspace_type: workspaceType,
           }),
         },
       );

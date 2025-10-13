@@ -9,7 +9,6 @@ import re
 import urllib.parse
 import httpx
 from bs4 import BeautifulSoup
-
 from database.repositories.sources import content_source_repository
 # from database.repositories.images import source_image_repository
 # from database.repositories.tables import source_table_repository
@@ -17,6 +16,9 @@ from database.repositories.tags import tag_repository
 from utils.extract_pdf import extract_pdf_sections
 from utils.extract_docx import extract_docx_sections
 from utils.extract_web import extract_web_sections
+from config.env import env
+
+# Toggle for PDF extraction method - can be controlled via environment variable
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -62,7 +64,7 @@ async def upload_and_extract(
 
             try:
                 if ext == "pdf":
-                    logger.info("Extracting PDF content...")
+                    logger.info("Extracting PDF content using local Unstructured library...")
                     chunks = extract_pdf_sections(source_path, FIGURES_DIR)
                     source_type = "pdf"
                 elif ext == "docx":
