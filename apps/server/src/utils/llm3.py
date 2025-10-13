@@ -19,7 +19,6 @@ def count_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
 
 class GroqClient:
     """Simple Groq API client wrapper for generating content.
-
     This implementation uses the standard OpenAI-compatible Chat Completions API
     for GROQ, which requires a 'messages' array in the payload.
     """
@@ -31,7 +30,6 @@ class GroqClient:
 
     def _load_config(self):
         if self._api_key is None or self._api_base is None:
-            # NEVER hardcode API keys in production code; always use env vars
             self._api_key = env.get('GROQ_API_KEY')
             if not self._api_key:
                 raise ValueError("GROQ_API_KEY environment variable is required.")
@@ -136,7 +134,7 @@ Instructions:
                     {"role": "user", "content": full_user_content},
                 ],
                 "max_tokens": max_tokens,
-                "temperature": 0.25,
+                "temperature": 0.2,
                 "top_p": 0.1,
             }
 
@@ -204,5 +202,4 @@ Instructions:
             raise
 
 
-# Export a singleton client
 groq_client = GroqClient()

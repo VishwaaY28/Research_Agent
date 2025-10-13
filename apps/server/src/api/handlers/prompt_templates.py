@@ -20,11 +20,13 @@ class WorkspaceTypeResponse(BaseModel):
 class SectionTemplateCreate(BaseModel):
     name: str
     order: int = 0
+    default_content: Optional[str] = None
 
 class SectionTemplateResponse(BaseModel):
     id: int
     name: str
     order: int
+    default_content: Optional[str] = None
 
 class PromptTemplateCreate(BaseModel):
     prompt: str
@@ -40,6 +42,7 @@ class SectionWithPromptResponse(BaseModel):
     name: str
     order: int
     prompt: Optional[str] = None
+    default_content: Optional[str] = None
 
 # Helper function to get current user from request state
 async def get_current_user(request: Request) -> User:
@@ -130,12 +133,14 @@ async def create_section_template(type_id: int, data: SectionTemplateCreate, req
     obj = await SectionTemplate.create(
         workspace_type=workspace_type,
         name=data.name,
-        order=data.order
+        order=data.order,
+        default_content=data.default_content
     )
     return SectionTemplateResponse(
         id=obj.id,
         name=obj.name,
-        order=obj.order
+        order=obj.order,
+        default_content=obj.default_content
     )
 
 @router.get('/types/{type_id}/sections', response_model=List[SectionWithPromptResponse])
@@ -158,7 +163,8 @@ async def list_section_templates(type_id: int, request: Request):
             id=section.id,
             name=section.name,
             order=section.order,
-            prompt=prompt_text
+            prompt=prompt_text,
+            default_content=section.default_content
         ))
 
     return result
@@ -171,7 +177,8 @@ async def get_section_template(section_id: int, request: Request):
         return SectionTemplateResponse(
             id=obj.id,
             name=obj.name,
-            order=obj.order
+            order=obj.order,
+            default_content=obj.default_content
         )
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Section template not found")
@@ -183,11 +190,15 @@ async def update_section_template(section_id: int, data: SectionTemplateCreate, 
         obj = await SectionTemplate.get(id=section_id)
         obj.name = data.name
         obj.order = data.order
+        # Update default_content only if provided to avoid overwriting unintentionally
+        if data.default_content is not None:
+            obj.default_content = data.default_content
         await obj.save()
         return SectionTemplateResponse(
             id=obj.id,
             name=obj.name,
-            order=obj.order
+            order=obj.order,
+            default_content=obj.default_content
         )
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Section template not found")

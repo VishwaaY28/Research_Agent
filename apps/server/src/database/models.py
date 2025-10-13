@@ -95,6 +95,7 @@ class SectionTemplate(TimestampMixin):
     workspace_type = fields.ForeignKeyField('models.WorkspaceType', related_name='sections')
     name = fields.CharField(max_length=255)
     order = fields.IntField(default=0)
+    default_content = fields.TextField(null=True)
 
 class PromptTemplate(TimestampMixin):
     id = fields.IntField(pk=True)

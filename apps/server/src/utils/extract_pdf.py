@@ -3,8 +3,10 @@ import json
 import re
 from pathlib import Path
 import logging
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Union, Any
+import fitz
 from unstructured.partition.pdf import partition_pdf
+from unstructured.documents.elements import Title, NarrativeText, ListItem, Text
 from utils.cache import check_extracted_cache, save_extracted_cache
 from utils.clean import clean_content
 import nltk
@@ -18,15 +20,7 @@ import string
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize NLTK components
-# try:
-#     nltk.data.find('tokenizers/punkt')
-#     nltk.data.find('corpora/stopwords')
-#     nltk.data.find('corpora/wordnet')
-# except LookupError:
-#     nltk.download('punkt')
-#     nltk.download('stopwords')
-#     nltk.download('wordnet')
+# Ensure basic NLTK components are available at runtime; installation step should run downloads if needed.
 
 lemmatizer = WordNetLemmatizer()
 stop_words = set(stopwords.words('english'))
@@ -64,12 +58,70 @@ def extract_keywords(text: str, max_keywords: int = 5) -> List[str]:
         word_freq = Counter(words)
         return [word for word, freq in word_freq.most_common(max_keywords) if freq > 1]
 
+def detect_heading_with_libraries(element: Union[Dict[str, Any], Any], doc: Any = None) -> bool:
+    """Detect headers using unstructured and PyMuPDF features"""
+    
+    # First check if unstructured identified it as a Title
+    if isinstance(element, Title):
+        return True
+        
+    if not isinstance(element, (Text, NarrativeText, ListItem)) and not isinstance(element, dict):
+        return False
+        
+    text = element.get("text", "") if isinstance(element, dict) else getattr(element, "text", "")
+    text = text.strip()
+    if not text:
+        return False
+        
+    # Get font info if available in metadata
+    metadata = element.get("metadata", {}) if isinstance(element, dict) else getattr(element, "metadata", {})
+    font_info = metadata.get("font_info", {})
+    
+    # Check font properties that typically indicate headers
+    is_bold = font_info.get("is_bold", False)
+    font_size = font_info.get("font_size", 0)
+    base_font_size = metadata.get("body_font_size", 0)
+    
+    # If we have font information, use it
+    if font_info and base_font_size:
+        # Headers are typically bold and larger than regular text
+        if is_bold and font_size > base_font_size:
+            return True
+            
+    # Fallback to pattern-based detection if no clear font signals
+    # Skip single numbers or very short text
+    if len(text) <= 3 or text.isdigit():
+        return False
+
+    # Headings don't typically end with punctuation
+    if text.endswith(('.', '?', '!')):
+        return False
+
+    # Check for common heading patterns
+    heading_patterns = [
+        r'^[A-Z][A-Z\s]+$',  # ALL CAPS (but not single letters)
+        r'^\d+\.?\s+[A-Z][a-z]',  # Numbered headings (must have text after number)
+        r'^[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,10}$',  # Title Case (short)
+        r'^[IVX]+\.?\s+[A-Z][a-z]',  # Roman numerals (must have text after)
+        r'^[A-Z]\.\s+[A-Z][a-z]',  # Letter numbering (must have text after)
+    ]
+
+    for pattern in heading_patterns:
+        if re.match(pattern, text):
+            return True
+
+    return False
+
 def detect_heading(text: str) -> bool:
-    """Detect if text is likely a heading based on patterns"""
+    """Legacy pattern-based heading detection kept for compatibility."""
     if not text or len(text.strip()) < 3:
         return False
 
     text = text.strip()
+
+    # Headings don't typically end with punctuation
+    if text.endswith(('.', '?', '!')):
+        return False
 
     # Skip single numbers or very short text
     if len(text) <= 3 and text.isdigit():
@@ -79,7 +131,7 @@ def detect_heading(text: str) -> bool:
     heading_patterns = [
         r'^[A-Z][A-Z\s]+$',  # ALL CAPS (but not single letters)
         r'^\d+\.?\s+[A-Z][a-z]',  # Numbered headings (must have text after number)
-        r'^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*$',  # Title Case (multiple words)
+        r'^[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,10}$',  # Title Case (short)
         r'^[IVX]+\.?\s+[A-Z][a-z]',  # Roman numerals (must have text after)
         r'^[A-Z]\.\s+[A-Z][a-z]',  # Letter numbering (must have text after)
     ]
@@ -100,27 +152,27 @@ def generate_meaningful_title(text: str, max_length: int = 60) -> str:
     """Generate a meaningful title from text content"""
     if not text or len(text.strip()) < 10:
         return "Untitled Section"
-
-    # Try to find the first sentence that looks like a heading
+    # Try to find a clear sentence that looks like a heading
     sentences = sent_tokenize(text)
     for sentence in sentences:
-        sentence = sentence.strip()
-        if detect_heading(sentence) and len(sentence) <= max_length:
-            return sentence
+        s = sentence.strip()
+        if detect_heading(s) and len(s) <= max_length:
+            return s
 
-    # If no heading found, use first sentence or create from keywords
+    # Prefer keyword-based short titles to avoid using the raw first sentence
+    keywords = extract_keywords(text, 4)
+    if keywords:
+        title = " ".join(keywords[:3]).title()
+        if len(title) <= max_length:
+            return title
+        return title[:max_length-3] + "..."
+
+    # If no keywords, fall back to first sentence (truncated if needed)
     if sentences:
         first_sentence = sentences[0].strip()
         if len(first_sentence) <= max_length:
             return first_sentence
-        else:
-            # Truncate first sentence
-            return first_sentence[:max_length-3] + "..."
-
-    # Fallback: use keywords
-    keywords = extract_keywords(text, 3)
-    if keywords:
-        return " ".join(keywords[:3]).title()
+        return first_sentence[:max_length-3] + "..."
 
     return "Content Section"
 
@@ -246,8 +298,14 @@ def _merge_fallback_chunks_to_max(chunks: List[Dict], max_chunks: int = 20) -> L
             title = generate_meaningful_title(combined_text)
             new_chunk = {
                 "file_source": a.get("file_source"),
-                "label": title,
-                "content": combined_text,
+                "title": title,
+                "start_page": None,
+                "end_page": None,
+                "content": [{
+                    "tag": title,
+                    "content": [{"text": combined_text, "page_number": None}],
+                    "tags": auto_tag_chunk(combined_text)[:3]
+                }],
                 "tags": auto_tag_chunk(combined_text)[:3]
             }
             new_list.append(new_chunk)
@@ -298,6 +356,93 @@ def extract_toc_entries_from_elements(elements):
             entries.append({"title": title, "page": page})
     return entries
 
+
+def enrich_elements_with_font_info(filepath: str, elements: List[Dict]) -> List[Dict]:
+    """Use PyMuPDF to annotate elements with approximate font sizes and bold flags.
+
+    This is heuristic: we map spans on each page to elements by substring matching of span text
+    inside element text. We compute a page median font size to act as body font size baseline.
+    """
+    try:
+        doc = fitz.open(filepath)
+    except Exception as e:
+        logger.debug(f"Could not open PDF for font enrichment: {e}")
+        return elements
+
+    # Build spans per page
+    page_spans = {}
+    for p in range(len(doc)):
+        try:
+            page = doc[p]
+            text_dict = page.get_text("dict")
+            spans = []
+            for block in text_dict.get("blocks", []):
+                for line in block.get("lines", []):
+                    for span in line.get("spans", []):
+                        spans.append({
+                            "text": span.get("text", "").strip(),
+                            "size": span.get("size", 0),
+                            "font": span.get("font", "")
+                        })
+            page_spans[p + 1] = spans
+        except Exception:
+            page_spans[p + 1] = []
+
+    # Compute median font per page
+    import statistics
+    page_median = {}
+    for pg, spans in page_spans.items():
+        sizes = [s["size"] for s in spans if s.get("size")]
+        if sizes:
+            try:
+                page_median[pg] = statistics.median(sizes)
+            except Exception:
+                page_median[pg] = sizes[0]
+        else:
+            page_median[pg] = 0
+
+    # Annotate elements
+    for el in elements:
+        meta = el.setdefault("metadata", {})
+        pg = meta.get("page_number")
+        if not pg:
+            continue
+        spans = page_spans.get(pg, [])
+        median = page_median.get(pg, 0) or 0
+
+        el_text = (el.get("text") or "").strip()
+        # find best matching span by substring presence
+        best_size = None
+        best_font = ""
+        lower_text = el_text.lower()
+        for s in spans:
+            stext = (s.get("text") or "").strip()
+            if not stext:
+                continue
+            if stext.lower() in lower_text or lower_text in stext.lower():
+                if best_size is None or s.get("size", 0) > best_size:
+                    best_size = s.get("size", 0)
+                    best_font = s.get("font", "")
+
+        if best_size is None:
+            best_size = median
+
+        font_name = (best_font or "").lower()
+        is_bold = any(k in font_name for k in ("bold", "black", "semibold", "demi"))
+
+        meta["font_info"] = {
+            "font_size": best_size or 0,
+            "is_bold": bool(is_bold),
+            "body_font_size": median or 0,
+        }
+
+    try:
+        doc.close()
+    except Exception:
+        pass
+
+    return elements
+
 def group_elements_by_page(elements):
     """Group text elements by page, skipping footers."""
     page_map = {}
@@ -328,6 +473,17 @@ def chunk_by_toc_with_minors(entries, elements):
     """
     if not entries or not elements:
         return []
+
+    # Try to open the PDF with PyMuPDF for additional font analysis
+    doc = None
+    if elements and isinstance(elements[0], dict):
+        pdf_path = elements[0].get("metadata", {}).get("filename")
+        if pdf_path:
+            try:
+                doc = fitz.open(pdf_path)
+            except Exception as e:
+                logger.warning(f"Could not open PDF with PyMuPDF: {e}")
+
     # Build a map of page_number -> [elements]
     page_map = {}
     for el in elements:
@@ -351,51 +507,92 @@ def chunk_by_toc_with_minors(entries, elements):
         minor_chunks = []
         current_minor = None
         current_content = []
-        min_chunk_size = 500  # Minimum content size for a minor chunk
+        min_chunk_size = 300  # Minimum content size for a minor chunk
 
         for el in section_elements:
             text = el.get("text", "").strip()
-            el_type = el.get("type", "")
             page_number = el.get("metadata", {}).get("page_number")
 
             if not text:
                 continue
 
-            # Check if this element is a heading
-            is_heading = (el_type == "Title" and text != title) or detect_heading(text)
+            # Stricter heading check: prefer library-based detection (uses element metadata),
+            # fall back to pattern-based detection for plain text elements
+            try:
+                is_heading = detect_heading_with_libraries(el)
+            except Exception:
+                is_heading = detect_heading(text)
+            is_heading = is_heading and text != title
 
-            if is_heading and current_minor and len(' '.join(current_content)) > min_chunk_size:
-                # Finalize current chunk
-                content_text = ' '.join(current_content)
-                current_minor["content"] = [{"text": content_text, "page_number": page_number}]
-                current_minor["tags"] = auto_tag_chunk(content_text, title)
-                minor_chunks.append(current_minor)
+            # If we find a heading and there is accumulated content, finalize that accumulated content
+            if is_heading and current_content and len(" ".join(current_content)) > min_chunk_size:
+                content_text = " ".join(current_content)
+                # Determine previous chunk tag: prefer any existing heading_text, otherwise generate
+                prev_heading = current_minor.get("heading_text") if current_minor else None
+                if prev_heading and detect_heading(prev_heading):
+                    prev_tag = prev_heading
+                else:
+                    prev_tag = generate_meaningful_title(content_text)
+                finalized_prev = {
+                    "tag": prev_tag,
+                    "content": [{"text": content_text, "page_number": page_number}],
+                    "tags": auto_tag_chunk(content_text, title)
+                }
+                minor_chunks.append(finalized_prev)
                 current_minor = None
                 current_content = []
 
+            # If this element is a heading, start a new minor chunk (store heading_text for later)
             if is_heading:
-                # Start new minor chunk
+                # Start a new minor chunk placeholder; capture heading font_info and page for validation
                 current_minor = {
-                    "tag": text,
+                    "heading_text": text,
+                    "font_info": el.get("metadata", {}).get("font_info", {}),
+                    "page_number": page_number,
                     "content": []
                 }
+                # reset content accumulator for the new chunk
+                current_content = []
+                continue
+
+            # Otherwise, accumulate content for the current minor chunk
+            current_content.append(text)
+            if not current_minor:
+                current_minor = {"heading_text": None, "font_info": None, "page_number": page_number, "content": []}
+
+
+        # Finalize the last chunk
+        if current_minor or current_content:
+            content_text = " ".join(current_content) if current_content else ""
+            heading_text = current_minor.get("heading_text") if current_minor else None
+
+            if content_text:
+                # Validate heading_text using library detection if available
+                tag = None
+                if heading_text:
+                    try:
+                        fake_el = {"text": heading_text, "metadata": {"font_info": current_minor.get("font_info", {}), "page_number": current_minor.get("page_number")}}
+                        if detect_heading_with_libraries(fake_el):
+                            tag = heading_text
+                    except Exception:
+                        pass
+                if not tag:
+                    tag = generate_meaningful_title(content_text)
+                finalized = {
+                    "tag": tag,
+                    "content": [{"text": content_text, "page_number": page_number}],
+                    "tags": auto_tag_chunk(content_text, title)
+                }
+                minor_chunks.append(finalized)
             else:
-                # Add to current content
-                current_content.append(text)
-
-                # If we don't have a current minor chunk, create one
-                if not current_minor:
-                    current_minor = {
-                        "tag": generate_meaningful_title(text),
-                        "content": []
+                # No content accumulated; create a small stub chunk from the heading text
+                if heading_text:
+                    finalized = {
+                        "tag": heading_text,
+                        "content": [{"text": heading_text, "page_number": page_number}],
+                        "tags": auto_tag_chunk(heading_text, title)
                     }
-
-        # Finalize last chunk
-        if current_minor and current_content:
-            content_text = ' '.join(current_content)
-            current_minor["content"] = [{"text": content_text, "page_number": page_number}]
-            current_minor["tags"] = auto_tag_chunk(content_text, title)
-            minor_chunks.append(current_minor)
+                    minor_chunks.append(finalized)
 
         # If no minor chunks were created, create one from all content
         if not minor_chunks:
@@ -415,7 +612,7 @@ def chunk_by_toc_with_minors(entries, elements):
             "start_page": start_page,
             "end_page": end_page - 1,
             "content": minor_chunks,
-            "tags": auto_tag_chunk(' '.join([chunk["content"][0]["text"] for chunk in minor_chunks]), title)
+            "tags": auto_tag_chunk(' '.join([chunk["content"][0]["text"] for chunk in minor_chunks if chunk["content"]]), title)
         })
     return chunks
 
@@ -447,6 +644,12 @@ def extract_pdf_sections(filepath: str, figures_dir: str) -> List[Dict]:
     # Filter out footers using both type/category and patterns
     sections_dicts = filter_footer_content(sections_dicts)
 
+    # Enrich elements with font metadata where possible to improve heading detection
+    try:
+        sections_dicts = enrich_elements_with_font_info(filepath, sections_dicts)
+    except Exception as e:
+        logger.debug(f"Font enrichment skipped: {e}")
+
     toc_entries = extract_toc_entries_from_elements(sections_dicts)
     if toc_entries:
         logger.info("Using robust TOC-based chunking with minor chunks")
@@ -464,8 +667,17 @@ def extract_pdf_sections(filepath: str, figures_dir: str) -> List[Dict]:
             if not text:
                 continue
 
-            # Check if this element is a heading
-            is_heading = detect_heading(text) or el.get("type") == "Title"
+            # Check if this element is a heading. Prefer library-based detection when element has metadata.
+            try:
+                if isinstance(el, dict):
+                    is_heading = detect_heading_with_libraries(el)
+                else:
+                    is_heading = detect_heading(text)
+            except Exception:
+                is_heading = detect_heading(text)
+            # Treat explicit 'Title' type as a heading as well
+            if el.get("type") == "Title":
+                is_heading = True
 
             if is_heading and buffer and len(buffer) > 1000:
                 # Finalize current chunk
@@ -473,8 +685,14 @@ def extract_pdf_sections(filepath: str, figures_dir: str) -> List[Dict]:
                 title = generate_meaningful_title(content)
                 chunks.append({
                     "file_source": filepath,
-                    "label": title,
-                    "content": content,
+                    "title": title,
+                    "start_page": None,
+                    "end_page": None,
+                    "content": [{
+                        "tag": title,
+                        "content": [{"text": content, "page_number": None}],
+                        "tags": auto_tag_chunk(content)
+                    }],
                     "tags": auto_tag_chunk(content)
                 })
                 buffer = ""
@@ -494,8 +712,14 @@ def extract_pdf_sections(filepath: str, figures_dir: str) -> List[Dict]:
                 title = generate_meaningful_title(content)
                 chunks.append({
                     "file_source": filepath,
-                    "label": title,
-                    "content": content,
+                    "title": title,
+                    "start_page": None,
+                    "end_page": None,
+                    "content": [{
+                        "tag": title,
+                        "content": [{"text": content, "page_number": None}],
+                        "tags": auto_tag_chunk(content)
+                    }],
                     "tags": auto_tag_chunk(content)
                 })
                 buffer = ""
@@ -507,8 +731,14 @@ def extract_pdf_sections(filepath: str, figures_dir: str) -> List[Dict]:
             title = generate_meaningful_title(content)
             chunks.append({
                 "file_source": filepath,
-                "label": title,
-                "content": content,
+                "title": title,
+                "start_page": None,
+                "end_page": None,
+                "content": [{
+                    "tag": title,
+                    "content": [{"text": content, "page_number": None}],
+                    "tags": auto_tag_chunk(content)
+                }],
                 "tags": auto_tag_chunk(content)
             })
         # Cap total chunks to max 20 by merging

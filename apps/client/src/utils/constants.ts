@@ -1,5 +1,6 @@
 export const API = {
-  BASE_URL: () => '',
+  // Default to local backend during development. Override in production builds or via environment.
+  BASE_URL: () => 'http://localhost:8000',
   ENDPOINTS: {
     AUTH: {
       BASE_URL: () => '/api/auth',

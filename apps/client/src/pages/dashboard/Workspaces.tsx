@@ -5,22 +5,23 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useSections } from '../../hooks/useSections';
 import { useWorkspace } from '../../hooks/useWorkspace';
+import { useWorkspaceTypes } from '../../hooks/useWorkspaceTypes';
 import CreateWorkspace from './CreateWorkspace';
-
 const Workspaces: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { workspaces, getAllTags, filterWorkspaces, fetchWorkspaces, loading, deleteWorkspace } =
     useWorkspace();
   const { fetchSections } = useSections();
+  const { workspaceTypes } = useWorkspaceTypes();
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [sectionCounts, setSectionCounts] = useState<{ [workspaceId: string]: number }>({});
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<null | {id: string; name: string }>(null);
+  const [deleteTarget, setDeleteTarget] = useState<null | { id: string; name: string }>(null);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
 
   const debouncedSearch = useDebounce(search, 500);
-
   const tags = getAllTags();
 
   function toggleTag(tag: string) {
@@ -40,7 +41,6 @@ const Workspaces: React.FC = () => {
         await fetchWorkspaces();
       }
     };
-
     performFilter();
   }, [debouncedSearch, selectedTags]);
 
@@ -84,7 +84,8 @@ const Workspaces: React.FC = () => {
         Template: 'Header',
         Blog: 'Title',
       };
-      const defaultSectionName = defaultSectionMap[newWorkspace.workspaceType] || '';
+      const defaultSectionName =
+        defaultSectionMap[newWorkspace.workspaceType as keyof typeof defaultSectionMap] || '';
       navigate(`/dashboard/proposal-authoring/${newWorkspace.id}`, {
         state: {
           workspaceId: newWorkspace.id,
@@ -95,14 +96,19 @@ const Workspaces: React.FC = () => {
     }
   };
 
+  // Filter workspaces by selectedType
+  const filteredWorkspaces = selectedType
+    ? workspaces.filter((ws) => ws.workspace_type === selectedType)
+    : workspaces;
+
   return (
     <div className="min-h-full bg-white">
       <div className="bg-white border-b border-gray-200">
         <div className="px-8 py-6">
           <div className="max-w-7xl mx-auto flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Content Workspaces</h1>
-              <p className="text-gray-600 mt-1">
+              <h1 className="text-base font-medium text-gray-900">Content Workspaces</h1>
+              <p className="text-xs text-gray-600 mt-1">
                 Organize and manage your reusable content libraries
               </p>
             </div>
@@ -110,9 +116,9 @@ const Workspaces: React.FC = () => {
               {workspaces.length > 0 && (
                 <button
                   onClick={() => setShowCreateModal(true)}
-                  className="bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors"
+                  className="bg-white text-primary border border-primary px-3 py-1.5 rounded font-normal text-xs hover:bg-primary hover:text-white transition-colors"
                 >
-                  <FiPlus className="w-4 h-4 inline mr-2" />
+                  <FiPlus className="w-3 h-3 inline mr-1" />
                   New Workspace
                 </button>
               )}
@@ -120,9 +126,9 @@ const Workspaces: React.FC = () => {
           </div>
         </div>
       </div>
-
       <div className="px-8 py-8">
         <div className="max-w-7xl mx-auto">
+          {/* Search bar and tags filter */}
           <div className="mb-8 space-y-4">
             <div className="relative">
               <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -131,18 +137,17 @@ const Workspaces: React.FC = () => {
                 placeholder="Search workspaces..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full md:w-96 pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-200"
+                className="w-full md:w-80 pl-10 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-200 text-xs"
               />
             </div>
-
             {tags.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                <span className="text-sm font-medium text-gray-700 mr-2 py-2">Filter by tags:</span>
+                <span className="text-xs font-normal text-gray-700 mr-2 py-1">Filter by tags:</span>
                 {tags.map((tag) => (
                   <button
                     key={tag}
                     onClick={() => toggleTag(tag)}
-                    className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
+                    className={`px-2 py-0.5 rounded-full text-xs font-normal border transition-colors ${
                       selectedTags.includes(tag)
                         ? 'bg-primary text-white border-primary'
                         : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-primary/10 hover:border-primary/20'
@@ -154,7 +159,7 @@ const Workspaces: React.FC = () => {
                 {selectedTags.length > 0 && (
                   <button
                     onClick={() => setSelectedTags([])}
-                    className="px-3 py-1 rounded-full text-sm font-medium text-gray-500 border border-gray-200 hover:bg-gray-50 transition-colors"
+                    className="px-2 py-0.5 rounded-full text-xs font-normal text-gray-500 border border-gray-200 hover:bg-gray-50 transition-colors"
                   >
                     Clear filters
                   </button>
@@ -162,96 +167,119 @@ const Workspaces: React.FC = () => {
               </div>
             )}
           </div>
-
-          {loading ? (
-            <div className="text-center py-20 text-gray-500">Loading...</div>
-          ) : workspaces.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {workspaces.map((workspace) => (
-                <div
-                  key={workspace.id}
-                  onClick={() => navigate(`/dashboard/workspaces/${workspace.id}`)}
-                  className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md hover:border-gray-300 transition-all duration-200 cursor-pointer group relative"
+          {/* Workspace Types and Workspace List grouped below search bar */}
+          <div className="flex flex-row gap-10 items-start justify-start">
+            <div className="w-44 min-w-[9rem] bg-white border border-gray-200 rounded-lg p-3 flex flex-col gap-1 h-fit">
+              <span className="text-xs font-semibold text-gray-500 mb-2 ml-1">Workspace Types</span>
+              <button
+                className={`text-left px-3 py-2 rounded font-medium text-xs transition-colors mb-1 bg-white hover:bg-gray-200 ${
+                  !selectedType
+                    ? 'text-primary font-semibold'
+                    : 'text-gray-700 hover:text-primary hover:font-semibold'
+                }`}
+                onClick={() => setSelectedType(null)}
+              >
+                All Types
+              </button>
+              {workspaceTypes.map((type) => (
+                <button
+                  key={type.id}
+                  className={`text-left px-3 py-2 rounded font-medium text-xs transition-colors mb-1 bg-white hover:bg-gray-200 ${
+                    selectedType === type.name
+                      ? 'text-primary font-semibold'
+                      : 'text-gray-700 hover:text-primary hover:font-semibold'
+                  }`}
+                  onClick={() => setSelectedType(type.name)}
                 >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleteTarget({ id: workspace.id, name: workspace.name });
-                    }}
-                    className="absolute top-3 right-3 p-1 bg-red-100 hover:bg-red-200 text-red-600 rounded-full focus:outline-none focus:ring-2 focus:ring-red-300 z-10"
-                    title="Delete workspace"
-                  >
-                    <FiTrash2 className="w-4 h-4" />
-                  </button>
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center mb-3">
-                        <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center mr-3">
-                          <FiFolder className="w-5 h-5 text-primary" />
-                        </div>
-                        <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary transition-colors">
-                          {workspace.name}
-                        </h3>
-                      </div>
-                      <p className="text-gray-600 text-sm mb-4">
-                        Content library for reusable proposal components
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    {workspace.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {workspace.tags.slice(0, 3).map((tag) => (
-                          <span
-                            key={tag}
-                            className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-md font-medium flex items-center"
-                          >
-                            <FiTag className="w-3 h-3 mr-1" />
-                            {tag}
-                          </span>
-                        ))}
-                        {workspace.tags.length > 3 && (
-                          <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-md font-medium">
-                            +{workspace.tags.length - 3} more
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-between text-sm text-gray-500">
-                      <span>Content pieces: {sectionCounts[workspace.id] ?? 0}</span>
-                      <span>Last updated: Today</span>
-                    </div>
-                  </div>
-                </div>
+                  {type.name}
+                </button>
               ))}
             </div>
-          ) : (
-            <div className="text-center py-20">
-              <div className="max-w-md mx-auto">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <FiFolder className="w-8 h-8 text-gray-400" />
+            <div className="flex-1">
+              {loading ? (
+                <div className="text-center py-20 text-gray-500">Loading...</div>
+              ) : filteredWorkspaces.length > 0 ? (
+                <ul className="divide-y divide-gray-200 bg-white rounded-lg border border-gray-200 text-xs my-[2px] w-full md:w-5/6 lg:w-3/4 xl:w-2/3 ml-0">
+                  {filteredWorkspaces.map((workspace) => (
+                    <li
+                      key={workspace.id}
+                      onClick={() => navigate(`/dashboard/workspaces/${workspace.id}`)}
+                      className="relative flex items-center px-3 py-2 hover:bg-gray-50 transition cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="w-8 h-8 bg-primary/10 rounded flex items-center justify-center">
+                          <FiFolder className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-normal text-gray-900 truncate text-sm group-hover:text-primary">
+                            {workspace.name}
+                          </div>
+                          {workspace.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {workspace.tags.slice(0, 3).map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="px-1.5 py-0.5 bg-primary/10 text-primary text-[10px] rounded-full font-normal flex items-center"
+                                >
+                                  <FiTag className="w-3 h-3 mr-1" />
+                                  {tag}
+                                </span>
+                              ))}
+                              {workspace.tags.length > 3 && (
+                                <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-[10px] rounded-full font-normal">
+                                  +{workspace.tags.length - 3} more
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-row items-center gap-2 text-[10px] text-gray-500">
+                        <span>Content: {sectionCounts[workspace.id] ?? 0}</span>
+                        <span>Last updated: Today</span>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteTarget({ id: workspace.id, name: workspace.name });
+                        }}
+                        className="ml-2 p-1 bg-red-100 hover:bg-red-200 text-red-600 rounded-full focus:outline-none focus:ring-2 focus:ring-red-300 z-10"
+                        title="Delete workspace"
+                      >
+                        <FiTrash2 className="w-4 h-4" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-center py-20">
+                  <div className="max-w-md mx-auto">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <FiFolder className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <h3 className="text-base font-medium text-gray-900 mb-2">
+                      {search || selectedTags.length > 0
+                        ? 'No workspaces found'
+                        : 'No workspaces yet'}
+                    </h3>
+                    <p className="text-xs text-gray-600 mb-6">
+                      {search || selectedTags.length > 0
+                        ? 'Try adjusting your search or filter criteria'
+                        : 'Create your first workspace to organize reusable content'}
+                    </p>
+                    {!search && selectedTags.length === 0 && (
+                      <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="bg-primary text-white px-3 py-1.5 rounded font-normal text-xs hover:bg-primary/90 transition-colors"
+                      >
+                        Add New Workspace
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                  {search || selectedTags.length > 0 ? 'No workspaces found' : 'No workspaces yet'}
-                </h3>
-                <p className="text-gray-600 mb-8">
-                  {search || selectedTags.length > 0
-                    ? 'Try adjusting your search or filter criteria'
-                    : 'Create your first workspace to organize reusable content'}
-                </p>
-                {!search && selectedTags.length === 0 && (
-                  <button
-                    onClick={() => setShowCreateModal(true)}
-                    className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors"
-                  >
-                    Add New Workspace
-                  </button>
-                )}
-              </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
       {showCreateModal && (
@@ -264,7 +292,7 @@ const Workspaces: React.FC = () => {
           </div>
         </div>
       )}
-       {deleteTarget && (
+      {deleteTarget && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
@@ -277,7 +305,9 @@ const Workspaces: React.FC = () => {
               </button>
             </div>
             <div className="mb-6 text-neutral-700">
-              Are you sure you want to delete <span className="font-semibold">{deleteTarget.name}</span>? This action cannot be undone.
+              Are you sure you want to delete{' '}
+              <span className="font-semibold">{deleteTarget.name}</span>? This action cannot be
+              undone.
             </div>
             <div className="flex space-x-3">
               <button
