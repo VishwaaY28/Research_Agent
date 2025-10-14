@@ -1361,15 +1361,45 @@ const ProposalAuthoring: React.FC = () => {
                         }}
                         className="w-4 h-4"
                       />
-                      <button
-                        onClick={() =>
-                          setExpandedMajors((prev) => ({ ...prev, [sectId]: !prev[sectId] }))
-                        }
-                        className="flex-1 text-left"
-                      >
-                        <span className="font-medium text-gray-900 truncate">{heading}</span>
-                      </button>
+                      <div className="flex-1 min-w-0">
+                        <button
+                          onClick={() =>
+                            setExpandedMajors((prev) => ({ ...prev, [sectId]: !prev[sectId] }))
+                          }
+                          className="text-left w-full"
+                        >
+                          <span className="font-medium text-gray-900 truncate">{heading}</span>
+                        </button>
+
+                        {/* Show source inline (tags moved to controls for side-by-side layout) */}
+                        <div className="mt-1">
+                          <div className="text-xs text-gray-500 truncate">
+                            Source: {section.source || 'Unknown'}
+                          </div>
+                        </div>
+                      </div>
                       <div className="flex items-center gap-2">
+                        {/* Render tags next to the View button so they align horizontally */}
+                        {Array.isArray(section.tags) && section.tags.length > 0 && (
+                          <div className="flex items-center gap-1 flex-wrap max-w-[36rem]">
+                            {section.tags.map((tag: any, tIdx: number) => (
+                              <span
+                                key={
+                                  typeof tag === 'object' && tag !== null && 'id' in tag
+                                    ? tag.id
+                                    : tIdx
+                                }
+                                className="inline-flex items-center px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded text-xs"
+                              >
+                                <FiTag className="w-3 h-3 mr-1" />
+                                {typeof tag === 'object' && tag !== null && 'name' in tag
+                                  ? tag.name
+                                  : String(tag)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
                         <button
                           className="text-xs text-indigo-600 hover:underline"
                           onClick={() => handleViewSection(section)}
