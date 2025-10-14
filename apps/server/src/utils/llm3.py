@@ -34,7 +34,7 @@ class GroqClient:
             if not self._api_key:
                 raise ValueError("GROQ_API_KEY environment variable is required.")
             self._api_base = env.get('GROQ_API_URL', 'https://api.groq.com/openai/v1')
-            self._model = env.get('GROQ_MODEL', 'groq/compound')  # Updated to a standard GROQ model; adjust as needed
+            self._model = env.get('GROQ_MODEL','meta-llama/llama-4-scout-17b-16e-instruct')  # Updated to a standard GROQ model; adjust as needed
             logger.info(f"Loaded GROQ config - base: {self._api_base}, model: {self._model}")
         return {
             'api_key': self._api_key,
@@ -55,7 +55,7 @@ class GroqClient:
         context_images: Optional[List[Dict[str, Any]]] = None,
         context_tables: Optional[List[Dict[str, Any]]] = None,
         section_name: str = "Generated Content",
-        max_tokens: int = 600,
+        max_tokens: int = 8000,
     ) -> Dict[str, Any]:
         """Generate content using the GROQ API.
 
@@ -87,8 +87,8 @@ class GroqClient:
 
             # System prompt (fixed role)
             system_prompt = f"""
-You are a professional proposal writer for a reputed IT Services enterprise.
-You will help draft a specific section of a business proposal based strictly on the content provided below from a Workspace.
+You are a professional blog writer for a reputed IT Services enterprise.
+You will help draft a specific section of a blog based strictly on the content provided below from a Workspace.
 
 Your response must follow these principles:
 - Use only the information provided in the Workspace. Do not assume or invent additional content.
@@ -116,7 +116,6 @@ Output requirements (IMPORTANT):
 
 ---
 Instructions:
-- Synthesize and summarize the workspace content into the coherent, well-written section.
 - If the content spans multiple ideas, organize them into logical paragraphs or bullet points as appropriate.
 - Do not repeat raw content or include citations/attributions. The output should be ready to copy-paste into a client-facing proposal.
 """

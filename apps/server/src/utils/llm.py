@@ -20,37 +20,80 @@ def count_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
 
 class AzureOpenAIClient:
     def __init__(self):
-        self.key_vault_url = "https://KV-fs-to-autogen.vault.azure.net/"
+        # prefer KEY_VAULT_URL from environment; keep hard-coded default for backward compatibility
+        self.key_vault_url = env.get("KEY_VAULT_URL") or "https://KV-fs-to-autogen.vault.azure.net/"
         self._config = None
         self._client = None
 
     def _load_config_from_vault(self):
         """Load configuration from Azure Key Vault"""
         if self._config is None:
-            try:
-                credential = DefaultAzureCredential()
-                client = SecretClient(vault_url=self.key_vault_url, credential=credential)
-
-                self._config = {
-                    "api_key": client.get_secret("AzureLLMKey").value,
-                    "api_base": client.get_secret("AzureOpenAiBase").value,
-                    "model_version": client.get_secret("AzureOpenAiVersion").value,
-                    "deployment": client.get_secret("AzureOpenAiDeployment").value,
-                }
-
-                logger.info(f"Loaded Azure OpenAI config - Base: {self._config['api_base']}")
-                logger.info(f"Model version: {self._config['model_version']}")
-                logger.info(f"Deployment: {self._config['deployment']}")
-                logger.info(f"API Key starts with: {self._config['api_key'][:5]}...")
-
-            except Exception as e:
-                logger.error(f"Failed to load config from Azure Key Vault: {str(e)}")
+            # If KEY_VAULT_URL is not configured, skip Key Vault entirely and use environment variables
+            kv_url = env.get("KEY_VAULT_URL") or self.key_vault_url
+            if not kv_url:
+                logger.info("No Key Vault URL configured; using environment variables for Azure OpenAI config")
                 self._config = {
                     "api_key": env.get("AZURE_OPENAI_API_KEY"),
                     "api_base": env.get("AZURE_OPENAI_ENDPOINT"),
                     "model_version": env.get("AZURE_OPENAI_API_VERSION", "2024-02-01"),
                     "deployment": env.get("AZURE_OPENAI_DEPLOYMENT"),
                 }
+            else:
+                try:
+                    credential = DefaultAzureCredential()
+                    client = SecretClient(vault_url=kv_url, credential=credential)
+
+                    # Try to read each secret individually, but don't fail the whole flow if one is missing
+                    cfg = {}
+                    try:
+                        cfg["api_key"] = client.get_secret("AzureLLMKey").value
+                    except Exception:
+                        logger.warning("AzureLLMKey not found in Key Vault or access denied; will try environment variable AZURE_OPENAI_API_KEY")
+                        cfg["api_key"] = None
+
+                    try:
+                        cfg["api_base"] = client.get_secret("AzureOpenAiBase").value
+                    except Exception:
+                        logger.warning("AzureOpenAiBase not found in Key Vault or access denied; will try environment variable AZURE_OPENAI_ENDPOINT")
+                        cfg["api_base"] = None
+
+                    try:
+                        cfg["model_version"] = client.get_secret("AzureOpenAiVersion").value
+                    except Exception:
+                        logger.warning("AzureOpenAiVersion not found in Key Vault or access denied; will try environment variable AZURE_OPENAI_API_VERSION")
+                        cfg["model_version"] = None
+
+                    try:
+                        cfg["deployment"] = client.get_secret("AzureOpenAiDeployment").value
+                    except Exception:
+                        logger.warning("AzureOpenAiDeployment not found in Key Vault or access denied; will try environment variable AZURE_OPENAI_DEPLOYMENT")
+                        cfg["deployment"] = None
+
+                    # Fill any missing values from environment variables
+                    cfg["api_key"] = cfg.get("api_key") or env.get("AZURE_OPENAI_API_KEY")
+                    cfg["api_base"] = cfg.get("api_base") or env.get("AZURE_OPENAI_ENDPOINT")
+                    cfg["model_version"] = cfg.get("model_version") or env.get("AZURE_OPENAI_API_VERSION", "2024-02-01")
+                    cfg["deployment"] = cfg.get("deployment") or env.get("AZURE_OPENAI_DEPLOYMENT")
+
+                    self._config = cfg
+
+                    if self._config.get("api_base"):
+                        logger.info(f"Loaded Azure OpenAI config - Base: {self._config['api_base']}")
+                    if self._config.get("model_version"):
+                        logger.info(f"Model version: {self._config['model_version']}")
+                    if self._config.get("deployment"):
+                        logger.info(f"Deployment: {self._config['deployment']}")
+                    if self._config.get("api_key"):
+                        logger.info(f"API Key starts with: {self._config['api_key'][:5]}...")
+
+                except Exception as e:
+                    logger.warning(f"Failed to access Azure Key Vault at {kv_url}: {str(e)}; falling back to environment variables")
+                    self._config = {
+                        "api_key": env.get("AZURE_OPENAI_API_KEY"),
+                        "api_base": env.get("AZURE_OPENAI_ENDPOINT"),
+                        "model_version": env.get("AZURE_OPENAI_API_VERSION", "2024-02-01"),
+                        "deployment": env.get("AZURE_OPENAI_DEPLOYMENT"),
+                    }
 
         return self._config
 
@@ -59,8 +102,16 @@ class AzureOpenAIClient:
         if self._client is None:
             config = self._load_config_from_vault()
 
-            if not all([config["api_key"], config["api_base"], config["deployment"]]):
-                raise ValueError("Missing required Azure OpenAI configuration")
+            missing = [k for k in ("api_key", "api_base", "deployment") if not config.get(k)]
+            if missing:
+                # Provide detailed guidance to help operators fix environment
+                raise ValueError(
+                    "Missing required Azure OpenAI configuration: {}. "
+                    "Provide these via environment variables (AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT) "
+                    "or configure them in Azure Key Vault and set KEY_VAULT_URL.".format(
+                        ", ".join(missing)
+                    )
+                )
 
             self._client = AzureOpenAI(
                 azure_endpoint=config["api_base"],
