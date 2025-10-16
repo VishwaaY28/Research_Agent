@@ -33,8 +33,8 @@ class GroqClient:
             self._api_key = env.get('GROQ_API_KEY')
             if not self._api_key:
                 raise ValueError("GROQ_API_KEY environment variable is required.")
-            self._api_base = env.get('GROQ_API_URL', 'https://api.groq.com/openai/v1')
-            self._model = env.get('GROQ_MODEL','meta-llama/llama-4-scout-17b-16e-instruct')  # Updated to a standard GROQ model; adjust as needed
+            self._api_base = env.get('GROQ_API_URL')
+            self._model = env.get('GROQ_MODEL')  # Updated to a standard GROQ model; adjust as needed
             logger.info(f"Loaded GROQ config - base: {self._api_base}, model: {self._model}")
         return {
             'api_key': self._api_key,
