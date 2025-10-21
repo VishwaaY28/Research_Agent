@@ -12,6 +12,10 @@ import {
   MdSettings,
   MdSource,
 } from 'react-icons/md';
+import { TbBrain } from 'react-icons/tb';
+
+
+
 
 export const SidebarIcons = {
   dashboard: FaRegFileAlt, // Dashboard (changed)
@@ -23,6 +27,7 @@ export const SidebarIcons = {
   logout: MdLogout, // Logout
   chevronLeft: MdChevronLeft,
   chevronRight: MdChevronRight,
+  agent: TbBrain,
   // fallback
   file: FaRegFileAlt,
   folder: MdFolder,

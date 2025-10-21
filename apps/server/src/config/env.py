@@ -26,5 +26,6 @@ env = {
     "UNSTRUCTURED_API_URL": os.getenv("UNSTRUCTURED_API_URL", "https://api.unstructuredapp.io/general/v0/general"),
     "USE_UNSTRUCTURED_API": os.getenv("USE_UNSTRUCTURED_API", "true").lower() == "true",
     #GROQ API
-    "GROQ_API_KEY": os.getenv("GROQ_API_KEY")
+    "GROQ_API_KEY": os.getenv("GROQ_API_KEY"),
+    "GOOGLE_API_KEY": os.getenv("GOOGLE_API_KEY", "AIzaSyAZucb-iUV_L4hVuMZXAoH3wW3YsGZJzyg"),
 }

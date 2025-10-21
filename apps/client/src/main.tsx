@@ -13,6 +13,7 @@ import ProposalAuthoring from './pages/dashboard/ProposalAuthoring';
 // import ProposalView from './pages/dashboard/ProposalView';
 import PromptTemplatePage from './components/dashboard/PromptTemplatePage';
 import AddContentChunksPage from './pages/dashboard/AddContentChunksPage';
+import ResearchAgent from './pages/dashboard/ResearchAgent';
 import Workspaces from './pages/dashboard/Workspaces';
 import WorkspaceView from './pages/dashboard/WorkspaceView';
 import Error from './pages/Error';
@@ -92,6 +93,12 @@ const router = createBrowserRouter([
       {
         path: 'prompt-templates',
         element: <PromptTemplatePage />,
+      },
+
+      {
+        path: 'research-agent',
+        element: <ResearchAgent />,
+        errorElement: <Error />,
       },
     ],
   },
