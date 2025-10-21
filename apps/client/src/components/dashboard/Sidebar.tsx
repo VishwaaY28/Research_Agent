@@ -62,6 +62,11 @@ const Sidebar: React.FC = () => {
       label: 'Prompt Templates',
       icon: SidebarIcons.templates,
     },
+    {
+      path: '/dashboard/research-agent',
+      label: 'Research Agent',
+      icon: SidebarIcons.agent, // Make sure SidebarIcons.agent exists
+    },
   ];
 
   const handleLogout = () => {

@@ -127,5 +127,16 @@ export const API = {
       // TABLES: () => '/tables',
       // TABLES_SEARCH: () => '/tables/search',
     },
+    RESEARCH: {
+      BASE_URL: () => '/api/research',
+      START: () => '/start',
+      FETCH_URLS: () => '/fetch-urls',
+      START_WITH_URLS: () => '/start-with-urls',
+      STATUS: (workspaceId: string | number) => `/status/${workspaceId}`,
+    },
+    RESEARCH_AGENT: {
+      BASE_URL: () => '/api/research-agent',
+      RUN: () => '/run',
+    },
   },
 };

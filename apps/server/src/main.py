@@ -12,6 +12,8 @@ from api.routes.sources import router as sources_router
 from api.routes.tags import router as tags_router
 from api.routes.prompts import router as prompts_router
 from api.routes.data import router as data_router
+from api.routes.research import router as research_router
+from api.routes.research_agent import router as research_agent_router
 from api.handlers import prompt_templates
 # from api.routes.images import router as images_router
 # from api.routes.tables import router as tables_router
@@ -63,6 +65,8 @@ app.include_router(sources_router)
 app.include_router(tags_router)
 app.include_router(prompts_router)
 app.include_router(data_router)
+app.include_router(research_router)
+app.include_router(research_agent_router)
 app.include_router(prompt_templates.router, prefix="/api/prompt-templates")
 # app.include_router(images_router)
 # app.include_router(tables_router)
