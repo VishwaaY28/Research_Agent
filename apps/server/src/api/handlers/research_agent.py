@@ -7,7 +7,7 @@ from utils.agents import (
     extract_json, is_valid_url_object, is_valid_url
 )
 from crewai import Task, Crew
-from .research_sections import get_research_section_templates
+from database.models import UserIntent, ResearchSectionTemplate
 
 
 class Citation(BaseModel):
@@ -195,7 +195,8 @@ Do not include any text before or after the JSON. Do not include explanations or
 async def generate_research_report(
     company_name: str,
     product_name: str,
-    selected_urls: List[str]
+    selected_urls: List[str],
+    user_intent_id: int = None
 ) -> List[ResearchSection]:
     """Generate comprehensive research report with multiple sections."""
     try:
@@ -203,13 +204,30 @@ async def generate_research_report(
         if not valid_urls:
             raise HTTPException(status_code=400, detail="No valid URLs provided")
 
-        section_templates = get_research_section_templates()
+        # Get research section templates from database
+        if user_intent_id:
+            # Get sections for specific user intent
+            section_templates = await ResearchSectionTemplate.filter(
+                user_intent_id=user_intent_id
+            ).order_by('order', 'name')
+        else:
+            # Get default sections (Technical Focus)
+            default_intent = await UserIntent.filter(is_default=True).first()
+            if not default_intent:
+                raise HTTPException(status_code=404, detail="No default user intent found")
+            
+            section_templates = await ResearchSectionTemplate.filter(
+                user_intent=default_intent
+            ).order_by('order', 'name')
 
         sections = []
-        for section_name, section_template in section_templates.items():
+        for section_template in section_templates:
             section = await extract_research_section(
-                section_name,
-                section_template.dict(),
+                section_template.name,
+                {
+                    "prompt": section_template.prompt,
+                    "schema": section_template.schema
+                },
                 product_name,
                 valid_urls
             )

@@ -138,5 +138,15 @@ export const API = {
       BASE_URL: () => '/api/research-agent',
       RUN: () => '/run',
     },
+    RESEARCH_SECTION_TEMPLATES: {
+      BASE_URL: () => '/api/research-section-templates',
+      INTENTS: () => '/intents',
+      INTENT_BY_ID: (id: string | number) => `/intents/${id}`,
+      SECTIONS_BY_INTENT: (id: string | number) => `/intents/${id}/sections`,
+      SECTION_BY_ID: (id: string | number) => `/sections/${id}`,
+      SUB_SECTIONS_BY_SECTION: (id: string | number) => `/sections/${id}/sub-sections`,
+      SUB_SECTION_BY_ID: (id: string | number) => `/sub-sections/${id}`,
+      SEED: () => '/seed',
+    },
   },
 };

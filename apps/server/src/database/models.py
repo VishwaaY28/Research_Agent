@@ -102,3 +102,23 @@ class PromptTemplate(TimestampMixin):
     section_template = fields.ForeignKeyField('models.SectionTemplate', related_name='prompts')
     prompt = fields.TextField()
     is_default = fields.BooleanField(default=False)
+
+# Research Section Models
+class UserIntent(TimestampMixin):
+    id = fields.IntField(pk=True)
+    name = fields.CharField(max_length=255, unique=True)
+    is_default = fields.BooleanField(default=False)
+
+class ResearchSectionTemplate(TimestampMixin):
+    id = fields.IntField(pk=True)
+    user_intent = fields.ForeignKeyField('models.UserIntent', related_name='research_sections')
+    name = fields.CharField(max_length=255)
+    order = fields.IntField(default=0)
+    prompt = fields.TextField()
+    schema = fields.JSONField()  # Store the JSON schema for the section
+
+class ResearchSubSection(TimestampMixin):
+    id = fields.IntField(pk=True)
+    research_section = fields.ForeignKeyField('models.ResearchSectionTemplate', related_name='sub_sections')
+    name = fields.CharField(max_length=255)
+    order = fields.IntField(default=0)
