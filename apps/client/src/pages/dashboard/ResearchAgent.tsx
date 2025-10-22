@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { FiArrowLeft, FiArrowRight, FiPlay, FiPlus, FiX } from 'react-icons/fi';
 import { useResearch, type ResearchAgentResponse } from '../../hooks/useResearch';
+import { API } from '../../utils/constants';
 
 interface ResearchFormData {
   companyName: string;
@@ -26,6 +27,7 @@ const ResearchAgent: React.FC = () => {
 
 
   const [urlInput, setUrlInput] = useState('');
+  const [seeding, setSeeding] = useState(false);
 
 
   const addUrl = () => {
@@ -98,6 +100,30 @@ const ResearchAgent: React.FC = () => {
       toast.error(error.message || 'Failed to run research agent');
     } finally {
       setIsRunning(false);
+    }
+  };
+
+  const handleSeedDemoSections = async () => {
+    setSeeding(true);
+    try {
+      const response = await fetch(API.BASE_URL() + API.ENDPOINTS.RESEARCH_SECTION_TEMPLATES.BASE_URL() + API.ENDPOINTS.RESEARCH_SECTION_TEMPLATES.SEED(), {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(result.message);
+      } else {
+        toast.error('Failed to seed demo sections');
+      }
+    } catch (error) {
+      console.error('Error seeding demo sections:', error);
+      toast.error('Failed to seed demo sections');
+    } finally {
+      setSeeding(false);
     }
   };
 
@@ -185,6 +211,31 @@ const ResearchAgent: React.FC = () => {
                 using multiple sources including company websites, news articles, and industry
                 reports. You can also manually add specific URLs you want to include.
               </p>
+            </div>
+
+            <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-medium text-yellow-800 mb-1">Setup Required</h4>
+                  <p className="text-sm text-yellow-700">
+                    Before running research, you need to seed the default research section templates.
+                  </p>
+                </div>
+                <button
+                  onClick={handleSeedDemoSections}
+                  disabled={seeding}
+                  className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                >
+                  {seeding ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block mr-2" />
+                      Seeding...
+                    </>
+                  ) : (
+                    'Seed Demo Sections'
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         );
