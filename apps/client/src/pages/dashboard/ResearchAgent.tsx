@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { FiArrowLeft, FiArrowRight, FiPlay, FiPlus, FiX } from 'react-icons/fi';
-import { useResearch, type ResearchSection, type URLItem } from '../../hooks/useResearch';
+import { useResearch, type ResearchAgentResponse } from '../../hooks/useResearch';
 
 interface ResearchFormData {
   companyName: string;
@@ -12,28 +12,22 @@ interface ResearchFormData {
 const ResearchAgent: React.FC = () => {
   const { runResearchAgent, loading: researchLoading } = useResearch();
 
-  // Wizard state
   const [currentStep, setCurrentStep] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
 
-  // Research results state
-  const [researchResults, setResearchResults] = useState<{
-    urls: URLItem[];
-    sections: ResearchSection[];
-  } | null>(null);
+  const [researchResults, setResearchResults] = useState<ResearchAgentResponse | null>(null);
 
-  // Form data
+
   const [formData, setFormData] = useState<ResearchFormData>({
     companyName: '',
     productName: '',
     selectedUrls: [],
   });
 
-  // UI state
+
   const [urlInput, setUrlInput] = useState('');
 
 
-  // Helper functions
   const addUrl = () => {
     if (urlInput.trim() && !formData.selectedUrls.includes(urlInput.trim())) {
       setFormData((prev) => ({
@@ -63,7 +57,7 @@ const ResearchAgent: React.FC = () => {
       case 0:
         return formData.companyName.trim() && formData.productName.trim();
       case 1:
-        return true; // Review step
+        return true;
       default:
         return false;
     }
@@ -94,10 +88,11 @@ const ResearchAgent: React.FC = () => {
       };
 
       const response = await runResearchAgent(researchData);
-      
+
+      console.log('Research Agent Response:', response);
       setResearchResults(response);
-      setCurrentStep(2); // Move to results step
-      
+      setCurrentStep(2);
+
       toast.success('Research completed successfully!');
     } catch (error: any) {
       toast.error(error.message || 'Failed to run research agent');
@@ -230,57 +225,90 @@ const ResearchAgent: React.FC = () => {
       case 2:
         return (
           <div className="space-y-6">
-            {researchResults && (
+            {researchResults ? (
               <>
                 <div className="bg-green-50 rounded-lg p-4 border border-green-200">
                   <h3 className="text-lg font-semibold text-green-900 mb-2">Research Completed!</h3>
                   <p className="text-sm text-green-800">
-                    Successfully generated {researchResults.sections.length} research sections from {researchResults.urls.length} sources.
+                    Successfully generated {researchResults.sections?.length || 0} research sections from {researchResults.urls?.length || 0} sources.
                   </p>
                 </div>
 
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Sources Used</h3>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {researchResults.urls.map((urlItem, index) => (
-                      <div key={index} className="p-3 bg-gray-50 rounded-lg">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {urlItem.URL}
-                        </p>
-                        {urlItem.Description && (
-                          <p className="text-xs text-gray-600 mt-1">
-                            {urlItem.Description}
+                {researchResults.urls && researchResults.urls.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Sources Used</h3>
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {researchResults.urls.map((urlItem, index) => (
+                        <div key={index} className="p-3 bg-gray-50 rounded-lg">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {urlItem.URL}
                           </p>
-                        )}
-                      </div>
-                    ))}
+                          {urlItem.Description && (
+                            <p className="text-xs text-gray-600 mt-1">
+                              {urlItem.Description}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Research Sections</h3>
-                  <div className="space-y-4">
-                    {researchResults.sections.map((section, index) => (
-                      <div key={index} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-medium text-gray-900">{section.section_name}</h4>
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            section.relevant 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {section.relevant ? 'Relevant' : 'Not Relevant'}
-                          </span>
+                {researchResults.sections && researchResults.sections.length > 0 ? (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Research Sections</h3>
+                    <div className="space-y-4">
+                      {researchResults.sections.map((section, index) => (
+                        <div key={index} className="border border-gray-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-medium text-gray-900">{section.section_name}</h4>
+                            <span className={`px-2 py-1 rounded-full text-xs ${
+                              section.relevant
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {section.relevant ? 'Relevant' : 'Not Relevant'}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-2">{section.notes}</p>
+                          <div className="text-xs text-gray-500">
+                            Group: {section.group} | Topic: {section.topic}
+                          </div>
+                          {section.content && Object.keys(section.content).length > 0 && (
+                            <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                              <h5 className="text-sm font-medium text-gray-700 mb-2">Content:</h5>
+                              <pre className="text-xs text-gray-600 whitespace-pre-wrap">
+                                {JSON.stringify(section.content, null, 2)}
+                              </pre>
+                            </div>
+                          )}
                         </div>
-                        <p className="text-sm text-gray-600 mb-2">{section.notes}</p>
-                        <div className="text-xs text-gray-500">
-                          Group: {section.group} | Topic: {section.topic}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                    <h3 className="text-lg font-semibold text-yellow-900 mb-2">No Research Sections Generated</h3>
+                    <p className="text-sm text-yellow-800">
+                      The research agent completed but no sections were generated. This might be due to insufficient data or processing errors.
+                    </p>
+                  </div>
+                )}
+
+                {researchResults.error && (
+                  <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+                    <h3 className="text-lg font-semibold text-red-900 mb-2">Error</h3>
+                    <p className="text-sm text-red-800">{researchResults.error}</p>
+                  </div>
+                )}
               </>
+            ) : (
+              <div className="bg-gray-50 rounded-lg p-8 text-center">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Research Results</h3>
+                <p className="text-sm text-gray-600">
+                  Research results will appear here once the agent completes its analysis.
+                </p>
+              </div>
             )}
           </div>
         );

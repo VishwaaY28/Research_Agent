@@ -19,14 +19,15 @@ from api.handlers import prompt_templates
 # from api.routes.tables import router as tables_router
 from config.env import env
 from database.db import init_db, close_db
-import os  # Add this import for dynamic PORT
+import os
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Initialize database
+
     await init_db()
+
     yield
-    # Shutdown: Close database
+
     await close_db()
 
 app = FastAPI(
@@ -36,7 +37,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Serve uploaded source files from the local 'source_files' directory so clients can open PDFs/DOCX
 sources_dir = os.path.abspath(os.path.join(os.getcwd(), 'source_files'))
 if not os.path.exists(sources_dir):
     os.makedirs(sources_dir, exist_ok=True)
@@ -44,7 +44,7 @@ app.mount("/source_files", StaticFiles(directory=sources_dir), name="source_file
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501","*"],  # Add your frontend Render URL here for CORS
+    allow_origins=["http://localhost:8501","*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -81,14 +81,12 @@ async def catch_all(full_path: str):
 if __name__ == "__main__":
     import uvicorn
 
-    # Dynamic port: Use Render's PORT env var, fallback to 8000 for local dev
     port = int(os.environ.get('PORT', 8000))
-    # reload = os.environ.get('ENV') == 'development'  # Optional: Enable reload only in dev (set ENV=development locally)
 
     uvicorn.run(
         "main:app",
         host='0.0.0.0',
         port=8000,
         log_level=env["LOG_LEVEL"].lower(),
-        reload=True,  # Set to False for production
+        reload=True,
     )
