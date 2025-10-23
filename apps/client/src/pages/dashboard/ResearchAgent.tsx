@@ -1,6 +1,8 @@
+import jsPDF from 'jspdf';
 import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { FiArrowLeft, FiArrowRight, FiPlay, FiPlus, FiX } from 'react-icons/fi';
+import { FiArrowLeft, FiArrowRight, FiFileText, FiPlay, FiPlus, FiX } from 'react-icons/fi';
+import ReactMarkdown from 'react-markdown';
 import { useResearch, type ResearchAgentResponse } from '../../hooks/useResearch';
 import { API } from '../../utils/constants';
 
@@ -126,6 +128,162 @@ const ResearchAgent: React.FC = () => {
       toast.error('Failed to seed demo sections');
     } finally {
       setSeeding(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!researchResults?.final_report) {
+      toast.error('No final report to download');
+      return;
+    }
+
+    // Derive filename from company and product names
+    let filename = 'research-report.pdf';
+    try {
+      const companyName = formData.companyName.replace(/[^a-zA-Z0-9 _-]/g, '').trim();
+      const productName = formData.productName.replace(/[^a-zA-Z0-9 _-]/g, '').trim();
+      if (companyName && productName) {
+        filename = `${companyName}-${productName}-research-report.pdf`;
+      } else if (companyName) {
+        filename = `${companyName}-research-report.pdf`;
+      }
+    } catch (e) {
+      filename = 'research-report.pdf';
+    }
+
+    const doc = new jsPDF('p', 'pt', 'a4');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 40;
+    const maxWidth = pageWidth - (margin * 2);
+    let yPosition = margin;
+
+    // Helper function to add text with proper formatting
+    const addText = (text: string, fontSize: number = 12, isBold: boolean = false, color: string = '#000000') => {
+      doc.setFontSize(fontSize);
+      doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+      doc.setTextColor(color);
+      
+      const lines = doc.splitTextToSize(text, maxWidth);
+      
+      // Check if we need a new page
+      const lineHeight = fontSize * 1.2;
+      if (yPosition + (lines.length * lineHeight) > pageHeight - margin) {
+        doc.addPage();
+        yPosition = margin;
+      }
+      
+      doc.text(lines, margin, yPosition);
+      yPosition += lines.length * lineHeight + 5;
+    };
+
+    // Helper function to add a line break
+    const addLineBreak = (size: number = 10) => {
+      yPosition += size;
+      if (yPosition > pageHeight - margin) {
+        doc.addPage();
+        yPosition = margin;
+      }
+    };
+
+    try {
+      // Add header
+      addText('Research Report', 20, true, '#1f2937');
+      addLineBreak(10);
+      
+      // Add company and product info
+      addText(`Company: ${formData.companyName}`, 14, true, '#374151');
+      addText(`Product/Service: ${formData.productName}`, 14, true, '#374151');
+      addLineBreak(15);
+
+      // Process the markdown content
+      const content = researchResults.final_report;
+      
+      // Split content into lines and process each line
+      const lines = content.split('\n');
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        
+        if (!line) {
+          addLineBreak(5);
+          continue;
+        }
+        
+        // Handle different markdown elements
+        if (line.startsWith('# ')) {
+          // Main heading
+          addLineBreak(10);
+          addText(line.substring(2), 18, true, '#1f2937');
+          addLineBreak(5);
+        } else if (line.startsWith('## ')) {
+          // Sub heading
+          addLineBreak(8);
+          addText(line.substring(3), 16, true, '#374151');
+          addLineBreak(3);
+        } else if (line.startsWith('### ')) {
+          // Sub sub heading
+          addLineBreak(5);
+          addText(line.substring(4), 14, true, '#4b5563');
+          addLineBreak(2);
+        } else if (line.startsWith('#### ')) {
+          // Small heading
+          addLineBreak(3);
+          addText(line.substring(5), 13, true, '#6b7280');
+          addLineBreak(2);
+        } else if (line.startsWith('- ') || line.startsWith('* ')) {
+          // Bullet point
+          const bulletText = line.substring(2);
+          addText(`• ${bulletText}`, 11, false, '#374151');
+        } else if (line.match(/^\d+\./)) {
+          // Numbered list
+          addText(line, 11, false, '#374151');
+        } else if (line.startsWith('> ')) {
+          // Quote
+          const quoteText = line.substring(2);
+          addText(`"${quoteText}"`, 11, false, '#6b7280');
+        } else if (line.startsWith('```')) {
+          // Code block start/end - skip for now
+          continue;
+        } else if (line.startsWith('**') && line.endsWith('**')) {
+          // Bold text
+          const boldText = line.substring(2, line.length - 2);
+          addText(boldText, 12, true, '#374151');
+        } else if (line.startsWith('*') && line.endsWith('*') && !line.startsWith('**')) {
+          // Italic text
+          const italicText = line.substring(1, line.length - 1);
+          addText(italicText, 12, false, '#4b5563');
+        } else if (line.includes('---') || line.includes('===')) {
+          // Horizontal rule
+          addLineBreak(5);
+          doc.setDrawColor(200, 200, 200);
+          doc.line(margin, yPosition, pageWidth - margin, yPosition);
+          yPosition += 10;
+        } else {
+          // Regular paragraph
+          addText(line, 11, false, '#374151');
+        }
+      }
+
+      // Add footer
+      const totalPages = (doc as any).internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(128, 128, 128);
+        doc.text(
+          `Generated on ${new Date().toLocaleDateString()} - Page ${i} of ${totalPages}`,
+          pageWidth - 100,
+          pageHeight - 20
+        );
+      }
+
+      doc.save(filename);
+      toast.success('PDF downloaded successfully!');
+      
+    } catch (err) {
+      console.error('PDF generation failed', err);
+      toast.error('Failed to generate PDF');
     }
   };
 
@@ -385,16 +543,27 @@ const ResearchAgent: React.FC = () => {
                   </>
                 ) : (
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                      Final Research Report
-                    </h3>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Final Research Report
+                      </h3>
+                      {(researchResults as any).final_report && (
+                        <button
+                          onClick={handleDownloadPdf}
+                          className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors"
+                        >
+                          <FiFileText className="w-4 h-4" />
+                          Download as PDF
+                        </button>
+                      )}
+                    </div>
                     {(researchResults as any).final_report ? (
                       <div className="bg-white border border-gray-200 rounded-lg p-6">
                         <div className="prose prose-sm max-w-none">
                           <div className="bg-white text-gray-800 p-4 rounded-md shadow-sm overflow-auto max-h-96">
-                            <pre className="whitespace-pre-wrap text-sm font-mono bg-transparent m-0 text-gray-900">
+                            <ReactMarkdown>
                               {(researchResults as any).final_report}
-                            </pre>
+                            </ReactMarkdown>
                           </div>
                         </div>
                       </div>
