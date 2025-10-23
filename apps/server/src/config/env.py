@@ -27,5 +27,6 @@ env = {
     "USE_UNSTRUCTURED_API": os.getenv("USE_UNSTRUCTURED_API", "true").lower() == "true",
     #GROQ API
     "GROQ_API_KEY": os.getenv("GROQ_API_KEY"),
-    "GOOGLE_API_KEY": os.getenv("GOOGLE_API_KEY", "AIzaSyAZucb-iUV_L4hVuMZXAoH3wW3YsGZJzyg"),
+    "GOOGLE_API_KEY": os.getenv("GOOGLE_API_KEY", "AIzaSyDxgK2Eq9ZePkIglLYlJkOSfAZpllsx8go"),
+    "SERPER_API_KEY": os.getenv("SERPER_API_KEY", "6a0de0e483116a17572c12c48597ef36855e6b3e"),
 }
