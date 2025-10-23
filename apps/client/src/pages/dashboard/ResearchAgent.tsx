@@ -17,6 +17,7 @@ const ResearchAgent: React.FC = () => {
   const [isRunning, setIsRunning] = useState(false);
 
   const [researchResults, setResearchResults] = useState<ResearchAgentResponse | null>(null);
+  const [showFinalReport, setShowFinalReport] = useState(false);
 
 
   const [formData, setFormData] = useState<ResearchFormData>({
@@ -285,64 +286,112 @@ const ResearchAgent: React.FC = () => {
                   </p>
                 </div>
 
-                {researchResults.urls && researchResults.urls.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Sources Used</h3>
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {researchResults.urls.map((urlItem, index) => (
-                        <div key={index} className="p-3 bg-gray-50 rounded-lg">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {urlItem.URL}
-                          </p>
-                          {urlItem.Description && (
-                            <p className="text-xs text-gray-600 mt-1">
-                              {urlItem.Description}
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {/* Toggle between sections and final report */}
+                <div className="flex space-x-4 mb-6">
+                  <button
+                    onClick={() => setShowFinalReport(false)}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      !showFinalReport
+                        ? 'bg-primary text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Research Sections
+                  </button>
+                  <button
+                    onClick={() => setShowFinalReport(true)}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      showFinalReport
+                        ? 'bg-primary text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Final Report
+                  </button>
+                </div>
 
-                {researchResults.sections && researchResults.sections.length > 0 ? (
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Research Sections</h3>
-                    <div className="space-y-4">
-                      {researchResults.sections.map((section, index) => (
-                        <div key={index} className="border border-gray-200 rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-medium text-gray-900">{section.section_name}</h4>
-                            <span className={`px-2 py-1 rounded-full text-xs ${
-                              section.relevant
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {section.relevant ? 'Relevant' : 'Not Relevant'}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600 mb-2">{section.notes}</p>
-                          <div className="text-xs text-gray-500">
-                            Group: {section.group} | Topic: {section.topic}
-                          </div>
-                          {section.content && Object.keys(section.content).length > 0 && (
-                            <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                              <h5 className="text-sm font-medium text-gray-700 mb-2">Content:</h5>
-                              <pre className="text-xs text-gray-600 whitespace-pre-wrap">
-                                {JSON.stringify(section.content, null, 2)}
-                              </pre>
+                {!showFinalReport ? (
+                  <>
+                    {researchResults.urls && researchResults.urls.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Sources Used</h3>
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                          {researchResults.urls.map((urlItem, index) => (
+                            <div key={index} className="p-3 bg-gray-50 rounded-lg">
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {urlItem.URL}
+                              </p>
+                              {urlItem.Description && (
+                                <p className="text-xs text-gray-600 mt-1">
+                                  {urlItem.Description}
+                                </p>
+                              )}
                             </div>
-                          )}
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                      </div>
+                    )}
+
+                    {researchResults.sections && researchResults.sections.length > 0 ? (
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Research Sections</h3>
+                        <div className="space-y-4">
+                          {researchResults.sections.map((section, index) => (
+                            <div key={index} className="border border-gray-200 rounded-lg p-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="font-medium text-gray-900">{section.section_name}</h4>
+                                <span className={`px-2 py-1 rounded-full text-xs ${
+                                  section.relevant
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {section.relevant ? 'Relevant' : 'Not Relevant'}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-600 mb-2">{section.notes}</p>
+                              <div className="text-xs text-gray-500">
+                                Group: {section.group} | Topic: {section.topic}
+                              </div>
+                              {section.content && Object.keys(section.content).length > 0 && (
+                                <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                                  <h5 className="text-sm font-medium text-gray-700 mb-2">Content:</h5>
+                                  <pre className="text-xs text-gray-600 whitespace-pre-wrap">
+                                    {JSON.stringify(section.content, null, 2)}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                        <h3 className="text-lg font-semibold text-yellow-900 mb-2">No Research Sections Generated</h3>
+                        <p className="text-sm text-yellow-800">
+                          The research agent completed but no sections were generated. This might be due to insufficient data or processing errors.
+                        </p>
+                      </div>
+                    )}
+                  </>
                 ) : (
-                  <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-                    <h3 className="text-lg font-semibold text-yellow-900 mb-2">No Research Sections Generated</h3>
-                    <p className="text-sm text-yellow-800">
-                      The research agent completed but no sections were generated. This might be due to insufficient data or processing errors.
-                    </p>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Final Research Report</h3>
+                    {(researchResults as any).final_report ? (
+                      <div className="bg-white border border-gray-200 rounded-lg p-6">
+                        <div className="prose prose-sm max-w-none">
+                          <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono">
+                            {(researchResults as any).final_report}
+                          </pre>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                        <h3 className="text-lg font-semibold text-yellow-900 mb-2">No Final Report Generated</h3>
+                        <p className="text-sm text-yellow-800">
+                          The final report could not be generated. Please check the research sections for details.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 

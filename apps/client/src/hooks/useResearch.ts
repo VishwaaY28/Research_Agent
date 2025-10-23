@@ -63,6 +63,7 @@ export interface ResearchSection {
 export interface ResearchAgentResponse {
   urls: URLItem[];
   sections: ResearchSection[];
+  final_report?: string;
   error?: string;
 }
 

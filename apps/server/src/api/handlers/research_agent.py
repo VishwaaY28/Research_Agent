@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import json
 from utils.agents import (
-    url_fetcher, scraper, reporter,
+    url_fetcher, scraper, content_analyzer, reporter,
     extract_json, is_valid_url_object, is_valid_url
 )
 from crewai import Task, Crew
@@ -39,6 +39,7 @@ class URLItem(BaseModel):
 class ResearchAgentResponse(BaseModel):
     urls: List[URLItem]
     sections: List[ResearchSection]
+    final_report: Optional[str] = None
     error: Optional[str] = None
 
 
@@ -67,202 +68,296 @@ async def fetch_urls(company_name: str, product_name: str) -> List[URLItem]:
         raise HTTPException(status_code=500, detail=f"Failed to fetch URLs: {str(e)}")
 
 
-async def extract_research_section(
-    section_name: str,
-    section_template: Dict[str, Any],
+async def scrape_all_urls(urls: List[str]) -> Dict[str, str]:
+    """Scrape content from all URLs once and return a mapping of URL to content."""
+    scraped_content = {}
+    
+    for url in urls:
+        try:
+            # Create a scraping task for this URL
+            scraping_task = Task(
+                description=f"Scrape and extract all relevant content from: {url}",
+                expected_output="Clean, structured text content from the webpage",
+                agent=scraper
+            )
+            
+            crew_scraping = Crew(
+                agents=[scraper],
+                tasks=[scraping_task],
+                llm=scraper.llm,
+                verbose=True
+            )
+            
+            output = crew_scraping.kickoff()
+            scraped_content[url] = str(output)
+            print(f"Successfully scraped content from {url}")
+            
+        except Exception as e:
+            print(f"Error scraping {url}: {str(e)}")
+            scraped_content[url] = f"Error scraping content: {str(e)}"
+    
+    return scraped_content
+
+
+async def analyze_content_for_sections(
+    scraped_content: Dict[str, str],
+    section_templates: List[ResearchSectionTemplate],
+    product_name: str
+) -> List[ResearchSection]:
+    """Analyze already scraped content for each research section."""
+    sections = []
+    
+    for section_template in section_templates:
+        try:
+            # Create an analysis task for this section using the content analyzer
+            analysis_task = Task(
+                description=f"""
+                Analyze the following scraped content to extract information relevant to '{section_template.name}' for '{product_name}':
+
+                Scraped Content:
+                {json.dumps(scraped_content, indent=2)}
+
+                Section Requirements:
+                {section_template.prompt}
+
+                Expected Output Schema:
+                {json.dumps(section_template.schema, indent=2)}
+
+                Instructions:
+                1. Analyze the provided scraped content (no need to scrape again)
+                2. Extract information relevant to {section_template.name}
+                3. Extract specific data points according to the schema
+                4. Include proper citations with source URLs
+                5. Return a JSON object following the exact schema provided
+                """,
+                expected_output=f"A JSON object following the exact schema for {section_template.name}",
+                agent=content_analyzer
+            )
+
+            crew_analysis = Crew(
+                agents=[content_analyzer],
+                tasks=[analysis_task],
+                llm=content_analyzer.llm,
+                verbose=True
+            )
+
+            output = crew_analysis.kickoff()
+
+            try:
+                # Parse the output
+                output_str = str(output).strip()
+                
+                # Try direct JSON parsing first
+                try:
+                    parsed = json.loads(output_str)
+                except json.JSONDecodeError:
+                    # Try to extract JSON from the text
+                    parsed = extract_json(output_str)
+                
+                if not parsed:
+                    raise ValueError("No valid JSON found in agent output")
+                
+                section = ResearchSection(
+                    section_name=section_template.name,
+                    group=parsed.get("group", section_template.schema.get("group", "general")),
+                    relevant=parsed.get("relevant", True),
+                    topic=parsed.get("topic", product_name),
+                    content=parsed,
+                    notes=parsed.get("notes", "")
+                )
+                
+            except Exception as e:
+                print(f"Error parsing section {section_template.name}: {str(e)}")
+                print(f"Agent output: {str(output)}")
+                
+                # Create fallback section with sample data
+                fallback_content = {
+                    "group": section_template.schema.get("group", "general"),
+                    "relevant": True,
+                    "topic": product_name,
+                    "notes": f"Sample data generated due to parsing error. Original error: {str(e)}"
+                }
+                
+                # Add section-specific fallback data based on schema
+                for key, value in section_template.schema.items():
+                    if key not in ["group", "relevant", "topic", "notes"] and isinstance(value, list):
+                        fallback_content[key] = [
+                            {
+                                "claim": f"Sample {key[:-1]} for {product_name}",
+                                "citations": [{"source_id": "source_1", "quote": "Sample quote", "locator": "Sample location"}]
+                            }
+                        ]
+                
+                section = ResearchSection(
+                    section_name=section_template.name,
+                    group=section_template.schema.get("group", "general"),
+                    relevant=True,
+                    topic=product_name,
+                    content=fallback_content,
+                    notes=f"Sample data generated due to parsing error. Original error: {str(e)}"
+                )
+            
+            sections.append(section)
+            
+        except Exception as e:
+            print(f"Error processing section {section_template.name}: {str(e)}")
+            
+            # Create error section
+            error_section = ResearchSection(
+                section_name=section_template.name,
+                group=section_template.schema.get("group", "general"),
+                relevant=False,
+                topic=product_name,
+                content={},
+                notes=f"Failed to process section: {str(e)}"
+            )
+            sections.append(error_section)
+    
+    return sections
+
+
+async def generate_final_report(
+    sections: List[ResearchSection],
+    company_name: str,
     product_name: str,
-    valid_urls: List[str]
-) -> ResearchSection:
-    """Extract a specific research section using the provided template."""
+    urls: List[URLItem]
+) -> str:
+    """Generate a comprehensive final report using the reporter agent."""
     try:
+        # Prepare the report data
+        report_data = {
+            "company": company_name,
+            "product": product_name,
+            "sections": [
+                {
+                    "name": section.section_name,
+                    "group": section.group,
+                    "relevant": section.relevant,
+                    "content": section.content,
+                    "notes": section.notes
+                } for section in sections
+            ],
+            "sources": [
+                {
+                    "url": url_item.URL,
+                    "description": url_item.Description
+                } for url_item in urls
+            ]
+        }
+        
+        report_task = Task(
+            description=f"""
+            Generate a comprehensive research report for {product_name} from {company_name} based on the following data:
 
-        source_mapping = {f"source_{i+1}": url for i, url in enumerate(valid_urls)}
+            Research Sections:
+            {json.dumps([{
+                "name": section.section_name,
+                "group": section.group,
+                "relevant": section.relevant,
+                "content": section.content,
+                "notes": section.notes
+            } for section in sections], indent=2)}
 
-        formatted_prompt = section_template["prompt"].format(TOPIC=product_name)
+            Sources Used:
+            {json.dumps([{"url": url.URL, "description": url.Description} for url in urls], indent=2)}
 
-        full_prompt = f"""
-{formatted_prompt}
-
-Source mapping:
-{json.dumps(source_mapping, indent=2)}
-
-IMPORTANT: You must respond with ONLY a valid JSON object that follows this exact schema:
-{json.dumps(section_template["schema"], indent=2)}
-
-Do not include any text before or after the JSON. Do not include explanations or markdown formatting. Return only the JSON object.
-"""
-
-        task_section = Task(
-            description=full_prompt,
-            expected_output=f"A JSON object following the exact schema provided for {section_name}.",
-            agent=scraper
+            Instructions:
+            1. Create a professional research report
+            2. Structure the report with clear sections and subsections
+            3. Include executive summary, detailed findings, and conclusions
+            4. Cite sources appropriately
+            5. Make the report actionable and insightful
+            6. Use professional business language
+            7. Include key insights and recommendations
+            """,
+            expected_output="A comprehensive research report in markdown format with executive summary, detailed findings, and conclusions",
+            agent=reporter
         )
 
-        crew = Crew(
-            agents=[scraper],
-            tasks=[task_section],
-            llm=scraper.llm,
+        crew_reporting = Crew(
+            agents=[reporter],
+            tasks=[report_task],
+            llm=reporter.llm,
             verbose=True
         )
 
-        output = crew.kickoff()
-
-        try:
-            # Try to extract JSON from the output
-            output_str = str(output).strip()
-            
-            # First try direct parsing
-            try:
-                parsed = json.loads(output_str)
-            except json.JSONDecodeError:
-                # Try to extract JSON from the text
-                parsed = extract_json(output_str)
-            
-            if not parsed:
-                raise ValueError("No valid JSON found in agent output")
-            
-            return ResearchSection(
-                section_name=section_name,
-                group=parsed.get("group", section_template["schema"]["group"]),
-                relevant=parsed.get("relevant", True),
-                topic=parsed.get("topic", product_name),
-                content=parsed,
-                notes=parsed.get("notes", "")
-            )
-        except Exception as e:
-            print(f"Error parsing section {section_name}: {str(e)}")
-            print(f"Agent output: {str(output)}")
-            
-            # Create a fallback response with sample data
-            fallback_content = {
-                "group": section_template["schema"]["group"],
-                "relevant": True,
-                "topic": product_name,
-                "notes": f"Sample data generated due to parsing error. Original error: {str(e)}"
-            }
-            
-            # Add section-specific fallback data
-            if "capabilities" in section_template["schema"]:
-                fallback_content["capabilities"] = [
-                    {
-                        "claim": f"Sample capability for {product_name}",
-                        "citations": [{"source_id": "source_1", "quote": "Sample quote", "locator": "Sample location"}]
-                    }
-                ]
-                fallback_content["limits"] = [
-                    {
-                        "claim": f"Sample limitation for {product_name}",
-                        "citations": [{"source_id": "source_1", "quote": "Sample quote", "locator": "Sample location"}]
-                    }
-                ]
-            elif "performance" in section_template["schema"]:
-                fallback_content["performance"] = [
-                    {
-                        "metric": "Sample metric",
-                        "value": "Sample value",
-                        "description": f"Sample performance data for {product_name}",
-                        "citations": [{"source_id": "source_1", "quote": "Sample quote", "locator": "Sample location"}]
-                    }
-                ]
-                fallback_content["scalability"] = [
-                    {
-                        "limit": "Sample limit",
-                        "description": f"Sample scalability information for {product_name}",
-                        "citations": [{"source_id": "source_1", "quote": "Sample quote", "locator": "Sample location"}]
-                    }
-                ]
-            
-            return ResearchSection(
-                section_name=section_name,
-                group=section_template["schema"]["group"],
-                relevant=True,  # Mark as relevant so it shows up
-                topic=product_name,
-                content=fallback_content,
-                notes=f"Sample data generated due to parsing error. Original error: {str(e)}"
-            )
-
+        report_output = crew_reporting.kickoff()
+        return str(report_output)
+        
     except Exception as e:
-        return ResearchSection(
-            section_name=section_name,
-            group=section_template["schema"]["group"],
-            relevant=False,
-            topic=product_name,
-            content={},
-            notes=f"Failed to extract section: {str(e)}"
-        )
-
-
-async def generate_research_report(
-    company_name: str,
-    product_name: str,
-    selected_urls: List[str],
-    user_intent_id: int = None
-) -> List[ResearchSection]:
-    """Generate comprehensive research report with multiple sections."""
-    try:
-        valid_urls = [url for url in selected_urls if is_valid_url(url)]
-        if not valid_urls:
-            raise HTTPException(status_code=400, detail="No valid URLs provided")
-
-        # Get research section templates from database
-        if user_intent_id:
-            # Get sections for specific user intent
-            section_templates = await ResearchSectionTemplate.filter(
-                user_intent_id=user_intent_id
-            ).order_by('order', 'name')
-        else:
-            # Get default sections (Technical Focus)
-            default_intent = await UserIntent.filter(is_default=True).first()
-            if not default_intent:
-                raise HTTPException(status_code=404, detail="No default user intent found")
-            
-            section_templates = await ResearchSectionTemplate.filter(
-                user_intent=default_intent
-            ).order_by('order', 'name')
-
-        sections = []
-        for section_template in section_templates:
-            section = await extract_research_section(
-                section_template.name,
-                {
-                    "prompt": section_template.prompt,
-                    "schema": section_template.schema
-                },
-                product_name,
-                valid_urls
-            )
-            sections.append(section)
-
-        return sections
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate research report: {str(e)}")
+        print(f"Error generating final report: {str(e)}")
+        return f"Error generating final report: {str(e)}"
 
 
 async def run_research_agent(request: ResearchAgentRequest) -> ResearchAgentResponse:
-    """Main function to run the research agent workflow."""
+    """Main function to run the complete research agent workflow."""
     try:
+        print(f"Starting research agent for {request.company_name} - {request.product_name}")
+        
         # Step 1: Fetch URLs
-        urls = await fetch_urls(request.company_name, request.product_name)
+        print("Step 1: Fetching URLs...")
+        if request.selected_urls and len(request.selected_urls) > 0:
+            # Use provided URLs
+            urls = [URLItem(URL=url, Description=f"User provided URL for {request.product_name}") for url in request.selected_urls]
+        else:
+            # Fetch URLs using the agent
+            urls = await fetch_urls(request.company_name, request.product_name)
 
         if not urls:
             return ResearchAgentResponse(
                 urls=[],
                 sections=[],
+                final_report=None,
                 error="No URLs found for the given company and product"
             )
 
-        # Step 2: Automatically scrape all fetched URLs and generate comprehensive research report
+        print(f"Found {len(urls)} URLs")
+
+        # Step 2: Get research section templates from database
+        print("Step 2: Getting research section templates...")
+        default_intent = await UserIntent.filter(is_default=True).first()
+        if not default_intent:
+            raise HTTPException(status_code=404, detail="No default user intent found")
+        
+        section_templates = await ResearchSectionTemplate.filter(
+            user_intent=default_intent
+        ).order_by('order', 'name')
+
+        if not section_templates:
+            raise HTTPException(status_code=404, detail="No research section templates found")
+
+        print(f"Found {len(section_templates)} section templates")
+
+        # Step 3: Scrape all URLs once
+        print("Step 3: Scraping content from all URLs...")
         url_list = [url_item.URL for url_item in urls]
-        sections = await generate_research_report(
-            request.company_name,
-            request.product_name,
-            url_list
+        scraped_content = await scrape_all_urls(url_list)
+        
+        # Step 4: Analyze scraped content for each section
+        print("Step 4: Analyzing content for each section...")
+        sections = await analyze_content_for_sections(
+            scraped_content,
+            section_templates,
+            request.product_name
         )
 
+        print(f"Generated {len(sections)} research sections")
+
+        # Step 5: Generate final comprehensive report
+        print("Step 5: Generating final report...")
+        final_report = await generate_final_report(
+            sections,
+            request.company_name,
+            request.product_name,
+            urls
+        )
+
+        print("Research agent workflow completed successfully")
+
         response = ResearchAgentResponse(
-            urls=urls,  # Show which URLs were scraped
-            sections=sections
+            urls=urls,
+            sections=sections,
+            final_report=final_report
         )
         
         print(f"Research Agent Response: {response.dict()}")
@@ -271,4 +366,5 @@ async def run_research_agent(request: ResearchAgentRequest) -> ResearchAgentResp
     except HTTPException:
         raise
     except Exception as e:
+        print(f"Research agent failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Research agent failed: {str(e)}")
