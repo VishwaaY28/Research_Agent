@@ -19,17 +19,14 @@ const ResearchAgent: React.FC = () => {
   const [researchResults, setResearchResults] = useState<ResearchAgentResponse | null>(null);
   const [showFinalReport, setShowFinalReport] = useState(false);
 
-
   const [formData, setFormData] = useState<ResearchFormData>({
     companyName: '',
     productName: '',
     selectedUrls: [],
   });
 
-
   const [urlInput, setUrlInput] = useState('');
   const [seeding, setSeeding] = useState(false);
-
 
   const addUrl = () => {
     if (urlInput.trim() && !formData.selectedUrls.includes(urlInput.trim())) {
@@ -78,7 +75,6 @@ const ResearchAgent: React.FC = () => {
     }
   };
 
-
   const handleStartResearch = async () => {
     if (!canProceed()) return;
 
@@ -107,12 +103,17 @@ const ResearchAgent: React.FC = () => {
   const handleSeedDemoSections = async () => {
     setSeeding(true);
     try {
-      const response = await fetch(API.BASE_URL() + API.ENDPOINTS.RESEARCH_SECTION_TEMPLATES.BASE_URL() + API.ENDPOINTS.RESEARCH_SECTION_TEMPLATES.SEED(), {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+      const response = await fetch(
+        API.BASE_URL() +
+          API.ENDPOINTS.RESEARCH_SECTION_TEMPLATES.BASE_URL() +
+          API.ENDPOINTS.RESEARCH_SECTION_TEMPLATES.SEED(),
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
         },
-      });
+      );
 
       if (response.ok) {
         const result = await response.json();
@@ -219,7 +220,8 @@ const ResearchAgent: React.FC = () => {
                 <div>
                   <h4 className="text-sm font-medium text-yellow-800 mb-1">Setup Required</h4>
                   <p className="text-sm text-yellow-700">
-                    Before running research, you need to seed the default research section templates.
+                    Before running research, you need to seed the default research section
+                    templates.
                   </p>
                 </div>
                 <button
@@ -257,18 +259,16 @@ const ResearchAgent: React.FC = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Additional URLs:</span>
-                  <span className="font-medium">
-                    {formData.selectedUrls.length} selected
-                  </span>
+                  <span className="font-medium">{formData.selectedUrls.length} selected</span>
                 </div>
               </div>
             </div>
 
             <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
               <p className="text-sm text-blue-800">
-                <strong>What happens next:</strong> The research agent will automatically search for information,
-                analyze content, and generate a comprehensive report with multiple research sections.
-                This process typically takes 2-5 minutes.
+                <strong>What happens next:</strong> The research agent will automatically search for
+                information, analyze content, and generate a comprehensive report with multiple
+                research sections. This process typically takes 2-5 minutes.
               </p>
             </div>
           </div>
@@ -282,7 +282,8 @@ const ResearchAgent: React.FC = () => {
                 <div className="bg-green-50 rounded-lg p-4 border border-green-200">
                   <h3 className="text-lg font-semibold text-green-900 mb-2">Research Completed!</h3>
                   <p className="text-sm text-green-800">
-                    Successfully generated {researchResults.sections?.length || 0} research sections from {researchResults.urls?.length || 0} sources.
+                    Successfully generated {researchResults.sections?.length || 0} research sections
+                    from {researchResults.urls?.length || 0} sources.
                   </p>
                 </div>
 
@@ -322,9 +323,7 @@ const ResearchAgent: React.FC = () => {
                                 {urlItem.URL}
                               </p>
                               {urlItem.Description && (
-                                <p className="text-xs text-gray-600 mt-1">
-                                  {urlItem.Description}
-                                </p>
+                                <p className="text-xs text-gray-600 mt-1">{urlItem.Description}</p>
                               )}
                             </div>
                           ))}
@@ -334,17 +333,23 @@ const ResearchAgent: React.FC = () => {
 
                     {researchResults.sections && researchResults.sections.length > 0 ? (
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Research Sections</h3>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                          Research Sections
+                        </h3>
                         <div className="space-y-4">
                           {researchResults.sections.map((section, index) => (
                             <div key={index} className="border border-gray-200 rounded-lg p-4">
                               <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-medium text-gray-900">{section.section_name}</h4>
-                                <span className={`px-2 py-1 rounded-full text-xs ${
-                                  section.relevant
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-gray-100 text-gray-800'
-                                }`}>
+                                <h4 className="font-medium text-gray-900">
+                                  {section.section_name}
+                                </h4>
+                                <span
+                                  className={`px-2 py-1 rounded-full text-xs ${
+                                    section.relevant
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-gray-100 text-gray-800'
+                                  }`}
+                                >
                                   {section.relevant ? 'Relevant' : 'Not Relevant'}
                                 </span>
                               </div>
@@ -354,7 +359,9 @@ const ResearchAgent: React.FC = () => {
                               </div>
                               {section.content && Object.keys(section.content).length > 0 && (
                                 <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                                  <h5 className="text-sm font-medium text-gray-700 mb-2">Content:</h5>
+                                  <h5 className="text-sm font-medium text-gray-700 mb-2">
+                                    Content:
+                                  </h5>
                                   <pre className="text-xs text-gray-600 whitespace-pre-wrap">
                                     {JSON.stringify(section.content, null, 2)}
                                   </pre>
@@ -366,29 +373,39 @@ const ResearchAgent: React.FC = () => {
                       </div>
                     ) : (
                       <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-                        <h3 className="text-lg font-semibold text-yellow-900 mb-2">No Research Sections Generated</h3>
+                        <h3 className="text-lg font-semibold text-yellow-900 mb-2">
+                          No Research Sections Generated
+                        </h3>
                         <p className="text-sm text-yellow-800">
-                          The research agent completed but no sections were generated. This might be due to insufficient data or processing errors.
+                          The research agent completed but no sections were generated. This might be
+                          due to insufficient data or processing errors.
                         </p>
                       </div>
                     )}
                   </>
                 ) : (
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Final Research Report</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                      Final Research Report
+                    </h3>
                     {(researchResults as any).final_report ? (
                       <div className="bg-white border border-gray-200 rounded-lg p-6">
                         <div className="prose prose-sm max-w-none">
-                          <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono">
-                            {(researchResults as any).final_report}
-                          </pre>
+                          <div className="bg-white text-gray-800 p-4 rounded-md shadow-sm overflow-auto max-h-96">
+                            <pre className="whitespace-pre-wrap text-sm font-mono bg-transparent m-0 text-gray-900">
+                              {(researchResults as any).final_report}
+                            </pre>
+                          </div>
                         </div>
                       </div>
                     ) : (
                       <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-                        <h3 className="text-lg font-semibold text-yellow-900 mb-2">No Final Report Generated</h3>
+                        <h3 className="text-lg font-semibold text-yellow-900 mb-2">
+                          No Final Report Generated
+                        </h3>
                         <p className="text-sm text-yellow-800">
-                          The final report could not be generated. Please check the research sections for details.
+                          The final report could not be generated. Please check the research
+                          sections for details.
                         </p>
                       </div>
                     )}
