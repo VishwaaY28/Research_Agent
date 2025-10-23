@@ -136,6 +136,13 @@ def custom_scrape_website(url: str) -> str:
 
 
 
+# Predefined sections and parameters
+DEFAULT_SECTIONS = {
+    "Capabilities & Limits": ["Topic", "Capabilities", "Limitations", "notes"],
+    "Performance & Scalability": ["Topic", "Performance metrics", "Scalability limits", "Resource requirements", "notes"]
+}
+
+
 gemini_llm = LLM(
     model="gemini/gemini-2.0-flash",
     api_key=env.get("GOOGLE_API_KEY"),
@@ -148,9 +155,9 @@ scrape_tool = custom_scrape_website
 
 
 url_fetcher = Agent(
-    role="URL Fetcher",
-    goal="Find top 5 trustworthy URLs related to the company and product",
-    backstory="Specialized in using search tools to find relevant sources.",
+    role="Web URL Fetcher",
+    goal="Given company, product and sections, fetch trustworthy URLs for each section heading and its parameters.",
+    backstory="Expert researcher sourcing high-quality sources from the web, specializing in finding relevant URLs for specific research parameters.",
     tools=[search_tool],
     llm=gemini_llm,
     verbose=True

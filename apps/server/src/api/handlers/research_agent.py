@@ -46,9 +46,18 @@ class ResearchAgentResponse(BaseModel):
 async def fetch_urls(company_name: str, product_name: str) -> List[URLItem]:
     """Fetch URLs related to the company and product using the URL fetcher agent."""
     try:
+        from utils.agents import DEFAULT_SECTIONS
+        
         task_url_search = Task(
-            description=f"Search for top 5 trustworthy URLs about '{product_name}' from '{company_name}'.",
-            expected_output="Return a valid JSON array of 5 objects with keys 'URL' and 'Description'.",
+            description=(
+                f"Find URLs for the company '{company_name}' and product '{product_name}'. "
+                f"Search for information covering these specific sections and parameters:\n\n"
+                f"{json.dumps(DEFAULT_SECTIONS, indent=2)}\n\n"
+                f"For each section, find relevant and trustworthy URLs that cover the listed parameters. "
+                f"Return a valid JSON array of objects with 'URL' and 'Description' keys.\n"
+                f"Each URL description should indicate which section and parameters it covers."
+            ),
+            expected_output="JSON array of objects with 'URL' and 'Description' keys, each URL relevant to specific sections and parameters.",
             agent=url_fetcher
         )
 
