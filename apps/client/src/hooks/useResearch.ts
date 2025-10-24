@@ -15,6 +15,7 @@ export interface ResearchRequest {
 export interface ResearchAgentRequest {
   company_name: string;
   product_name: string;
+  user_intent_id?: number;
   selected_urls?: string[];
 }
 
