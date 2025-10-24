@@ -11,8 +11,6 @@ import {
 } from 'react-icons/fi';
 import ReactModal from 'react-modal';
 import { useLocation } from 'react-router-dom';
-import { useContent } from '../../hooks/useContent';
-import { useWorkspace } from '../../hooks/useWorkspace';
 import { API } from '../../utils/constants';
 
 // Add type for user intent
@@ -45,10 +43,10 @@ const PromptTemplatePage: React.FC = () => {
     schema: any;
   } | null>(null);
   const [editablePrompt, setEditablePrompt] = useState('');
+  const [editableSchema, setEditableSchema] = useState<any>({});
   const [saving, setSaving] = useState(false);
   // Removed unused userInputRef and navigate
   const location = useLocation();
-  const { savePromptToWorkspace } = useContent();
   const [userIntents, setUserIntents] = useState<UserIntent[]>([]);
   const [showAddIntentModal, setShowAddIntentModal] = useState(false);
   const [newIntentName, setNewIntentName] = useState('');
@@ -56,14 +54,10 @@ const PromptTemplatePage: React.FC = () => {
   const [newSectionName, setNewSectionName] = useState('');
   const [newSectionPrompt, setNewSectionPrompt] = useState('');
   const [newSectionSchema, setNewSectionSchema] = useState<any>({});
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
   const [sectionsLoading, setSectionsLoading] = useState(false);
   const [intentsLoading, setIntentsLoading] = useState(false);
-  const { workspaces, fetchWorkspaces } = useWorkspace();
-  const [filteredWorkspaces, setFilteredWorkspaces] = useState<typeof workspaces>([]);
 
   useEffect(() => {
-    fetchWorkspaces();
     fetchUserIntents();
   }, []);
 
@@ -166,20 +160,11 @@ const PromptTemplatePage: React.FC = () => {
   useEffect(() => {
     if (selectedIntent && selectedIntent.id) {
       loadSectionsForIntent(selectedIntent);
-
-      // Filter workspaces by the selected user intent
-      const filtered = workspaces.filter(
-        (workspace) => workspace.workspace_type === selectedIntent.name,
-      );
-      setFilteredWorkspaces(filtered);
     }
-  }, [selectedIntent?.id, workspaces]);
+  }, [selectedIntent?.id]);
 
-  // Pre-select workspace and intent from navigation state
+  // Pre-select intent from navigation state
   useEffect(() => {
-    if (location.state?.workspaceId) {
-      setSelectedWorkspaceId(String(location.state.workspaceId));
-    }
     if (location.state?.type && userIntents.length > 0) {
       const intentObj = userIntents.find((i) => i.name === location.state.type);
       if (intentObj) setSelectedIntent(intentObj);
@@ -188,30 +173,30 @@ const PromptTemplatePage: React.FC = () => {
 
   useEffect(() => {
     setEditablePrompt(selectedSection ? selectedSection.prompt || '' : '');
+    setEditableSchema(selectedSection ? selectedSection.schema || {} : {});
   }, [selectedSection]);
 
-  // Update handleSaveToWorkspace to use selectedWorkspaceId if location.state?.workspaceId is not present
-  const handleSaveToWorkspace = async () => {
+  // Save research section template directly to database
+  const handleSaveToDatabase = async () => {
     if (!selectedIntent || !selectedSection) {
       toast.error('Please select an intent and section');
       return;
     }
-    // Prefer navigation state, fallback to selectedWorkspaceId
-    let workspaceId = location.state?.workspaceId || selectedWorkspaceId;
-    let workspace = workspaces.find((w) => String(w.id) === String(workspaceId));
-    if (!workspace) {
-      toast.error('Please select a workspace');
-      return;
+    
+    // Validate JSON schema
+    let parsedSchema = editableSchema;
+    if (typeof editableSchema === 'string') {
+      try {
+        parsedSchema = JSON.parse(editableSchema);
+      } catch (err) {
+        toast.error('Invalid JSON schema format. Please check your schema syntax.');
+        return;
+      }
     }
-
-    // Check if the selected workspace matches the selected intent
-    if (workspace.workspace_type !== selectedIntent.name) {
-      toast.error(`The selected workspace must be of type "${selectedIntent.name}"`);
-      return;
-    }
+    
     setSaving(true);
     try {
-      // 1. Update the research section template
+      // Update the research section template
       const updateResp = await fetch(
         `${API.BASE_URL()}/api/prompt-templates/sections/${selectedSection.id}`,
         {
@@ -224,7 +209,7 @@ const PromptTemplatePage: React.FC = () => {
             name: selectedSection.name,
             order: 0, // Default order for research sections
             prompt: editablePrompt,
-            schema: selectedSection.schema,
+            schema: parsedSchema,
           }),
         },
       );
@@ -235,19 +220,16 @@ const PromptTemplatePage: React.FC = () => {
         return;
       }
 
-      // 2. Save the prompt to the workspace as before
-      const title = `${selectedIntent.name} - ${selectedSection.name}`;
-      await savePromptToWorkspace(workspace.id, title, editablePrompt, []);
-      toast.success('Research section template updated and added to workspace');
-      await fetchWorkspaces();
+      toast.success('Research section template updated successfully');
       // Refresh section prompts
       await loadSectionsForIntent(selectedIntent);
-      // Reset section and prompt for new entry
+      // Reset section, prompt, and schema for new entry
       setSelectedSection(null);
       setEditablePrompt('');
+      setEditableSchema({});
     } catch (err) {
-      console.error('Failed to save prompt:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to save prompt to workspace');
+      console.error('Failed to save research section template:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to save research section template');
     } finally {
       setSaving(false);
     }
@@ -257,6 +239,17 @@ const PromptTemplatePage: React.FC = () => {
   const handleAddSection = async () => {
     if (selectedIntent && newSectionName.trim() && newSectionPrompt.trim()) {
       try {
+        // Parse schema if it's a string
+        let parsedSchema = newSectionSchema;
+        if (typeof newSectionSchema === 'string') {
+          try {
+            parsedSchema = JSON.parse(newSectionSchema);
+          } catch (err) {
+            toast.error('Invalid JSON schema format');
+            return;
+          }
+        }
+
         // 1. Create the research section template
         const response = await fetch(
           `${API.BASE_URL()}/api/prompt-templates/intents/${selectedIntent.id}/sections`,
@@ -270,7 +263,7 @@ const PromptTemplatePage: React.FC = () => {
               name: newSectionName.trim(),
               order: selectedIntent.sections.length,
               prompt: newSectionPrompt.trim(),
-              schema: newSectionSchema,
+              schema: parsedSchema,
             }),
           },
         );
@@ -495,52 +488,41 @@ const PromptTemplatePage: React.FC = () => {
                 className="w-full bg-gray-50 border border-indigo-100 rounded-lg px-4 py-3 text-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[120px] resize-y transition-all duration-150"
                 placeholder="Edit the prompt for this section..."
               />
-              {/* Workspace selector if not navigated from a workspace */}
-              {!location.state?.workspaceId && (
-                <div>
-                  <label className="block mb-2 font-medium text-gray-700 text-sm">
-                    Select Workspace ({selectedIntent?.name} intent only)
-                  </label>
-                  <div className="relative">
-                    <select
-                      className="w-full bg-gray-50 border border-gray-100 rounded-md px-3 py-2 text-gray-800 appearance-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      value={selectedWorkspaceId}
-                      onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-                    >
-                      <option value="">Choose a workspace...</option>
-                      {filteredWorkspaces.length > 0 ? (
-                        filteredWorkspaces.map((ws) => (
-                          <option key={ws.id} value={ws.id}>
-                            {ws.name}
-                          </option>
-                        ))
-                      ) : (
-                        <option value="" disabled>
-                          No workspaces available for this intent
-                        </option>
-                      )}
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                      <FiChevronDown className="w-5 h-5 text-gray-400" />
-                    </div>
-                  </div>
+              {/* Editable Schema */}
+              <div>
+                <label className="block mb-2 font-medium text-gray-700 text-sm">
+                  Schema Structure (JSON)
+                </label>
+                <textarea
+                  className="w-full bg-gray-50 border border-indigo-100 rounded-lg px-4 py-3 text-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[120px] resize-y font-mono text-sm"
+                  placeholder='{"group": "example", "relevant": true, "topic": ""}'
+                  value={typeof editableSchema === 'string' ? editableSchema : JSON.stringify(editableSchema, null, 2)}
+                  onChange={(e) => {
+                    setEditableSchema(e.target.value);
+                  }}
+                />
+                <div className="mt-1 text-xs text-gray-500">
+                  Enter valid JSON format for the schema structure
                 </div>
-              )}
+              </div>
               <div className="flex justify-end gap-2 mt-2">
                 <button
                   className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md font-medium hover:bg-gray-200 transition-colors text-sm"
-                  onClick={() => setEditablePrompt(selectedSection.prompt || '')}
+                  onClick={() => {
+                    setEditablePrompt(selectedSection?.prompt || '');
+                    setEditableSchema(selectedSection?.schema || {});
+                  }}
                   disabled={saving}
                 >
                   Cancel
                 </button>
                 <button
                   className="px-4 py-2 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm shadow-sm"
-                  onClick={handleSaveToWorkspace}
-                  disabled={saving || (!location.state?.workspaceId && !selectedWorkspaceId)}
+                  onClick={handleSaveToDatabase}
+                  disabled={saving}
                 >
                   <FiSave className="w-4 h-4" />
-                  {saving ? 'Saving...' : 'Save to Workspace'}
+                  {saving ? 'Saving...' : 'Save to Database'}
                 </button>
               </div>
             </div>
@@ -638,6 +620,17 @@ const PromptTemplatePage: React.FC = () => {
                   placeholder="Enter the prompt template for this research section..."
                   value={newSectionPrompt}
                   onChange={(e) => setNewSectionPrompt(e.target.value)}
+                />
+                <label className="block text-sm font-medium text-gray-700 mb-2 mt-4">
+                  Schema (JSON)
+                </label>
+                <textarea
+                  className="w-full bg-gray-50 border border-indigo-100 rounded-xl px-4 py-3 text-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[80px] resize-y font-mono text-sm"
+                  placeholder='{"group": "example", "relevant": true, "topic": ""}'
+                  value={typeof newSectionSchema === 'string' ? newSectionSchema : JSON.stringify(newSectionSchema, null, 2)}
+                  onChange={(e) => {
+                    setNewSectionSchema(e.target.value);
+                  }}
                 />
                 <div className="flex justify-end gap-3 mt-6">
                   <button

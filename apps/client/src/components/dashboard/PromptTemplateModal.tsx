@@ -205,6 +205,19 @@ const PromptTemplatePanel = ({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                 <div className="bg-gradient-to-br from-slate-50 to-gray-100 rounded-2xl p-6 text-slate-800 shadow-inner border border-gray-200 text-lg leading-relaxed font-medium">
                   {selectedSection.prompt}
                 </div>
+                
+                {/* Schema Display */}
+                {selectedSection.schema && (
+                  <div className="mt-6">
+                    <h4 className="text-sm font-semibold text-slate-700 mb-2">Schema Structure</h4>
+                    <div className="bg-slate-100 border border-slate-200 rounded-lg p-4 max-h-32 overflow-y-auto">
+                      <pre className="text-xs text-slate-600 whitespace-pre-wrap">
+                        {JSON.stringify(selectedSection.schema, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+                
                 <button
                   className="mt-8 w-full py-3 rounded-xl bg-slate-700 text-white font-semibold text-lg shadow hover:bg-slate-800 transition-colors"
                   onClick={() => {
@@ -213,6 +226,7 @@ const PromptTemplatePanel = ({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                         type: selectedIntent?.name || '',
                         section: selectedSection?.name || '',
                         prompt: selectedSection?.prompt || '',
+                        schema: selectedSection?.schema || {},
                       },
                     });
                     onClose();
