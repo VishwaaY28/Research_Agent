@@ -91,7 +91,7 @@ const Sidebar: React.FC = () => {
             <div className="flex flex-col items-center space-y-1 w-full">
               <img src={logo} alt="Logo" className="h-5 w-auto transition-all duration-200" />
               <span className="text-base font-medium mt-1 tracking-wide text-gray-900">
-                HexAuthor
+                HexResearch
               </span>
             </div>
           )}
