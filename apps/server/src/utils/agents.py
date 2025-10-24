@@ -1,3 +1,11 @@
+# Disable OpenTelemetry telemetry to prevent connection errors
+import os
+os.environ["OTEL_SDK_DISABLED"] = "true"
+os.environ["OTEL_TRACES_EXPORTER"] = "none"
+os.environ["OTEL_METRICS_EXPORTER"] = "none"
+os.environ["OTEL_LOGS_EXPORTER"] = "none"
+
+
 from crewai import Agent, LLM, Crew, Task
 from crewai_tools import SerperDevTool
 from crewai.tools import tool
@@ -144,7 +152,7 @@ DEFAULT_SECTIONS = {
 
 
 gemini_llm = LLM(
-    model="gemini/gemini-2.0-flash",
+    model="gemini/gemini-2.5-flash",
     api_key=env.get("GOOGLE_API_KEY"),
     temperature=0.5
 )
@@ -182,7 +190,7 @@ content_analyzer = Agent(
 
 reporter = Agent(
     role="Reporter",
-    goal="Summarize the scraped content in under 100 words",
+    goal="Summarize the scraped content in under 100 words, formatted in Markdown.",
     backstory="Skilled in writing concise product summaries for business and technical audiences.",
     llm=gemini_llm,
     verbose=True

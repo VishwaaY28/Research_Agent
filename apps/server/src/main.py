@@ -1,3 +1,10 @@
+# Disable OpenTelemetry telemetry to prevent connection errors
+import os
+os.environ["OTEL_SDK_DISABLED"] = "true"
+os.environ["OTEL_TRACES_EXPORTER"] = "none"
+os.environ["OTEL_METRICS_EXPORTER"] = "none"
+os.environ["OTEL_LOGS_EXPORTER"] = "none"
+
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,7 +26,6 @@ from api.handlers import prompt_templates
 # from api.routes.tables import router as tables_router
 from config.env import env
 from database.db import init_db, close_db
-import os
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
