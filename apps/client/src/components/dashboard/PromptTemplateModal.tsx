@@ -3,7 +3,7 @@ import { FiChevronLeft, FiChevronRight, FiFileText, FiX } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { API } from '../../utils/constants';
 
-interface WorkspaceType {
+interface UserIntent {
   id: number;
   name: string;
   is_default: boolean;
@@ -11,55 +11,62 @@ interface WorkspaceType {
     id: number;
     name: string;
     order: number;
-    prompt?: string;
+    prompt: string;
+    schema: any;
+    sub_sections?: Array<{
+      id: number;
+      name: string;
+      order: number;
+    }>;
   }>;
 }
 
-interface Section {
+interface ResearchSection {
   id: number;
   name: string;
   order: number;
-  prompt?: string;
+  prompt: string;
+  schema: any;
 }
 
 const PromptTemplatePanel = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
-  const [selectedType, setSelectedType] = useState<WorkspaceType | null>(null);
-  const [selectedSection, setSelectedSection] = useState<Section | null>(null);
-  const [workspaceTypes, setWorkspaceTypes] = useState<WorkspaceType[]>([]);
+  const [selectedIntent, setSelectedIntent] = useState<UserIntent | null>(null);
+  const [selectedSection, setSelectedSection] = useState<ResearchSection | null>(null);
+  const [userIntents, setUserIntents] = useState<UserIntent[]>([]);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  // Fetch workspace types from backend
+  // Fetch user intents from backend
   useEffect(() => {
     if (isOpen) {
-      fetchWorkspaceTypes();
+      fetchUserIntents();
     }
   }, [isOpen]);
 
-  const fetchWorkspaceTypes = async () => {
+  const fetchUserIntents = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API.BASE_URL()}/api/prompt-templates/types`, {
+      const response = await fetch(`${API.BASE_URL()}/api/prompt-templates/intents`, {
         headers: {
           Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
         },
       });
       if (response.ok) {
-        const types = await response.json();
-        setWorkspaceTypes(types);
+        const intents = await response.json();
+        setUserIntents(intents);
       } else {
-        console.error('Failed to fetch workspace types');
+        console.error('Failed to fetch user intents');
       }
     } catch (error) {
-      console.error('Error fetching workspace types:', error);
+      console.error('Error fetching user intents:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchSectionsForType = async (typeId: number) => {
+  const fetchSectionsForIntent = async (intentId: number) => {
     try {
-      const response = await fetch(`${API.BASE_URL()}/api/prompt-templates/types/${typeId}/sections`, {
+      const response = await fetch(`${API.BASE_URL()}/api/prompt-templates/intents/${intentId}/sections`, {
         headers: {
           Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
         },
@@ -68,29 +75,29 @@ const PromptTemplatePanel = ({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         const sections = await response.json();
         return sections;
       } else {
-        console.error('Failed to fetch sections');
+        console.error('Failed to fetch research sections');
         return [];
       }
     } catch (error) {
-      console.error('Error fetching sections:', error);
+      console.error('Error fetching research sections:', error);
       return [];
     }
   };
 
-  const handleTypeSelect = async (type: WorkspaceType) => {
-    setSelectedType(type);
+  const handleIntentSelect = async (intent: UserIntent) => {
+    setSelectedIntent(intent);
     setSelectedSection(null);
 
-    // Fetch sections for this type
-    const sections = await fetchSectionsForType(type.id);
-    setSelectedType({ ...type, sections });
+    // Fetch sections for this intent
+    const sections = await fetchSectionsForIntent(intent.id);
+    setSelectedIntent({ ...intent, sections });
   };
 
   if (!isOpen) return null;
 
   // Panel widths
-  const leftPanelWidth = selectedType ? (selectedSection ? 'w-1/4' : 'w-1/3') : 'w-full';
-  const midPanelWidth = selectedType ? (selectedSection ? 'w-1/3' : 'w-2/3') : 'w-0';
+  const leftPanelWidth = selectedIntent ? (selectedSection ? 'w-1/4' : 'w-1/3') : 'w-full';
+  const midPanelWidth = selectedIntent ? (selectedSection ? 'w-1/3' : 'w-2/3') : 'w-0';
   const rightPanelWidth = selectedSection ? 'w-2/3' : 'w-0';
 
   return (
@@ -113,21 +120,21 @@ const PromptTemplatePanel = ({ isOpen, onClose }: { isOpen: boolean; onClose: ()
           className={`transition-all duration-300 h-full ${leftPanelWidth} border-r border-gray-200 bg-gradient-to-br from-slate-100 to-gray-100/80 flex flex-col items-center justify-center z-10`}
         >
           <div className="w-full h-full flex flex-col items-center justify-center px-6 py-8">
-            <h3 className="text-xl font-semibold mb-6 text-slate-700">Workspace Types</h3>
+            <h3 className="text-xl font-semibold mb-6 text-slate-700">User Intents</h3>
             <ul className="space-y-3 max-h-48 overflow-y-auto custom-scrollbar w-full max-w-xs">
               {loading ? (
                 <li className="text-center text-slate-500">Loading...</li>
               ) : (
-                workspaceTypes.map((type: WorkspaceType) => (
-                  <li key={type.name}>
+                userIntents.map((intent: UserIntent) => (
+                  <li key={intent.name}>
                     <button
-                      className={`w-full flex items-center justify-between p-3 rounded-2xl shadow-md border transition-all group ${selectedType && selectedType.name === type.name ? 'bg-slate-200 border-slate-400' : 'bg-white hover:bg-slate-100 border-gray-200'}`}
-                      onClick={() => handleTypeSelect(type)}
+                      className={`w-full flex items-center justify-between p-3 rounded-2xl shadow-md border transition-all group ${selectedIntent && selectedIntent.name === intent.name ? 'bg-slate-200 border-slate-400' : 'bg-white hover:bg-slate-100 border-gray-200'}`}
+                      onClick={() => handleIntentSelect(intent)}
                     >
                       <span
-                        className={`font-semibold text-base ${selectedType && selectedType.name === type.name ? 'text-slate-900' : 'text-slate-700 group-hover:text-slate-900'} transition-colors`}
+                        className={`font-semibold text-base ${selectedIntent && selectedIntent.name === intent.name ? 'text-slate-900' : 'text-slate-700 group-hover:text-slate-900'} transition-colors`}
                       >
-                        {type.name}
+                        {intent.name}
                       </span>
                       <FiChevronRight className="w-5 h-5 text-slate-400" />
                     </button>
@@ -137,27 +144,27 @@ const PromptTemplatePanel = ({ isOpen, onClose }: { isOpen: boolean; onClose: ()
             </ul>
           </div>
         </div>
-        {/* Panel 2: Sections (only show if a type is selected) */}
-        {selectedType && (
+        {/* Panel 2: Research Sections (only show if an intent is selected) */}
+        {selectedIntent && (
           <div
             className={`transition-all duration-300 h-full ${midPanelWidth} border-r border-gray-200 bg-gradient-to-br from-slate-100 to-gray-100/80 flex flex-col z-20`}
           >
             <div className="w-full h-full flex flex-col px-6 py-8">
-              {/* Back to Types button */}
+              {/* Back to Intents button */}
               <button
                 className="mb-4 flex items-center text-slate-700 font-semibold hover:underline"
                 onClick={() => {
-                  setSelectedType(null);
+                  setSelectedIntent(null);
                   setSelectedSection(null);
                 }}
                 type="button"
               >
-                <FiChevronLeft className="w-5 h-5 mr-2" /> Back to Types
+                <FiChevronLeft className="w-5 h-5 mr-2" /> Back to Intents
               </button>
-              <h3 className="text-xl font-semibold mb-4 text-slate-700">Sections</h3>
+              <h3 className="text-xl font-semibold mb-4 text-slate-700">Research Sections</h3>
               <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
                 <ul className="space-y-4 max-h-64 overflow-y-auto custom-scrollbar">
-                  {selectedType.sections?.map((section: Section) => (
+                  {selectedIntent.sections?.map((section: ResearchSection) => (
                     <li key={section.name}>
                       <button
                         className={`w-full flex items-center justify-between p-4 rounded-xl shadow-sm border transition-all group ${selectedSection && selectedSection.name === section.name ? 'bg-slate-200 border-slate-400' : 'bg-white hover:bg-slate-100 border-gray-200'}`}
@@ -171,7 +178,7 @@ const PromptTemplatePanel = ({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                         <FiChevronRight className="w-5 h-5 text-slate-400" />
                       </button>
                     </li>
-                  )) || <li className="text-center text-slate-500">No sections available</li>}
+                  )) || <li className="text-center text-slate-500">No research sections available</li>}
                 </ul>
               </div>
             </div>
@@ -183,16 +190,16 @@ const PromptTemplatePanel = ({ isOpen, onClose }: { isOpen: boolean; onClose: ()
             className={`transition-all duration-300 h-full ${rightPanelWidth} bg-white flex flex-col z-30`}
           >
             <div className="w-full h-full flex flex-col px-6 py-8">
-              {/* Back to Sections button */}
+              {/* Back to Research Sections button */}
               <button
                 className="mb-4 flex items-center text-slate-700 font-semibold hover:underline"
                 onClick={() => setSelectedSection(null)}
                 type="button"
               >
-                <FiChevronLeft className="w-5 h-5 mr-2" /> Back to Sections
+                <FiChevronLeft className="w-5 h-5 mr-2" /> Back to Research Sections
               </button>
               <h3 className="text-xl font-semibold mb-4 text-slate-700">
-                Prompt for {selectedSection?.name}
+                Research Prompt for {selectedSection?.name}
               </h3>
               <div className="flex-1 overflow-y-auto custom-scrollbar">
                 <div className="bg-gradient-to-br from-slate-50 to-gray-100 rounded-2xl p-6 text-slate-800 shadow-inner border border-gray-200 text-lg leading-relaxed font-medium">
@@ -203,7 +210,7 @@ const PromptTemplatePanel = ({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                   onClick={() => {
                     navigate('/dashboard/proposal-authoring/create-proposal', {
                       state: {
-                        type: selectedType?.name || '',
+                        type: selectedIntent?.name || '',
                         section: selectedSection?.name || '',
                         prompt: selectedSection?.prompt || '',
                       },
@@ -211,7 +218,7 @@ const PromptTemplatePanel = ({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                     onClose();
                   }}
                 >
-                  Use This Prompt
+                  Use This Research Prompt
                 </button>
               </div>
             </div>
