@@ -27,6 +27,11 @@ env = {
     "USE_UNSTRUCTURED_API": os.getenv("USE_UNSTRUCTURED_API", "true").lower() == "true",
     #GROQ API
     "GROQ_API_KEY": os.getenv("GROQ_API_KEY"),
-    "GOOGLE_API_KEY": os.getenv("GOOGLE_API_KEY", "AIzaSyDxgK2Eq9ZePkIglLYlJkOSfAZpllsx8go"),
-    "SERPER_API_KEY": os.getenv("SERPER_API_KEY", "6a0de0e483116a17572c12c48597ef36855e6b3e"),
+    "GOOGLE_API_KEY": os.getenv("GOOGLE_API_KEY", "AIzaSyDEk-E3scm-tP40M0eBEgsTHztgC3Bn91s"),
+    "SERPER_API_KEY": os.getenv("SERPER_API_KEY", "f04115c88f7a5f9e2d1bd4cc4e6e303feed17428"),
+    # OpenTelemetry Configuration (disable telemetry to prevent connection errors)
+    "OTEL_SDK_DISABLED": os.getenv("OTEL_SDK_DISABLED", "true"),
+    "OTEL_TRACES_EXPORTER": os.getenv("OTEL_TRACES_EXPORTER", "none"),
+    "OTEL_METRICS_EXPORTER": os.getenv("OTEL_METRICS_EXPORTER", "none"),
+    "OTEL_LOGS_EXPORTER": os.getenv("OTEL_LOGS_EXPORTER", "none"),
 }

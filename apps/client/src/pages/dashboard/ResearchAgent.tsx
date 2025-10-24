@@ -2,7 +2,6 @@ import jsPDF from 'jspdf';
 import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { FiArrowLeft, FiArrowRight, FiFileText, FiPlay, FiPlus, FiX } from 'react-icons/fi';
-import ReactMarkdown from 'react-markdown';
 import { useResearch, type ResearchAgentResponse } from '../../hooks/useResearch';
 import { API } from '../../utils/constants';
 
@@ -155,24 +154,29 @@ const ResearchAgent: React.FC = () => {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 40;
-    const maxWidth = pageWidth - (margin * 2);
+    const maxWidth = pageWidth - margin * 2;
     let yPosition = margin;
 
     // Helper function to add text with proper formatting
-    const addText = (text: string, fontSize: number = 12, isBold: boolean = false, color: string = '#000000') => {
+    const addText = (
+      text: string,
+      fontSize: number = 12,
+      isBold: boolean = false,
+      color: string = '#000000',
+    ) => {
       doc.setFontSize(fontSize);
       doc.setFont('helvetica', isBold ? 'bold' : 'normal');
       doc.setTextColor(color);
-      
+
       const lines = doc.splitTextToSize(text, maxWidth);
-      
+
       // Check if we need a new page
       const lineHeight = fontSize * 1.2;
-      if (yPosition + (lines.length * lineHeight) > pageHeight - margin) {
+      if (yPosition + lines.length * lineHeight > pageHeight - margin) {
         doc.addPage();
         yPosition = margin;
       }
-      
+
       doc.text(lines, margin, yPosition);
       yPosition += lines.length * lineHeight + 5;
     };
@@ -190,7 +194,7 @@ const ResearchAgent: React.FC = () => {
       // Add header
       addText('Research Report', 20, true, '#1f2937');
       addLineBreak(10);
-      
+
       // Add company and product info
       addText(`Company: ${formData.companyName}`, 14, true, '#374151');
       addText(`Product/Service: ${formData.productName}`, 14, true, '#374151');
@@ -198,18 +202,18 @@ const ResearchAgent: React.FC = () => {
 
       // Process the markdown content
       const content = researchResults.final_report;
-      
+
       // Split content into lines and process each line
       const lines = content.split('\n');
-      
+
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
-        
+
         if (!line) {
           addLineBreak(5);
           continue;
         }
-        
+
         // Handle different markdown elements
         if (line.startsWith('# ')) {
           // Main heading
@@ -274,13 +278,12 @@ const ResearchAgent: React.FC = () => {
         doc.text(
           `Generated on ${new Date().toLocaleDateString()} - Page ${i} of ${totalPages}`,
           pageWidth - 100,
-          pageHeight - 20
+          pageHeight - 20,
         );
       }
 
       doc.save(filename);
       toast.success('PDF downloaded successfully!');
-      
     } catch (err) {
       console.error('PDF generation failed', err);
       toast.error('Failed to generate PDF');
@@ -544,9 +547,7 @@ const ResearchAgent: React.FC = () => {
                 ) : (
                   <div>
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        Final Research Report
-                      </h3>
+                      <h3 className="text-lg font-semibold text-gray-900">Final Research Report</h3>
                       {(researchResults as any).final_report && (
                         <button
                           onClick={handleDownloadPdf}
@@ -560,10 +561,59 @@ const ResearchAgent: React.FC = () => {
                     {(researchResults as any).final_report ? (
                       <div className="bg-white border border-gray-200 rounded-lg p-6">
                         <div className="prose prose-sm max-w-none">
-                          <div className="bg-white text-gray-800 p-4 rounded-md shadow-sm overflow-auto max-h-96">
-                            <ReactMarkdown>
-                              {(researchResults as any).final_report}
-                            </ReactMarkdown>
+                          <div className="space-y-4">
+                            {(researchResults as any).final_report
+                              .split('\n')
+                              .map((line: string, index: number) => {
+                                if (line.startsWith('# ')) {
+                                  return (
+                                    <h1 key={index} className="text-2xl font-bold text-gray-900">
+                                      {line.substring(2)}
+                                    </h1>
+                                  );
+                                } else if (line.startsWith('## ')) {
+                                  return (
+                                    <h2
+                                      key={index}
+                                      className="text-xl font-semibold text-gray-800 mt-6"
+                                    >
+                                      {line.substring(3)}
+                                    </h2>
+                                  );
+                                } else if (line.startsWith('### ')) {
+                                  return (
+                                    <h3
+                                      key={index}
+                                      className="text-lg font-medium text-gray-700 mt-4"
+                                    >
+                                      {line.substring(4)}
+                                    </h3>
+                                  );
+                                } else if (line.startsWith('- ') || line.startsWith('* ')) {
+                                  return (
+                                    <li key={index} className="text-gray-600 ml-4">
+                                      {line.substring(2)}
+                                    </li>
+                                  );
+                                } else if (line.startsWith('> ')) {
+                                  return (
+                                    <blockquote
+                                      key={index}
+                                      className="border-l-4 border-gray-300 pl-4 italic text-gray-600"
+                                    >
+                                      {line.substring(2)}
+                                    </blockquote>
+                                  );
+                                } else if (line.trim() === '') {
+                                  return <div key={index} className="h-4" />;
+                                } else {
+                                  return (
+                                    <p key={index} className="text-gray-600">
+                                      {line}
+                                    </p>
+                                  );
+                                }
+                              })}
                           </div>
                         </div>
                       </div>
