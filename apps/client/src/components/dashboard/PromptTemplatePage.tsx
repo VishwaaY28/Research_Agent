@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-  FiChevronDown,
-  FiChevronUp,
-  FiEdit3,
-  FiFileText,
-  FiLayout,
-  FiPlus,
-  FiSave,
+    FiChevronDown,
+    FiChevronUp,
+    FiEdit3,
+    FiFileText,
+    FiLayout,
+    FiPlus,
+    FiSave,
 } from 'react-icons/fi';
 import ReactModal from 'react-modal';
 import { useLocation } from 'react-router-dom';
@@ -15,8 +15,8 @@ import { useContent } from '../../hooks/useContent';
 import { useWorkspace } from '../../hooks/useWorkspace';
 import { API } from '../../utils/constants';
 
-// Add type for workspace type
-interface WorkspaceType {
+// Add type for user intent
+interface UserIntent {
   id: number;
   name: string;
   is_default: boolean;
@@ -24,69 +24,77 @@ interface WorkspaceType {
     id: number;
     name: string;
     order: number;
-    prompt?: string;
+    prompt: string;
+    schema: any;
+    sub_sections?: Array<{
+      id: number;
+      name: string;
+      order: number;
+    }>;
   }>;
 }
 
 const PromptTemplatePage: React.FC = () => {
-  const [selectedType, setSelectedType] = useState<WorkspaceType | null>(null);
+  const [selectedIntent, setSelectedIntent] = useState<UserIntent | null>(null);
   const [typesCollapsed, setTypesCollapsed] = useState(false);
   const [sectionsCollapsed, setSectionsCollapsed] = useState(false);
   const [selectedSection, setSelectedSection] = useState<{
     id: number;
     name: string;
-    prompt?: string;
+    prompt: string;
+    schema: any;
   } | null>(null);
   const [editablePrompt, setEditablePrompt] = useState('');
   const [saving, setSaving] = useState(false);
   // Removed unused userInputRef and navigate
   const location = useLocation();
   const { savePromptToWorkspace } = useContent();
-  const [workspaceTypes, setWorkspaceTypes] = useState<WorkspaceType[]>([]);
-  const [showAddTypeModal, setShowAddTypeModal] = useState(false);
-  const [newTypeName, setNewTypeName] = useState('');
+  const [userIntents, setUserIntents] = useState<UserIntent[]>([]);
+  const [showAddIntentModal, setShowAddIntentModal] = useState(false);
+  const [newIntentName, setNewIntentName] = useState('');
   const [showAddSectionModal, setShowAddSectionModal] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
   const [newSectionPrompt, setNewSectionPrompt] = useState('');
+  const [newSectionSchema, setNewSectionSchema] = useState<any>({});
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
   const [sectionsLoading, setSectionsLoading] = useState(false);
-  const [typesLoading, setTypesLoading] = useState(false);
+  const [intentsLoading, setIntentsLoading] = useState(false);
   const { workspaces, fetchWorkspaces } = useWorkspace();
   const [filteredWorkspaces, setFilteredWorkspaces] = useState<typeof workspaces>([]);
 
   useEffect(() => {
     fetchWorkspaces();
-    fetchWorkspaceTypes();
+    fetchUserIntents();
   }, []);
 
-  // Fetch workspace types from backend
-  const fetchWorkspaceTypes = async () => {
-    setTypesLoading(true);
+  // Fetch user intents from backend
+  const fetchUserIntents = async () => {
+    setIntentsLoading(true);
     try {
-      const response = await fetch(`${API.BASE_URL()}/api/prompt-templates/types`, {
+      const response = await fetch(`${API.BASE_URL()}/api/prompt-templates/intents`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       if (response.ok) {
-        const types = await response.json();
-        setWorkspaceTypes(types);
+        const intents = await response.json();
+        setUserIntents(intents);
       } else {
-        console.error('Failed to fetch workspace types');
-        toast.error('Failed to fetch workspace types');
+        console.error('Failed to fetch user intents');
+        toast.error('Failed to fetch user intents');
       }
     } catch (error) {
-      console.error('Error fetching workspace types:', error);
-      toast.error('Error fetching workspace types');
+      console.error('Error fetching user intents:', error);
+      toast.error('Error fetching user intents');
     } finally {
-      setTypesLoading(false);
+      setIntentsLoading(false);
     }
   };
 
-  // Helper to fetch all sections and their prompts for a workspace type
-  const fetchSectionsWithPrompts = async (typeId: number) => {
+  // Helper to fetch all sections and their prompts for a user intent
+  const fetchSectionsWithPrompts = async (intentId: number) => {
     setSectionsLoading(true);
     try {
       const sectionsResp = await fetch(
-        `${API.BASE_URL()}/api/prompt-templates/types/${typeId}/sections`,
+        `${API.BASE_URL()}/api/prompt-templates/intents/${intentId}/sections`,
         {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         },
@@ -105,78 +113,78 @@ const PromptTemplatePage: React.FC = () => {
     }
   };
 
-  const handleAddType = async () => {
-    if (!newTypeName.trim()) {
-      toast.error('Workspace type name is required.');
+  const handleAddIntent = async () => {
+    if (!newIntentName.trim()) {
+      toast.error('User intent name is required.');
       return;
     }
 
     try {
-      const response = await fetch(`${API.BASE_URL()}/api/prompt-templates/types`, {
+      const response = await fetch(`${API.BASE_URL()}/api/prompt-templates/intents`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
         body: JSON.stringify({
-          name: newTypeName.trim(),
+          name: newIntentName.trim(),
           is_default: false,
         }),
       });
 
       if (response.ok) {
-        const newType = await response.json();
-        setWorkspaceTypes([...workspaceTypes, newType]);
-        toast.success('Workspace type added!');
-        setNewTypeName('');
-        setShowAddTypeModal(false);
+        const newIntent = await response.json();
+        setUserIntents([...userIntents, newIntent]);
+        toast.success('User intent added!');
+        setNewIntentName('');
+        setShowAddIntentModal(false);
       } else {
         const error = await response.text();
-        toast.error(error || 'Failed to add workspace type');
+        toast.error(error || 'Failed to add user intent');
       }
     } catch (error) {
-      console.error('Error adding workspace type:', error);
-      toast.error('Failed to add workspace type');
+      console.error('Error adding user intent:', error);
+      toast.error('Failed to add user intent');
     }
   };
 
-  // Fetch and set sections+prompts for the selected type
-  const loadSectionsForType = async (typeObj: WorkspaceType) => {
-    if (!typeObj || !typeObj.id) return;
+  // Fetch and set sections+prompts for the selected intent
+  const loadSectionsForIntent = async (intentObj: UserIntent) => {
+    if (!intentObj || !intentObj.id) return;
 
-    const sectionsWithPrompts = await fetchSectionsWithPrompts(typeObj.id);
-    const updatedType = {
-      ...typeObj,
+    const sectionsWithPrompts = await fetchSectionsWithPrompts(intentObj.id);
+    const updatedIntent = {
+      ...intentObj,
       sections: sectionsWithPrompts,
     };
 
-    setWorkspaceTypes((prev) => prev.map((t) => (t.id === typeObj.id ? updatedType : t)));
-    setSelectedType(updatedType);
+    setUserIntents((prev) => prev.map((i) => (i.id === intentObj.id ? updatedIntent : i)));
+    setSelectedIntent(updatedIntent);
   };
 
-  // On type selection, fetch sections+prompts from backend
+  // On intent selection, fetch sections+prompts from backend
   useEffect(() => {
-    if (selectedType && selectedType.id) {
-      loadSectionsForType(selectedType);
+    if (selectedIntent && selectedIntent.id) {
+      loadSectionsForIntent(selectedIntent);
 
-      // Filter workspaces by the selected workspace type
+      // Filter workspaces by the selected user intent
       const filtered = workspaces.filter(
-        (workspace) => workspace.workspace_type === selectedType.name,
+        (workspace) => workspace.workspace_type === selectedIntent.name,
       );
       setFilteredWorkspaces(filtered);
     }
-  }, [selectedType?.id, workspaces]);
+  }, [selectedIntent?.id, workspaces]);
 
-  // Pre-select workspace and type from navigation state
+  // Pre-select workspace and intent from navigation state
   useEffect(() => {
     if (location.state?.workspaceId) {
       setSelectedWorkspaceId(String(location.state.workspaceId));
     }
-    if (location.state?.type && workspaceTypes.length > 0) {
-      const typeObj = workspaceTypes.find((t) => t.name === location.state.type);
-      if (typeObj) setSelectedType(typeObj);
+    if (location.state?.type && userIntents.length > 0) {
+      const intentObj = userIntents.find((i) => i.name === location.state.type);
+      if (intentObj) setSelectedIntent(intentObj);
     }
-  }, [location.state, workspaceTypes]);
+  }, [location.state, userIntents]);
 
   useEffect(() => {
     setEditablePrompt(selectedSection ? selectedSection.prompt || '' : '');
@@ -184,8 +192,8 @@ const PromptTemplatePage: React.FC = () => {
 
   // Update handleSaveToWorkspace to use selectedWorkspaceId if location.state?.workspaceId is not present
   const handleSaveToWorkspace = async () => {
-    if (!selectedType || !selectedSection) {
-      toast.error('Please select a type and section');
+    if (!selectedIntent || !selectedSection) {
+      toast.error('Please select an intent and section');
       return;
     }
     // Prefer navigation state, fallback to selectedWorkspaceId
@@ -196,80 +204,44 @@ const PromptTemplatePage: React.FC = () => {
       return;
     }
 
-    // Check if the selected workspace matches the selected type
-    if (workspace.workspace_type !== selectedType.name) {
-      toast.error(`The selected workspace must be of type "${selectedType.name}"`);
+    // Check if the selected workspace matches the selected intent
+    if (workspace.workspace_type !== selectedIntent.name) {
+      toast.error(`The selected workspace must be of type "${selectedIntent.name}"`);
       return;
     }
     setSaving(true);
     try {
-      // 1. Update the prompt template for the section (if it exists)
-      // Fetch the prompt templates for this section
-      const promptTemplatesResp = await fetch(
-        `${API.BASE_URL()}/api/prompt-templates/sections/${selectedSection.id}/prompts`,
+      // 1. Update the research section template
+      const updateResp = await fetch(
+        `${API.BASE_URL()}/api/prompt-templates/sections/${selectedSection.id}`,
         {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+          body: JSON.stringify({
+            name: selectedSection.name,
+            order: 0, // Default order for research sections
+            prompt: editablePrompt,
+            schema: selectedSection.schema,
+          }),
         },
       );
-      let promptTemplates: any[] = [];
-      if (promptTemplatesResp.ok) {
-        promptTemplates = await promptTemplatesResp.json();
-      }
-      // Find the default prompt template (or first one)
-      const templateToUpdate = promptTemplates.find((p) => p.is_default) || promptTemplates[0];
-      if (templateToUpdate) {
-        // Update the prompt template
-        const updateResp = await fetch(
-          `${API.BASE_URL()}/api/prompt-templates/prompts/${templateToUpdate.id}`,
-          {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${localStorage.getItem('token')}`,
-            },
-            body: JSON.stringify({
-              prompt: editablePrompt,
-              is_default: true,
-            }),
-          },
-        );
-        if (!updateResp.ok) {
-          const error = await updateResp.text();
-          toast.error(error || 'Failed to update prompt template');
-          setSaving(false);
-          return;
-        }
-      } else {
-        // If no template exists, create one
-        const createResp = await fetch(
-          `${API.BASE_URL()}/api/prompt-templates/sections/${selectedSection.id}/prompts`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${localStorage.getItem('token')}`,
-            },
-            body: JSON.stringify({
-              prompt: editablePrompt,
-              is_default: true,
-            }),
-          },
-        );
-        if (!createResp.ok) {
-          const error = await createResp.text();
-          toast.error(error || 'Failed to create prompt template');
-          setSaving(false);
-          return;
-        }
+      if (!updateResp.ok) {
+        const error = await updateResp.text();
+        toast.error(error || 'Failed to update research section template');
+        setSaving(false);
+        return;
       }
 
       // 2. Save the prompt to the workspace as before
-      const title = `${selectedType.name} - ${selectedSection.name}`;
+      const title = `${selectedIntent.name} - ${selectedSection.name}`;
       await savePromptToWorkspace(workspace.id, title, editablePrompt, []);
-      toast.success('Prompt template updated and added to workspace');
+      toast.success('Research section template updated and added to workspace');
       await fetchWorkspaces();
       // Refresh section prompts
-      await loadSectionsForType(selectedType);
+      await loadSectionsForIntent(selectedIntent);
       // Reset section and prompt for new entry
       setSelectedSection(null);
       setEditablePrompt('');
@@ -283,11 +255,11 @@ const PromptTemplatePage: React.FC = () => {
 
   // Place this above the return statement
   const handleAddSection = async () => {
-    if (selectedType && newSectionName.trim() && newSectionPrompt.trim()) {
+    if (selectedIntent && newSectionName.trim() && newSectionPrompt.trim()) {
       try {
-        // 1. Create the section
+        // 1. Create the research section template
         const response = await fetch(
-          `${API.BASE_URL()}/api/prompt-templates/types/${selectedType.id}/sections`,
+          `${API.BASE_URL()}/api/prompt-templates/intents/${selectedIntent.id}/sections`,
           {
             method: 'POST',
             headers: {
@@ -296,52 +268,30 @@ const PromptTemplatePage: React.FC = () => {
             },
             body: JSON.stringify({
               name: newSectionName.trim(),
-              order: selectedType.sections.length,
+              order: selectedIntent.sections.length,
+              prompt: newSectionPrompt.trim(),
+              schema: newSectionSchema,
             }),
           },
         );
 
         if (!response.ok) {
           const error = await response.text();
-          toast.error(error || 'Failed to add section');
+          toast.error(error || 'Failed to add research section');
           return;
         }
 
-        const sectionData = await response.json();
-        const sectionId = sectionData.id;
-
-        // 2. Create the prompt for the section
-        const promptResp = await fetch(
-          `${API.BASE_URL()}/api/prompt-templates/sections/${sectionId}/prompts`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${localStorage.getItem('token')}`,
-            },
-            body: JSON.stringify({
-              prompt: newSectionPrompt.trim(),
-              is_default: true,
-            }),
-          },
-        );
-
-        if (!promptResp.ok) {
-          const error = await promptResp.text();
-          toast.error(error || 'Failed to add prompt');
-          return;
-        }
-
-        // 3. Refresh the sections for this type
-        await loadSectionsForType(selectedType);
+        // 2. Refresh the sections for this intent
+        await loadSectionsForIntent(selectedIntent);
 
         setNewSectionName('');
         setNewSectionPrompt('');
+        setNewSectionSchema({});
         setShowAddSectionModal(false);
-        toast.success('Section and prompt added!');
+        toast.success('Research section added!');
       } catch (err) {
-        console.error('Failed to add section or prompt:', err);
-        toast.error('Failed to add section or prompt');
+        console.error('Failed to add research section:', err);
+        toast.error('Failed to add research section');
       }
     } else {
       toast.error('Section name and prompt are required.');
@@ -361,7 +311,7 @@ const PromptTemplatePage: React.FC = () => {
       if (response.ok) {
         const result = await response.json();
         toast.success(result.message);
-        await fetchWorkspaceTypes();
+        await fetchUserIntents();
       } else {
         toast.error('Failed to seed data');
       }
@@ -394,16 +344,16 @@ const PromptTemplatePage: React.FC = () => {
             </div> */}
           </div>
           <div className="flex-1 overflow-y-auto">
-            {/* Workspace Type Heading */}
+            {/* User Intent Heading */}
             <div className="flex items-center justify-between mb-1 mt-2">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Workspace Type
+                User Intent
               </span>
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setTypesCollapsed((c) => !c)}
                   className="p-1.5 bg-gray-50 hover:bg-gray-100 rounded-md text-gray-500"
-                  title={typesCollapsed ? 'Expand Types' : 'Collapse Types'}
+                  title={typesCollapsed ? 'Expand Intents' : 'Collapse Intents'}
                 >
                   {typesCollapsed ? (
                     <FiChevronDown className="w-4 h-4" />
@@ -412,9 +362,9 @@ const PromptTemplatePage: React.FC = () => {
                   )}
                 </button>
                 <button
-                  onClick={() => setShowAddTypeModal(true)}
+                  onClick={() => setShowAddIntentModal(true)}
                   className="p-1.5 bg-indigo-50 hover:bg-indigo-100 rounded-md text-indigo-600"
-                  title="Add Workspace Type"
+                  title="Add User Intent"
                 >
                   <FiPlus className="w-4 h-4" />
                 </button>
@@ -422,11 +372,11 @@ const PromptTemplatePage: React.FC = () => {
             </div>
             {!typesCollapsed && (
               <div className="flex flex-col gap-1">
-                {typesLoading ? (
-                  <div className="text-center py-8 text-gray-400">Loading types...</div>
-                ) : workspaceTypes.length === 0 ? (
+                {intentsLoading ? (
+                  <div className="text-center py-8 text-gray-400">Loading intents...</div>
+                ) : userIntents.length === 0 ? (
                   <div className="text-center py-8 text-gray-400">
-                    No workspace types found.
+                    No user intents found.
                     <br />
                     <button
                       onClick={handleSeedData}
@@ -436,34 +386,34 @@ const PromptTemplatePage: React.FC = () => {
                     </button>
                   </div>
                 ) : (
-                  workspaceTypes.map((type) => (
+                  userIntents.map((intent) => (
                     <button
-                      key={type.id}
+                      key={intent.id}
                       className={`flex items-center gap-2 px-3 py-2 rounded-md text-left transition-all text-sm font-medium
                         ${
-                          selectedType && selectedType.id === type.id
+                          selectedIntent && selectedIntent.id === intent.id
                             ? 'bg-indigo-600 text-white'
                             : 'hover:bg-indigo-50 text-gray-700'
                         }
                       `}
                       onClick={() => {
-                        setSelectedType(type);
+                        setSelectedIntent(intent);
                         setSelectedSection(null);
                         setSectionsCollapsed(false);
                       }}
                     >
                       <FiFileText className="w-4 h-4" />
-                      <span className="truncate">{type.name}</span>
+                      <span className="truncate">{intent.name}</span>
                     </button>
                   ))
                 )}
               </div>
             )}
-            {/* Sections for selected type */}
-            {selectedType && (
+            {/* Sections for selected intent */}
+            {selectedIntent && (
               <div className="mt-6">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-semibold text-gray-700">Sections</h3>
+                  <h3 className="text-sm font-semibold text-gray-700">Research Sections</h3>
                   <div className="flex items-center gap-1">
                     <button
                       className="p-1.5 bg-gray-50 hover:bg-gray-100 rounded-md text-gray-500"
@@ -479,7 +429,7 @@ const PromptTemplatePage: React.FC = () => {
                     <button
                       className="p-1.5 bg-indigo-50 hover:bg-indigo-100 rounded-md text-indigo-600"
                       onClick={() => setShowAddSectionModal(true)}
-                      title="Add Section"
+                      title="Add Research Section"
                     >
                       <FiPlus className="w-4 h-4" />
                     </button>
@@ -489,10 +439,10 @@ const PromptTemplatePage: React.FC = () => {
                   <div className="flex flex-col gap-1">
                     {sectionsLoading ? (
                       <div className="text-center py-4 text-gray-400">Loading sections...</div>
-                    ) : (selectedType?.sections?.length ?? 0) === 0 ? (
-                      <div className="text-center py-4 text-gray-400">No sections found.</div>
+                    ) : (selectedIntent?.sections?.length ?? 0) === 0 ? (
+                      <div className="text-center py-4 text-gray-400">No research sections found.</div>
                     ) : (
-                      selectedType.sections.map((section) => (
+                      selectedIntent.sections.map((section) => (
                         <button
                           key={section.id}
                           className={`flex items-center gap-2 px-3 py-2 rounded-md text-left transition-all text-sm font-medium
@@ -520,7 +470,7 @@ const PromptTemplatePage: React.FC = () => {
         </div>
         {/* Right Panel: Prompt Editor */}
         <div className="flex-1 flex flex-col items-stretch min-w-0">
-          {selectedType && selectedSection ? (
+          {selectedIntent && selectedSection ? (
             <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-6 flex flex-col gap-4 max-w-2xl mx-auto w-full">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded bg-indigo-100 flex items-center justify-center">
@@ -549,7 +499,7 @@ const PromptTemplatePage: React.FC = () => {
               {!location.state?.workspaceId && (
                 <div>
                   <label className="block mb-2 font-medium text-gray-700 text-sm">
-                    Select Workspace ({selectedType?.name} type only)
+                    Select Workspace ({selectedIntent?.name} intent only)
                   </label>
                   <div className="relative">
                     <select
@@ -566,7 +516,7 @@ const PromptTemplatePage: React.FC = () => {
                         ))
                       ) : (
                         <option value="" disabled>
-                          No workspaces available for this type
+                          No workspaces available for this intent
                         </option>
                       )}
                     </select>
@@ -598,24 +548,24 @@ const PromptTemplatePage: React.FC = () => {
             <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-center text-gray-400">
               <FiFileText className="w-16 h-16 text-indigo-200 mb-4" />
               <div className="text-lg font-medium">
-                {selectedType
-                  ? 'Select a section to view its prompt template'
-                  : 'Select a workspace type to get started'}
+                {selectedIntent
+                  ? 'Select a research section to view its prompt template'
+                  : 'Select a user intent to get started'}
               </div>
               <div className="text-gray-400 mt-2 text-sm">
-                {selectedType
-                  ? 'Choose a section from the left to edit its prompt template'
-                  : 'Choose a workspace type to view and edit prompt templates'}
+                {selectedIntent
+                  ? 'Choose a research section from the left to edit its prompt template'
+                  : 'Choose a user intent to view and edit research section templates'}
               </div>
             </div>
           )}
         </div>
         {/* Modals */}
-        {showAddTypeModal && (
+        {showAddIntentModal && (
           <ReactModal
-            isOpen={showAddTypeModal}
-            onRequestClose={() => setShowAddTypeModal(false)}
-            contentLabel="Add Workspace Type"
+            isOpen={showAddIntentModal}
+            onRequestClose={() => setShowAddIntentModal(false)}
+            contentLabel="Add User Intent"
             ariaHideApp={false}
             className="fixed inset-0 flex items-center justify-center z-50"
             overlayClassName="fixed inset-0 bg-black/40 backdrop-blur-sm"
@@ -623,33 +573,33 @@ const PromptTemplatePage: React.FC = () => {
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
               <div className="border-b border-gray-100 px-6 py-3 bg-gray-50 flex items-center gap-3">
                 <FiLayout className="w-5 h-5 text-indigo-600" />
-                <h2 className="text-lg font-bold text-gray-900">Add Workspace Type</h2>
+                <h2 className="text-lg font-bold text-gray-900">Add User Intent</h2>
               </div>
               <div className="p-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Type Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Intent Name</label>
                 <input
                   type="text"
                   className="w-full bg-gray-50 border border-indigo-100 rounded-xl px-4 py-3 text-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="Enter workspace type name..."
-                  value={newTypeName}
-                  onChange={(e) => setNewTypeName(e.target.value)}
+                  placeholder="Enter user intent name..."
+                  value={newIntentName}
+                  onChange={(e) => setNewIntentName(e.target.value)}
                 />
                 <div className="flex justify-end gap-3 mt-6">
                   <button
                     className="px-3 py-1.5 rounded-md text-gray-600 hover:bg-gray-100 font-medium"
                     onClick={() => {
-                      setShowAddTypeModal(false);
-                      setNewTypeName('');
+                      setShowAddIntentModal(false);
+                      setNewIntentName('');
                     }}
                   >
                     Cancel
                   </button>
                   <button
                     className="px-4 py-1.5 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    onClick={handleAddType}
-                    disabled={!newTypeName.trim()}
+                    onClick={handleAddIntent}
+                    disabled={!newIntentName.trim()}
                   >
-                    <FiPlus className="w-4 h-4" /> Add Type
+                    <FiPlus className="w-4 h-4" /> Add Intent
                   </button>
                 </div>
               </div>
@@ -660,7 +610,7 @@ const PromptTemplatePage: React.FC = () => {
           <ReactModal
             isOpen={showAddSectionModal}
             onRequestClose={() => setShowAddSectionModal(false)}
-            contentLabel="Add Section"
+            contentLabel="Add Research Section"
             ariaHideApp={false}
             className="fixed inset-0 flex items-center justify-center z-50"
             overlayClassName="fixed inset-0 bg-black/40 backdrop-blur-sm"
@@ -668,15 +618,15 @@ const PromptTemplatePage: React.FC = () => {
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
               <div className="border-b border-gray-100 px-6 py-3 bg-gray-50 flex items-center gap-3">
                 <FiEdit3 className="w-5 h-5 text-indigo-600" />
-                <h2 className="text-lg font-bold text-gray-900">Add New Section</h2>
-                <span className="text-xs text-gray-400 ml-2">to {selectedType?.name}</span>
+                <h2 className="text-lg font-bold text-gray-900">Add New Research Section</h2>
+                <span className="text-xs text-gray-400 ml-2">to {selectedIntent?.name}</span>
               </div>
               <div className="p-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Section Name</label>
                 <input
                   type="text"
                   className="w-full bg-gray-50 border border-indigo-100 rounded-xl px-4 py-3 text-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="Enter section name..."
+                  placeholder="Enter research section name..."
                   value={newSectionName}
                   onChange={(e) => setNewSectionName(e.target.value)}
                 />
@@ -685,7 +635,7 @@ const PromptTemplatePage: React.FC = () => {
                 </label>
                 <textarea
                   className="w-full bg-gray-50 border border-indigo-100 rounded-xl px-4 py-3 text-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[100px] resize-y"
-                  placeholder="Enter the prompt template for this section..."
+                  placeholder="Enter the prompt template for this research section..."
                   value={newSectionPrompt}
                   onChange={(e) => setNewSectionPrompt(e.target.value)}
                 />
@@ -696,6 +646,7 @@ const PromptTemplatePage: React.FC = () => {
                       setShowAddSectionModal(false);
                       setNewSectionName('');
                       setNewSectionPrompt('');
+                      setNewSectionSchema({});
                     }}
                   >
                     Cancel
@@ -705,7 +656,7 @@ const PromptTemplatePage: React.FC = () => {
                     onClick={handleAddSection}
                     disabled={!newSectionName.trim() || !newSectionPrompt.trim()}
                   >
-                    <FiPlus className="w-4 h-4" /> Add Section
+                    <FiPlus className="w-4 h-4" /> Add Research Section
                   </button>
                 </div>
               </div>
