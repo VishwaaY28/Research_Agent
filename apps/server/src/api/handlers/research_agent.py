@@ -28,6 +28,7 @@ class ResearchSection(BaseModel):
 class ResearchAgentRequest(BaseModel):
     company_name: str
     product_name: str
+    user_intent_id: Optional[int] = None
     selected_urls: Optional[List[str]] = None
 
 
@@ -43,16 +44,35 @@ class ResearchAgentResponse(BaseModel):
     error: Optional[str] = None
 
 
-async def fetch_urls(company_name: str, product_name: str) -> List[URLItem]:
+async def fetch_urls(company_name: str, product_name: str, user_intent_id: Optional[int] = None) -> List[URLItem]:
     """Fetch URLs related to the company and product using the URL fetcher agent."""
     try:
-        from utils.agents import DEFAULT_SECTIONS
+        # Get user intent and its sections from database
+        if user_intent_id:
+            user_intent = await UserIntent.get(id=user_intent_id)
+        else:
+            user_intent = await UserIntent.filter(is_default=True).first()
+        
+        if not user_intent:
+            raise HTTPException(status_code=404, detail="No user intent found")
+        
+        section_templates = await ResearchSectionTemplate.filter(
+            user_intent=user_intent
+        ).order_by('order', 'name')
+        
+        if not section_templates:
+            raise HTTPException(status_code=404, detail="No research section templates found for this user intent")
+        
+        # Build sections description from database
+        sections_info = {}
+        for section in section_templates:
+            sections_info[section.name] = list(section.schema.keys()) if section.schema else []
         
         task_url_search = Task(
             description=(
                 f"Find URLs for the company '{company_name}' and product '{product_name}'. "
                 f"Search for information covering these specific sections and parameters:\n\n"
-                f"{json.dumps(DEFAULT_SECTIONS, indent=2)}\n\n"
+                f"{json.dumps(sections_info, indent=2)}\n\n"
                 f"For each section, find relevant and trustworthy URLs that cover the listed parameters. "
                 f"Return a valid JSON array of objects with 'URL' and 'Description' keys.\n"
                 f"Each URL description should indicate which section and parameters it covers."
@@ -310,7 +330,7 @@ async def run_research_agent(request: ResearchAgentRequest) -> ResearchAgentResp
             urls = [URLItem(URL=url, Description=f"User provided URL for {request.product_name}") for url in request.selected_urls]
         else:
             # Fetch URLs using the agent
-            urls = await fetch_urls(request.company_name, request.product_name)
+            urls = await fetch_urls(request.company_name, request.product_name, request.user_intent_id)
 
         if not urls:
             return ResearchAgentResponse(
@@ -324,12 +344,16 @@ async def run_research_agent(request: ResearchAgentRequest) -> ResearchAgentResp
 
         # Step 2: Get research section templates from database
         print("Step 2: Getting research section templates...")
-        default_intent = await UserIntent.filter(is_default=True).first()
-        if not default_intent:
-            raise HTTPException(status_code=404, detail="No default user intent found")
+        if request.user_intent_id:
+            user_intent = await UserIntent.get(id=request.user_intent_id)
+        else:
+            user_intent = await UserIntent.filter(is_default=True).first()
+        
+        if not user_intent:
+            raise HTTPException(status_code=404, detail="No user intent found")
         
         section_templates = await ResearchSectionTemplate.filter(
-            user_intent=default_intent
+            user_intent=user_intent
         ).order_by('order', 'name')
 
         if not section_templates:

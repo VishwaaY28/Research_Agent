@@ -3,16 +3,19 @@ import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { FiArrowLeft, FiArrowRight, FiFileText, FiPlay, FiPlus, FiX } from 'react-icons/fi';
 import { useResearch, type ResearchAgentResponse } from '../../hooks/useResearch';
+import { useUserIntents } from '../../hooks/useUserIntents';
 import { API } from '../../utils/constants';
 
 interface ResearchFormData {
   companyName: string;
   productName: string;
+  userIntentId?: number;
   selectedUrls: string[];
 }
 
 const ResearchAgent: React.FC = () => {
   const { runResearchAgent, loading: researchLoading } = useResearch();
+  const { userIntents, loading: userIntentsLoading } = useUserIntents();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
@@ -23,6 +26,7 @@ const ResearchAgent: React.FC = () => {
   const [formData, setFormData] = useState<ResearchFormData>({
     companyName: '',
     productName: '',
+    userIntentId: undefined,
     selectedUrls: [],
   });
 
@@ -56,7 +60,7 @@ const ResearchAgent: React.FC = () => {
   const canProceed = () => {
     switch (currentStep) {
       case 0:
-        return formData.companyName.trim() && formData.productName.trim();
+        return formData.companyName.trim() && formData.productName.trim() && formData.userIntentId;
       case 1:
         return true;
       default:
@@ -84,6 +88,7 @@ const ResearchAgent: React.FC = () => {
       const researchData = {
         company_name: formData.companyName,
         product_name: formData.productName,
+        user_intent_id: formData.userIntentId,
         selected_urls: formData.selectedUrls.length > 0 ? formData.selectedUrls : undefined,
       };
 
@@ -326,6 +331,28 @@ const ResearchAgent: React.FC = () => {
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Research Intent *
+              </label>
+              <select
+                value={formData.userIntentId || ''}
+                onChange={(e) => updateFormData('userIntentId', e.target.value ? parseInt(e.target.value) : undefined)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-200"
+                disabled={userIntentsLoading}
+              >
+                <option value="">Select a research intent...</option>
+                {userIntents.map((intent) => (
+                  <option key={intent.id} value={intent.id}>
+                    {intent.name} {intent.is_default ? '(Default)' : ''}
+                  </option>
+                ))}
+              </select>
+              {userIntentsLoading && (
+                <p className="text-sm text-gray-500 mt-1">Loading research intents...</p>
+              )}
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-3">
                 Additional URLs (Optional)
               </label>
@@ -417,6 +444,12 @@ const ResearchAgent: React.FC = () => {
                 <div className="flex justify-between">
                   <span className="text-gray-600">Product/Service:</span>
                   <span className="font-medium">{formData.productName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Research Intent:</span>
+                  <span className="font-medium">
+                    {userIntents.find(intent => intent.id === formData.userIntentId)?.name || 'Not selected'}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Additional URLs:</span>

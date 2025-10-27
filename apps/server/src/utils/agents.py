@@ -144,11 +144,7 @@ def custom_scrape_website(url: str) -> str:
 
 
 
-# Predefined sections and parameters
-DEFAULT_SECTIONS = {
-    "Capabilities & Limits": ["Topic", "Capabilities", "Limitations", "notes"],
-    "Performance & Scalability": ["Topic", "Performance metrics", "Scalability limits", "Resource requirements", "notes"]
-}
+# Note: Sections are now fetched from the database via UserIntent and ResearchSectionTemplate models
 
 
 gemini_llm = LLM(
