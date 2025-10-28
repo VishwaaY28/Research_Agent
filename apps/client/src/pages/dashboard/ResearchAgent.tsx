@@ -1,7 +1,8 @@
 import jsPDF from 'jspdf';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { FiArrowLeft, FiArrowRight, FiFileText, FiPlay, FiPlus, FiX } from 'react-icons/fi';
+import ReactMarkdown from 'react-markdown';
 import { useResearch, type ResearchAgentResponse } from '../../hooks/useResearch';
 import { useUserIntents } from '../../hooks/useUserIntents';
 import { API } from '../../utils/constants';
@@ -13,8 +14,156 @@ interface ResearchFormData {
   selectedUrls: string[];
 }
 
-const ResearchAgent: React.FC = () => {
-  const { runResearchAgent, loading: researchLoading } = useResearch();
+interface PdfHelpers {
+  doc: jsPDF;
+  addText: (text: string, fontSize?: number, isBold?: boolean, color?: string) => void;
+  processContent: (content: string) => void;
+  yPosition: number;
+  maxWidth: number;
+  margin: number;
+  pageHeight: number;
+}
+
+const createPdfHelpers = (): PdfHelpers => {
+  const doc = new jsPDF('p', 'pt', 'a4');
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 40;
+  const maxWidth = pageWidth - margin * 2;
+  let yPosition = margin;
+
+  const addText = (
+    text: string,
+    fontSize: number = 12,
+    isBold: boolean = false,
+    color: string = '#000000',
+  ): void => {
+    doc.setFontSize(fontSize);
+    doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+    doc.setTextColor(color);
+
+    const lines = doc.splitTextToSize(text, maxWidth);
+
+    // Check if we need a new page
+    const lineHeight = fontSize * 1.2;
+    if (yPosition + lines.length * lineHeight > pageHeight - margin) {
+      doc.addPage();
+      yPosition = margin;
+    }
+
+    doc.text(lines, margin, yPosition);
+    yPosition += lines.length * lineHeight + 5;
+  };
+
+  const processContent = (content: string): void => {
+    const paragraphs = content.split('\n\n');
+    for (const paragraph of paragraphs) {
+      if (!paragraph.trim()) continue;
+
+      // Handle lists
+      if (paragraph.trim().startsWith('- ') || paragraph.trim().startsWith('* ')) {
+        const listItems = paragraph.split('\n');
+        for (const item of listItems) {
+          if (!item.trim()) continue;
+          const bulletText = item.trim().startsWith('- ')
+            ? item.substring(2)
+            : item.trim().startsWith('* ')
+              ? item.substring(2)
+              : item;
+          addText(`  • ${bulletText.trim()}`, 12, false);
+        }
+        yPosition += 8;
+      }
+      // Handle blockquotes
+      else if (paragraph.trim().startsWith('> ')) {
+        addText(paragraph.substring(2).trim(), 12, false, '#666666');
+        yPosition += 8;
+      }
+      // Regular paragraph
+      else {
+        addText(paragraph.trim(), 12, false);
+        yPosition += 8;
+      }
+    }
+  };
+
+  return {
+    doc,
+    addText,
+    processContent,
+    yPosition,
+    maxWidth,
+    margin,
+    pageHeight
+  };
+};
+
+const createResearchReport = (researchResult: ResearchAgentResponse, formData: ResearchFormData): { filename: string; doc: jsPDF } => {
+  const helpers = createPdfHelpers();
+
+  // Generate filename
+  const cleanName = (str: string) => str.replace(/[^a-zA-Z0-9 _-]/g, '').trim();
+  const cleanCompanyName = cleanName(formData.companyName);
+  const cleanProductName = cleanName(formData.productName);
+  const filename = cleanCompanyName && cleanProductName
+    ? `${cleanCompanyName}-${cleanProductName}-research-report.pdf`
+    : cleanCompanyName
+      ? `${cleanCompanyName}-research-report.pdf`
+      : 'research-report.pdf';
+
+  // Add title
+  helpers.addText(`${formData.companyName} - ${formData.productName}`, 24, true);
+  helpers.addText('Research Report', 18, true, '#666666');
+
+  // Process markdown content
+  const sections = researchResult.final_report?.split('\n# ') || [];
+
+  for (const section of sections) {
+    if (!section.trim()) continue;
+
+    // Split section into header and content
+    const sectionLines = section.split('\n');
+    const headerLine = sectionLines[0];
+    const contentLines = sectionLines.slice(1).join('\n');
+
+    // Add the header
+    helpers.addText(headerLine, 20, true);
+
+    // Process subsections
+    const subsections = contentLines.split('\n## ');
+    for (const subsection of subsections) {
+      if (!subsection.trim()) continue;
+
+      const subLines = subsection.split('\n');
+      if (subsections.length > 1) {
+        helpers.addText(subLines[0], 16, true);
+        const subContent = subLines.slice(1).join('\n');
+
+        // Process subsubsections
+        const subsubsections = subContent.split('\n### ');
+        for (const subsubsection of subsubsections) {
+          if (!subsubsection.trim()) continue;
+
+          const subsubLines = subsubsection.split('\n');
+          if (subsubsections.length > 1) {
+            helpers.addText(subsubLines[0], 14, true);
+            helpers.processContent(subsubLines.slice(1).join('\n'));
+          } else {
+            helpers.processContent(subsubsection);
+          }
+        }
+      } else {
+        helpers.processContent(subsection);
+      }
+    }
+  }
+
+  // Return filename and doc for saving
+  return { filename, doc: helpers.doc };
+};
+
+const ResearchAgent = () => {
+  const { runResearchAgent } = useResearch();
   const { userIntents, loading: userIntentsLoading } = useUserIntents();
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -33,109 +182,96 @@ const ResearchAgent: React.FC = () => {
   const [urlInput, setUrlInput] = useState('');
   const [seeding, setSeeding] = useState(false);
 
-  const addUrl = () => {
-    if (urlInput.trim() && !formData.selectedUrls.includes(urlInput.trim())) {
-      setFormData((prev) => ({
-        ...prev,
-        selectedUrls: [...prev.selectedUrls, urlInput.trim()],
-      }));
-      setUrlInput('');
+  // Handlers
+  const handleDownloadCsv = async () => {
+    if (!researchResults) {
+      toast.error('No research data to download');
+      return;
     }
-  };
 
-  const removeUrl = (url: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      selectedUrls: prev.selectedUrls.filter((u) => u !== url),
-    }));
-  };
-
-  const updateFormData = (field: keyof ResearchFormData, value: any) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
-
-  const canProceed = () => {
-    switch (currentStep) {
-      case 0:
-        return formData.companyName.trim() && formData.productName.trim() && formData.userIntentId;
-      case 1:
-        return true;
-      default:
-        return false;
-    }
-  };
-
-  const nextStep = () => {
-    if (canProceed() && currentStep < 1) {
-      setCurrentStep((prev) => prev + 1);
-    }
-  };
-
-  const prevStep = () => {
-    if (currentStep > 0) {
-      setCurrentStep((prev) => prev - 1);
-    }
-  };
-
-  const handleStartResearch = async () => {
-    if (!canProceed()) return;
-
-    setIsRunning(true);
+    // Derive filename from company and product names
+    let filename = 'research-report.csv';
     try {
-      const researchData = {
-        company_name: formData.companyName,
-        product_name: formData.productName,
-        user_intent_id: formData.userIntentId,
-        selected_urls: formData.selectedUrls.length > 0 ? formData.selectedUrls : undefined,
-      };
-
-      const response = await runResearchAgent(researchData);
-
-      console.log('Research Agent Response:', response);
-      setResearchResults(response);
-      setCurrentStep(2);
-
-      toast.success('Research completed successfully!');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to run research agent');
-    } finally {
-      setIsRunning(false);
-    }
-  };
-
-  const handleSeedDemoSections = async () => {
-    setSeeding(true);
-    try {
-      const response = await fetch(
-        API.BASE_URL() +
-          API.ENDPOINTS.RESEARCH_SECTION_TEMPLATES.BASE_URL() +
-          API.ENDPOINTS.RESEARCH_SECTION_TEMPLATES.SEED(),
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
-          },
-        },
-      );
-
-      if (response.ok) {
-        const result = await response.json();
-        toast.success(result.message);
-      } else {
-        toast.error('Failed to seed demo sections');
+      const companyName = formData.companyName.replace(/[^a-zA-Z0-9 _-]/g, '').trim();
+      const productName = formData.productName.replace(/[^a-zA-Z0-9 _-]/g, '').trim();
+      if (companyName && productName) {
+        filename = `${companyName}-${productName}-research-report.csv`;
+      } else if (companyName) {
+        filename = `${companyName}-research-report.csv`;
       }
-    } catch (error) {
-      console.error('Error seeding demo sections:', error);
-      toast.error('Failed to seed demo sections');
-    } finally {
-      setSeeding(false);
+    } catch (e) {
+      filename = 'research-report.csv';
+    }
+
+    const escapeCsv = (value: any) => {
+      const str = value === null || value === undefined ? '' : String(value);
+      if (/[",\n]/.test(str)) {
+        return '"' + str.replace(/"/g, '""') + '"';
+      }
+      return str;
+    };
+
+    try {
+      const lines: string[] = [];
+
+      // Header info
+      lines.push('Research Report');
+      lines.push(`Company,${escapeCsv(formData.companyName)}`);
+      lines.push(`Product,${escapeCsv(formData.productName)}`);
+      lines.push('');
+
+      // Sources section
+      lines.push('Sources');
+      lines.push('URL,Description');
+      (researchResults.urls || []).forEach((u) => {
+        lines.push(`${escapeCsv(u.URL)},${escapeCsv(u.Description)}`);
+      });
+      lines.push('');
+
+      // Sections section
+      lines.push('Sections');
+      lines.push('Section Name,Group,Relevant,Topic,Notes,Content(JSON)');
+      (researchResults.sections || []).forEach((s) => {
+        const content = JSON.stringify(s.content ?? {}, null, 0);
+        lines.push([
+          escapeCsv(s.section_name),
+          escapeCsv(s.group),
+          escapeCsv(String(s.relevant)),
+          escapeCsv(s.topic),
+          escapeCsv(s.notes ?? ''),
+          escapeCsv(content)
+        ].join(','));
+      });
+
+      // Final report as a single CSV cell at the end (optional)
+      if ((researchResults as any).final_report) {
+        lines.push('');
+        lines.push('Final Report (Markdown)');
+        const finalReport = (researchResults as any).final_report as string;
+        // Split to keep lines reasonable while preserving content
+        finalReport.split('\n').forEach((line) => {
+          lines.push(escapeCsv(line));
+        });
+      }
+
+      const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success('CSV downloaded successfully!');
+    } catch (err) {
+      console.error('CSV generation failed', err);
+      toast.error('Failed to generate CSV');
     }
   };
 
-  const handleDownloadPdf = async () => {
+const handleDownloadPdf = async () => {
     if (!researchResults?.final_report) {
       toast.error('No final report to download');
       return;
@@ -295,7 +431,108 @@ const ResearchAgent: React.FC = () => {
     }
   };
 
-  // Step components
+  const addUrl = () => {
+    if (urlInput.trim() && !formData.selectedUrls.includes(urlInput.trim())) {
+      setFormData((prev) => ({
+        ...prev,
+        selectedUrls: [...prev.selectedUrls, urlInput.trim()],
+      }));
+      setUrlInput('');
+    }
+  };
+
+  const removeUrl = (url: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      selectedUrls: prev.selectedUrls.filter((u) => u !== url),
+    }));
+  };
+
+  const updateFormData = (field: keyof ResearchFormData, value: any) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const canProceed = () => {
+    switch (currentStep) {
+      case 0:
+        return formData.companyName.trim() && formData.productName.trim() && formData.userIntentId;
+      case 1:
+        return true;
+      default:
+        return false;
+    }
+  };
+
+  const nextStep = () => {
+    if (canProceed() && currentStep < 1) {
+      setCurrentStep((prev) => prev + 1);
+    }
+  };
+
+  const prevStep = () => {
+    if (currentStep > 0) {
+      setCurrentStep((prev) => prev - 1);
+    }
+  };
+
+  const handleStartResearch = async () => {
+    if (!canProceed()) return;
+
+    setIsRunning(true);
+    try {
+      const researchData = {
+        company_name: formData.companyName,
+        product_name: formData.productName,
+        user_intent_id: formData.userIntentId,
+        selected_urls: formData.selectedUrls.length > 0 ? formData.selectedUrls : undefined,
+      };
+
+      const response = await runResearchAgent(researchData);
+
+      console.log('Research Agent Response:', response);
+      setResearchResults(response);
+      setCurrentStep(2);
+
+      toast.success('Research completed successfully!');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to run research agent');
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  const handleSeedDemoSections = async () => {
+    setSeeding(true);
+    try {
+      const response = await fetch(
+        API.BASE_URL() +
+          API.ENDPOINTS.RESEARCH_SECTION_TEMPLATES.BASE_URL() +
+          API.ENDPOINTS.RESEARCH_SECTION_TEMPLATES.SEED(),
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+        },
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(result.message);
+      } else {
+        toast.error('Failed to seed demo sections');
+      }
+    } catch (error) {
+      console.error('Error seeding demo sections:', error);
+      toast.error('Failed to seed demo sections');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   const stepTitles = ['Company & Product', 'Review & Launch', 'Results'];
 
   const renderStepContent = () => {
@@ -582,72 +819,28 @@ const ResearchAgent: React.FC = () => {
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-semibold text-gray-900">Final Research Report</h3>
                       {(researchResults as any).final_report && (
-                        <button
-                          onClick={handleDownloadPdf}
-                          className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors"
-                        >
-                          <FiFileText className="w-4 h-4" />
-                          Download as PDF
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleDownloadPdf}
+                            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors"
+                          >
+                            <FiFileText className="w-4 h-4" />
+                            Download as PDF
+                          </button>
+                          <button
+                            onClick={handleDownloadCsv}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
+                          >
+                            <FiFileText className="w-4 h-4" />
+                            Download as CSV
+                          </button>
+                        </div>
                       )}
                     </div>
                     {(researchResults as any).final_report ? (
                       <div className="bg-white border border-gray-200 rounded-lg p-6">
                         <div className="prose prose-sm max-w-none">
-                          <div className="space-y-4">
-                            {(researchResults as any).final_report
-                              .split('\n')
-                              .map((line: string, index: number) => {
-                                if (line.startsWith('# ')) {
-                                  return (
-                                    <h1 key={index} className="text-2xl font-bold text-gray-900">
-                                      {line.substring(2)}
-                                    </h1>
-                                  );
-                                } else if (line.startsWith('## ')) {
-                                  return (
-                                    <h2
-                                      key={index}
-                                      className="text-xl font-semibold text-gray-800 mt-6"
-                                    >
-                                      {line.substring(3)}
-                                    </h2>
-                                  );
-                                } else if (line.startsWith('### ')) {
-                                  return (
-                                    <h3
-                                      key={index}
-                                      className="text-lg font-medium text-gray-700 mt-4"
-                                    >
-                                      {line.substring(4)}
-                                    </h3>
-                                  );
-                                } else if (line.startsWith('- ') || line.startsWith('* ')) {
-                                  return (
-                                    <li key={index} className="text-gray-600 ml-4">
-                                      {line.substring(2)}
-                                    </li>
-                                  );
-                                } else if (line.startsWith('> ')) {
-                                  return (
-                                    <blockquote
-                                      key={index}
-                                      className="border-l-4 border-gray-300 pl-4 italic text-gray-600"
-                                    >
-                                      {line.substring(2)}
-                                    </blockquote>
-                                  );
-                                } else if (line.trim() === '') {
-                                  return <div key={index} className="h-4" />;
-                                } else {
-                                  return (
-                                    <p key={index} className="text-gray-600">
-                                      {line}
-                                    </p>
-                                  );
-                                }
-                              })}
-                          </div>
+                          <ReactMarkdown>{(researchResults as any).final_report}</ReactMarkdown>
                         </div>
                       </div>
                     ) : (
@@ -751,10 +944,10 @@ const ResearchAgent: React.FC = () => {
             {currentStep === 1 ? (
               <button
                 onClick={handleStartResearch}
-                disabled={isRunning || researchLoading || !canProceed()}
+                disabled={isRunning || !canProceed()}
                 className="flex items-center space-x-2 px-8 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg"
               >
-                {isRunning || researchLoading ? (
+                {isRunning ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     <span>Running Research Agent...</span>

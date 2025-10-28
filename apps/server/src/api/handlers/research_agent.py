@@ -52,22 +52,22 @@ async def fetch_urls(company_name: str, product_name: str, user_intent_id: Optio
             user_intent = await UserIntent.get(id=user_intent_id)
         else:
             user_intent = await UserIntent.filter(is_default=True).first()
-        
+
         if not user_intent:
             raise HTTPException(status_code=404, detail="No user intent found")
-        
+
         section_templates = await ResearchSectionTemplate.filter(
             user_intent=user_intent
         ).order_by('order', 'name')
-        
+
         if not section_templates:
             raise HTTPException(status_code=404, detail="No research section templates found for this user intent")
-        
+
         # Build sections description from database
         sections_info = {}
         for section in section_templates:
             sections_info[section.name] = list(section.schema.keys()) if section.schema else []
-        
+
         task_url_search = Task(
             description=(
                 f"Find URLs for the company '{company_name}' and product '{product_name}'. "
@@ -100,7 +100,7 @@ async def fetch_urls(company_name: str, product_name: str, user_intent_id: Optio
 async def scrape_all_urls(urls: List[str]) -> Dict[str, str]:
     """Scrape content from all URLs once and return a mapping of URL to content."""
     scraped_content = {}
-    
+
     for url in urls:
         try:
             # Create a scraping task for this URL
@@ -109,22 +109,22 @@ async def scrape_all_urls(urls: List[str]) -> Dict[str, str]:
                 expected_output="Clean, structured text content from the webpage",
                 agent=scraper
             )
-            
+
             crew_scraping = Crew(
                 agents=[scraper],
                 tasks=[scraping_task],
                 llm=scraper.llm,
                 verbose=True
             )
-            
+
             output = crew_scraping.kickoff()
             scraped_content[url] = str(output)
             print(f"Successfully scraped content from {url}")
-            
+
         except Exception as e:
             print(f"Error scraping {url}: {str(e)}")
             scraped_content[url] = f"Error scraping content: {str(e)}"
-    
+
     return scraped_content
 
 
@@ -135,7 +135,7 @@ async def analyze_content_for_sections(
 ) -> List[ResearchSection]:
     """Analyze already scraped content for each research section."""
     sections = []
-    
+
     for section_template in section_templates:
         try:
             # Create an analysis task for this section using the content analyzer
@@ -175,17 +175,17 @@ async def analyze_content_for_sections(
             try:
                 # Parse the output
                 output_str = str(output).strip()
-                
+
                 # Try direct JSON parsing first
                 try:
                     parsed = json.loads(output_str)
                 except json.JSONDecodeError:
                     # Try to extract JSON from the text
                     parsed = extract_json(output_str)
-                
+
                 if not parsed:
                     raise ValueError("No valid JSON found in agent output")
-                
+
                 section = ResearchSection(
                     section_name=section_template.name,
                     group=parsed.get("group", section_template.schema.get("group", "general")),
@@ -194,11 +194,11 @@ async def analyze_content_for_sections(
                     content=parsed,
                     notes=parsed.get("notes", "")
                 )
-                
+
             except Exception as e:
                 print(f"Error parsing section {section_template.name}: {str(e)}")
                 print(f"Agent output: {str(output)}")
-                
+
                 # Create fallback section with sample data
                 fallback_content = {
                     "group": section_template.schema.get("group", "general"),
@@ -206,7 +206,7 @@ async def analyze_content_for_sections(
                     "topic": product_name,
                     "notes": f"Sample data generated due to parsing error. Original error: {str(e)}"
                 }
-                
+
                 # Add section-specific fallback data based on schema
                 for key, value in section_template.schema.items():
                     if key not in ["group", "relevant", "topic", "notes"] and isinstance(value, list):
@@ -216,7 +216,7 @@ async def analyze_content_for_sections(
                                 "citations": [{"source_id": "source_1", "quote": "Sample quote", "locator": "Sample location"}]
                             }
                         ]
-                
+
                 section = ResearchSection(
                     section_name=section_template.name,
                     group=section_template.schema.get("group", "general"),
@@ -225,12 +225,12 @@ async def analyze_content_for_sections(
                     content=fallback_content,
                     notes=f"Sample data generated due to parsing error. Original error: {str(e)}"
                 )
-            
+
             sections.append(section)
-            
+
         except Exception as e:
             print(f"Error processing section {section_template.name}: {str(e)}")
-            
+
             # Create error section
             error_section = ResearchSection(
                 section_name=section_template.name,
@@ -241,7 +241,7 @@ async def analyze_content_for_sections(
                 notes=f"Failed to process section: {str(e)}"
             )
             sections.append(error_section)
-    
+
     return sections
 
 
@@ -273,7 +273,7 @@ async def generate_final_report(
                 } for url_item in urls
             ]
         }
-        
+
         report_task = Task(
             description=f"""
             Generate a comprehensive research report for {product_name} from {company_name} based on the following data:
@@ -298,6 +298,8 @@ async def generate_final_report(
             5. Make the report actionable and insightful
             6. Use professional business language
             7. Include key insights and recommendations
+            8. strictly Dont include your thoughts in the final report
+            9. result should be in markdown format
             """,
             expected_output="A comprehensive research report in markdown format with executive summary, detailed findings, and conclusions",
             agent=reporter
@@ -312,7 +314,7 @@ async def generate_final_report(
 
         report_output = crew_reporting.kickoff()
         return str(report_output)
-        
+
     except Exception as e:
         print(f"Error generating final report: {str(e)}")
         return f"Error generating final report: {str(e)}"
@@ -322,7 +324,7 @@ async def run_research_agent(request: ResearchAgentRequest) -> ResearchAgentResp
     """Main function to run the complete research agent workflow."""
     try:
         print(f"Starting research agent for {request.company_name} - {request.product_name}")
-        
+
         # Step 1: Fetch URLs
         print("Step 1: Fetching URLs...")
         if request.selected_urls and len(request.selected_urls) > 0:
@@ -348,10 +350,10 @@ async def run_research_agent(request: ResearchAgentRequest) -> ResearchAgentResp
             user_intent = await UserIntent.get(id=request.user_intent_id)
         else:
             user_intent = await UserIntent.filter(is_default=True).first()
-        
+
         if not user_intent:
             raise HTTPException(status_code=404, detail="No user intent found")
-        
+
         section_templates = await ResearchSectionTemplate.filter(
             user_intent=user_intent
         ).order_by('order', 'name')
@@ -365,7 +367,7 @@ async def run_research_agent(request: ResearchAgentRequest) -> ResearchAgentResp
         print("Step 3: Scraping content from all URLs...")
         url_list = [url_item.URL for url_item in urls]
         scraped_content = await scrape_all_urls(url_list)
-        
+
         # Step 4: Analyze scraped content for each section
         print("Step 4: Analyzing content for each section...")
         sections = await analyze_content_for_sections(
@@ -392,7 +394,7 @@ async def run_research_agent(request: ResearchAgentRequest) -> ResearchAgentResp
             sections=sections,
             final_report=final_report
         )
-        
+
         print(f"Research Agent Response: {response.dict()}")
         return response
 
