@@ -160,7 +160,7 @@ scrape_tool = custom_scrape_website
 
 url_fetcher = Agent(
     role="Web URL Fetcher",
-    goal="Given company, product and sections, fetch trustworthy URLs for each section heading and its parameters.",
+    goal="Given company, product and sections, fetch 2 trustworthy URLs for each section heading and its parameters.",
     backstory="Expert researcher sourcing high-quality sources from the web, specializing in finding relevant URLs for specific research parameters.",
     tools=[search_tool],
     llm=gemini_llm,
@@ -186,7 +186,7 @@ content_analyzer = Agent(
 
 reporter = Agent(
     role="Reporter",
-    goal="Summarize the scraped content in under 100 words, formatted in Markdown.",
+    goal="Summarize the scraped content, formatted in Markdown.",
     backstory="Skilled in writing concise product summaries for business and technical audiences.",
     llm=gemini_llm,
     verbose=True
