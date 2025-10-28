@@ -183,6 +183,94 @@ const ResearchAgent = () => {
   const [seeding, setSeeding] = useState(false);
 
   // Handlers
+  const handleDownloadCsv = async () => {
+    if (!researchResults) {
+      toast.error('No research data to download');
+      return;
+    }
+
+    // Derive filename from company and product names
+    let filename = 'research-report.csv';
+    try {
+      const companyName = formData.companyName.replace(/[^a-zA-Z0-9 _-]/g, '').trim();
+      const productName = formData.productName.replace(/[^a-zA-Z0-9 _-]/g, '').trim();
+      if (companyName && productName) {
+        filename = `${companyName}-${productName}-research-report.csv`;
+      } else if (companyName) {
+        filename = `${companyName}-research-report.csv`;
+      }
+    } catch (e) {
+      filename = 'research-report.csv';
+    }
+
+    const escapeCsv = (value: any) => {
+      const str = value === null || value === undefined ? '' : String(value);
+      if (/[",\n]/.test(str)) {
+        return '"' + str.replace(/"/g, '""') + '"';
+      }
+      return str;
+    };
+
+    try {
+      const lines: string[] = [];
+
+      // Header info
+      lines.push('Research Report');
+      lines.push(`Company,${escapeCsv(formData.companyName)}`);
+      lines.push(`Product,${escapeCsv(formData.productName)}`);
+      lines.push('');
+
+      // Sources section
+      lines.push('Sources');
+      lines.push('URL,Description');
+      (researchResults.urls || []).forEach((u) => {
+        lines.push(`${escapeCsv(u.URL)},${escapeCsv(u.Description)}`);
+      });
+      lines.push('');
+
+      // Sections section
+      lines.push('Sections');
+      lines.push('Section Name,Group,Relevant,Topic,Notes,Content(JSON)');
+      (researchResults.sections || []).forEach((s) => {
+        const content = JSON.stringify(s.content ?? {}, null, 0);
+        lines.push([
+          escapeCsv(s.section_name),
+          escapeCsv(s.group),
+          escapeCsv(String(s.relevant)),
+          escapeCsv(s.topic),
+          escapeCsv(s.notes ?? ''),
+          escapeCsv(content)
+        ].join(','));
+      });
+
+      // Final report as a single CSV cell at the end (optional)
+      if ((researchResults as any).final_report) {
+        lines.push('');
+        lines.push('Final Report (Markdown)');
+        const finalReport = (researchResults as any).final_report as string;
+        // Split to keep lines reasonable while preserving content
+        finalReport.split('\n').forEach((line) => {
+          lines.push(escapeCsv(line));
+        });
+      }
+
+      const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success('CSV downloaded successfully!');
+    } catch (err) {
+      console.error('CSV generation failed', err);
+      toast.error('Failed to generate CSV');
+    }
+  };
+
 const handleDownloadPdf = async () => {
     if (!researchResults?.final_report) {
       toast.error('No final report to download');
@@ -731,13 +819,22 @@ const handleDownloadPdf = async () => {
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-semibold text-gray-900">Final Research Report</h3>
                       {(researchResults as any).final_report && (
-                        <button
-                          onClick={handleDownloadPdf}
-                          className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors"
-                        >
-                          <FiFileText className="w-4 h-4" />
-                          Download as PDF
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleDownloadPdf}
+                            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors"
+                          >
+                            <FiFileText className="w-4 h-4" />
+                            Download as PDF
+                          </button>
+                          <button
+                            onClick={handleDownloadCsv}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
+                          >
+                            <FiFileText className="w-4 h-4" />
+                            Download as CSV
+                          </button>
+                        </div>
                       )}
                     </div>
                     {(researchResults as any).final_report ? (
