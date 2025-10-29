@@ -193,51 +193,153 @@ const ResearchAgent = () => {
       return str;
     };
 
-    try {
-      const lines: string[] = [];
+    // Recursively flatten nested objects/arrays into human-readable rows
+    const flattenObject = (
+      obj: any,
+      prefix: string = '',
+      rows: any[] = [],
+      parentRow: any = {},
+    ): any[] => {
+      if (obj === null || obj === undefined) {
+        return rows;
+      }
 
-      // Header info
-      lines.push('Research Report');
-      lines.push(`Company,${escapeCsv(formData.companyName)}`);
-      lines.push(`Product,${escapeCsv(formData.productName)}`);
-      lines.push('');
+      if (Array.isArray(obj)) {
+        // For arrays, create a row for each element
+        obj.forEach((item, index) => {
+          const arrayPrefix = prefix ? `${prefix}[${index + 1}]` : `Item ${index + 1}`;
+          if (typeof item === 'object' && item !== null) {
+            flattenObject(item, arrayPrefix, rows, { ...parentRow });
+          } else {
+            rows.push({
+              ...parentRow,
+              Field: arrayPrefix,
+              Value: String(item),
+            });
+          }
+        });
+      } else if (typeof obj === 'object') {
+        // For objects, recursively process each key
+        const keys = Object.keys(obj);
+        if (keys.length === 0) {
+          return rows;
+        }
 
-      // Sources section
-      lines.push('Sources');
-      lines.push('URL,Description');
-      (researchResults.urls || []).forEach((u) => {
-        lines.push(`${escapeCsv(u.URL)},${escapeCsv(u.Description)}`);
-      });
-      lines.push('');
+        keys.forEach((key) => {
+          const value = obj[key];
+          const fieldName = prefix ? `${prefix}.${key}` : key;
 
-      // Sections section
-      lines.push('Sections');
-      lines.push('Section Name,Group,Relevant,Topic,Notes,Content(JSON)');
-      (researchResults.sections || []).forEach((s) => {
-        const content = JSON.stringify(s.content ?? {}, null, 0);
-        lines.push(
-          [
-            escapeCsv(s.section_name),
-            escapeCsv(s.group),
-            escapeCsv(String(s.relevant)),
-            escapeCsv(s.topic),
-            escapeCsv(s.notes ?? ''),
-            escapeCsv(content),
-          ].join(','),
-        );
-      });
-
-      // Final report as a single CSV cell at the end (optional)
-      if ((researchResults as any).final_report) {
-        lines.push('');
-        lines.push('Final Report (Markdown)');
-        const finalReport = (researchResults as any).final_report as string;
-        // Split to keep lines reasonable while preserving content
-        finalReport.split('\n').forEach((line) => {
-          lines.push(escapeCsv(line));
+          if (value === null || value === undefined) {
+            rows.push({
+              ...parentRow,
+              Field: fieldName,
+              Value: '',
+            });
+          } else if (Array.isArray(value)) {
+            if (value.length === 0) {
+              rows.push({
+                ...parentRow,
+                Field: fieldName,
+                Value: '(empty)',
+              });
+            } else {
+              flattenObject(value, fieldName, rows, parentRow);
+            }
+          } else if (typeof value === 'object') {
+            flattenObject(value, fieldName, rows, parentRow);
+          } else {
+            rows.push({
+              ...parentRow,
+              Field: fieldName,
+              Value: String(value),
+            });
+          }
+        });
+      } else {
+        rows.push({
+          ...parentRow,
+          Field: prefix || 'Value',
+          Value: String(obj),
         });
       }
 
+      return rows;
+    };
+
+    try {
+      const sections = researchResults.sections || [];
+      const intentName = formData.userIntentId
+        ? userIntents.find((ui) => ui.id === formData.userIntentId)?.name ||
+          String(formData.userIntentId)
+        : '';
+
+      const allRows: any[] = [];
+
+      // Process each section
+      sections.forEach((section: any) => {
+        const baseInfo = {
+          Company: formData.companyName,
+          Product: formData.productName,
+          'User Intent': intentName,
+          'Section Name': section.section_name,
+          Group: section.group,
+          Relevant: String(section.relevant),
+          Topic: section.topic,
+          Notes: section.notes || '',
+        };
+
+        // Add section metadata row
+        allRows.push({
+          ...baseInfo,
+          Field: 'Section Info',
+          Value: `${section.section_name} (${section.group})`,
+        });
+
+        // Flatten the content object
+        if (section.content && typeof section.content === 'object') {
+          const contentRows = flattenObject(section.content, '', [], baseInfo);
+          allRows.push(...contentRows);
+        }
+
+        // Add empty row for separation between sections
+        allRows.push({
+          Company: '',
+          Product: '',
+          'User Intent': '',
+          'Section Name': '',
+          Group: '',
+          Relevant: '',
+          Topic: '',
+          Notes: '',
+          Field: '',
+          Value: '',
+        });
+      });
+
+      // Build CSV headers
+      const headers = [
+        'Company',
+        'Product',
+        'User Intent',
+        'Section Name',
+        'Group',
+        'Relevant',
+        'Topic',
+        'Notes',
+        'Field',
+        'Value',
+      ];
+
+      const lines: string[] = [];
+      lines.push(headers.join(','));
+
+      // Add data rows
+      allRows.forEach((row) => {
+        const csvRow = headers.map((header) => escapeCsv(row[header] || ''));
+        lines.push(csvRow.join(','));
+      });
+
+      // Create CSV blob and trigger download
       const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
