@@ -137,6 +137,7 @@ export const API = {
     RESEARCH_AGENT: {
       BASE_URL: () => '/api/research-agent',
       RUN: () => '/run',
+      RUN_STREAM: () => '/run-stream',
     },
     RESEARCH_SECTION_TEMPLATES: {
       BASE_URL: () => '/api/research-section-templates',

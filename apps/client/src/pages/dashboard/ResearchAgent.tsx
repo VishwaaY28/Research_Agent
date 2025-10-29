@@ -1,11 +1,43 @@
 import jsPDF from 'jspdf';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { FiArrowLeft, FiArrowRight, FiFileText, FiPlay, FiPlus, FiX } from 'react-icons/fi';
+import {
+  FiArrowLeft,
+  FiArrowRight,
+  FiFileText,
+  FiPlay,
+  FiPlus,
+  FiTerminal,
+  FiX,
+} from 'react-icons/fi';
 import ReactMarkdown from 'react-markdown';
-import { useResearch, type ResearchAgentResponse } from '../../hooks/useResearch';
+import {
+  useResearch,
+  type ResearchAgentResponse,
+  type StreamMessage,
+} from '../../hooks/useResearch';
 import { useUserIntents } from '../../hooks/useUserIntents';
 import { API } from '../../utils/constants';
+
+// Strip ANSI escape codes and control sequences for human-readable logs
+function stripAnsi(input: string): string {
+  // eslint-disable-next-line no-control-regex
+  const ansiRegex =
+    /[\u001B\u009B][[\]()#;?]*(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-ORZcf-nqry=><~]|\u001B\].*?(?:\u0007|\u001B\\)/g;
+  return input.replace(ansiRegex, '');
+}
+
+function cleanLog(input?: string): string {
+  if (!input) return '';
+  let text = stripAnsi(input);
+  // Remove carriage returns that produce overstrike behavior
+  text = text.replace(/\r/g, '');
+  // Collapse very long sequences of dashes/underscores
+  text = text.replace(/[_=\-]{6,}/g, '——');
+  // Normalize excessive spaces while preserving monospace look
+  text = text.replace(/\s{3,}/g, '  ');
+  return text.trim();
+}
 
 interface ResearchFormData {
   companyName: string;
@@ -94,76 +126,12 @@ const createPdfHelpers = (): PdfHelpers => {
     yPosition,
     maxWidth,
     margin,
-    pageHeight
+    pageHeight,
   };
 };
 
-const createResearchReport = (researchResult: ResearchAgentResponse, formData: ResearchFormData): { filename: string; doc: jsPDF } => {
-  const helpers = createPdfHelpers();
-
-  // Generate filename
-  const cleanName = (str: string) => str.replace(/[^a-zA-Z0-9 _-]/g, '').trim();
-  const cleanCompanyName = cleanName(formData.companyName);
-  const cleanProductName = cleanName(formData.productName);
-  const filename = cleanCompanyName && cleanProductName
-    ? `${cleanCompanyName}-${cleanProductName}-research-report.pdf`
-    : cleanCompanyName
-      ? `${cleanCompanyName}-research-report.pdf`
-      : 'research-report.pdf';
-
-  // Add title
-  helpers.addText(`${formData.companyName} - ${formData.productName}`, 24, true);
-  helpers.addText('Research Report', 18, true, '#666666');
-
-  // Process markdown content
-  const sections = researchResult.final_report?.split('\n# ') || [];
-
-  for (const section of sections) {
-    if (!section.trim()) continue;
-
-    // Split section into header and content
-    const sectionLines = section.split('\n');
-    const headerLine = sectionLines[0];
-    const contentLines = sectionLines.slice(1).join('\n');
-
-    // Add the header
-    helpers.addText(headerLine, 20, true);
-
-    // Process subsections
-    const subsections = contentLines.split('\n## ');
-    for (const subsection of subsections) {
-      if (!subsection.trim()) continue;
-
-      const subLines = subsection.split('\n');
-      if (subsections.length > 1) {
-        helpers.addText(subLines[0], 16, true);
-        const subContent = subLines.slice(1).join('\n');
-
-        // Process subsubsections
-        const subsubsections = subContent.split('\n### ');
-        for (const subsubsection of subsubsections) {
-          if (!subsubsection.trim()) continue;
-
-          const subsubLines = subsubsection.split('\n');
-          if (subsubsections.length > 1) {
-            helpers.addText(subsubLines[0], 14, true);
-            helpers.processContent(subsubLines.slice(1).join('\n'));
-          } else {
-            helpers.processContent(subsubsection);
-          }
-        }
-      } else {
-        helpers.processContent(subsection);
-      }
-    }
-  }
-
-  // Return filename and doc for saving
-  return { filename, doc: helpers.doc };
-};
-
 const ResearchAgent = () => {
-  const { runResearchAgent } = useResearch();
+  const { runResearchAgentStream } = useResearch();
   const { userIntents, loading: userIntentsLoading } = useUserIntents();
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -171,6 +139,13 @@ const ResearchAgent = () => {
 
   const [researchResults, setResearchResults] = useState<ResearchAgentResponse | null>(null);
   const [showFinalReport, setShowFinalReport] = useState(false);
+  const [showLogs, setShowLogs] = useState(false);
+  const [streamLogs, setStreamLogs] = useState<StreamMessage[]>([]);
+  const [currentStepInfo, setCurrentStepInfo] = useState<{ step: number; message: string } | null>(
+    null,
+  );
+  const streamCleanupRef = useRef<(() => void) | null>(null);
+  const logsEndRef = useRef<HTMLDivElement>(null);
 
   const [formData, setFormData] = useState<ResearchFormData>({
     companyName: '',
@@ -181,6 +156,13 @@ const ResearchAgent = () => {
 
   const [urlInput, setUrlInput] = useState('');
   const [seeding, setSeeding] = useState(false);
+
+  // Auto-scroll logs to bottom
+  useEffect(() => {
+    if (logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [streamLogs]);
 
   // Handlers
   const handleDownloadCsv = async () => {
@@ -233,14 +215,16 @@ const ResearchAgent = () => {
       lines.push('Section Name,Group,Relevant,Topic,Notes,Content(JSON)');
       (researchResults.sections || []).forEach((s) => {
         const content = JSON.stringify(s.content ?? {}, null, 0);
-        lines.push([
-          escapeCsv(s.section_name),
-          escapeCsv(s.group),
-          escapeCsv(String(s.relevant)),
-          escapeCsv(s.topic),
-          escapeCsv(s.notes ?? ''),
-          escapeCsv(content)
-        ].join(','));
+        lines.push(
+          [
+            escapeCsv(s.section_name),
+            escapeCsv(s.group),
+            escapeCsv(String(s.relevant)),
+            escapeCsv(s.topic),
+            escapeCsv(s.notes ?? ''),
+            escapeCsv(content),
+          ].join(','),
+        );
       });
 
       // Final report as a single CSV cell at the end (optional)
@@ -271,7 +255,7 @@ const ResearchAgent = () => {
     }
   };
 
-const handleDownloadPdf = async () => {
+  const handleDownloadPdf = async () => {
     if (!researchResults?.final_report) {
       toast.error('No final report to download');
       return;
@@ -482,6 +466,10 @@ const handleDownloadPdf = async () => {
     if (!canProceed()) return;
 
     setIsRunning(true);
+    setStreamLogs([]);
+    setCurrentStepInfo(null);
+    setShowLogs(true);
+
     try {
       const researchData = {
         company_name: formData.companyName,
@@ -490,18 +478,39 @@ const handleDownloadPdf = async () => {
         selected_urls: formData.selectedUrls.length > 0 ? formData.selectedUrls : undefined,
       };
 
-      const response = await runResearchAgent(researchData);
+      const cleanup = await runResearchAgentStream(
+        researchData,
+        (message: StreamMessage) => {
+          setStreamLogs((prev) => [...prev, message]);
 
-      console.log('Research Agent Response:', response);
-      setResearchResults(response);
-      setCurrentStep(2);
+          if (message.type === 'step') {
+            setCurrentStepInfo({ step: message.step || 0, message: message.message || '' });
+          }
+        },
+        (result: ResearchAgentResponse) => {
+          console.log('Research Agent Response:', result);
+          setResearchResults(result);
+          setCurrentStep(2);
+        },
+        (error: string) => {
+          console.error('Research agent error:', error);
+        },
+      );
 
-      toast.success('Research completed successfully!');
+      streamCleanupRef.current = cleanup;
     } catch (error: any) {
       toast.error(error.message || 'Failed to run research agent');
-    } finally {
       setIsRunning(false);
     }
+  };
+
+  const handleStopResearch = () => {
+    if (streamCleanupRef.current) {
+      streamCleanupRef.current();
+      streamCleanupRef.current = null;
+    }
+    setIsRunning(false);
+    toast('Research stopped by user', { icon: 'ℹ️' });
   };
 
   const handleSeedDemoSections = async () => {
@@ -573,7 +582,12 @@ const handleDownloadPdf = async () => {
               </label>
               <select
                 value={formData.userIntentId || ''}
-                onChange={(e) => updateFormData('userIntentId', e.target.value ? parseInt(e.target.value) : undefined)}
+                onChange={(e) =>
+                  updateFormData(
+                    'userIntentId',
+                    e.target.value ? parseInt(e.target.value) : undefined,
+                  )
+                }
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition duration-200"
                 disabled={userIntentsLoading}
               >
@@ -640,7 +654,7 @@ const handleDownloadPdf = async () => {
               </p>
             </div>
 
-            <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+            {/* <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="text-sm font-medium text-yellow-800 mb-1">Setup Required</h4>
@@ -664,7 +678,7 @@ const handleDownloadPdf = async () => {
                   )}
                 </button>
               </div>
-            </div>
+            </div> */}
           </div>
         );
 
@@ -685,7 +699,8 @@ const handleDownloadPdf = async () => {
                 <div className="flex justify-between">
                   <span className="text-gray-600">Research Intent:</span>
                   <span className="font-medium">
-                    {userIntents.find(intent => intent.id === formData.userIntentId)?.name || 'Not selected'}
+                    {userIntents.find((intent) => intent.id === formData.userIntentId)?.name ||
+                      'Not selected'}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -702,6 +717,56 @@ const handleDownloadPdf = async () => {
                 research sections. This process typically takes 2-5 minutes.
               </p>
             </div>
+
+            {/* Live Logs Display */}
+            {isRunning && (
+              <div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <FiTerminal className="w-4 h-4 text-green-400" />
+                    <h4 className="text-sm font-medium text-white">Live Research Logs</h4>
+                  </div>
+                  <button
+                    onClick={() => setShowLogs(!showLogs)}
+                    className="text-xs text-gray-400 hover:text-white transition-colors"
+                  >
+                    {showLogs ? 'Hide' : 'Show'} Logs
+                  </button>
+                </div>
+
+                {currentStepInfo && (
+                  <div className="mb-3 p-2 bg-blue-900/50 rounded border border-blue-700">
+                    <div className="text-sm text-blue-300">
+                      Step {currentStepInfo.step}: {currentStepInfo.message}
+                    </div>
+                  </div>
+                )}
+
+                {showLogs && (
+                  <div className="max-h-64 overflow-y-auto bg-black/50 rounded p-3 font-mono text-xs">
+                    {streamLogs.map((log, index) => (
+                      <div key={index} className="mb-1">
+                        <span
+                          className={`inline-block w-12 text-right mr-2 ${
+                            log.type === 'error'
+                              ? 'text-red-400'
+                              : log.type === 'step'
+                                ? 'text-blue-400'
+                                : log.type === 'log'
+                                  ? 'text-green-400'
+                                  : 'text-gray-400'
+                          }`}
+                        >
+                          [{log.type}]
+                        </span>
+                        <span className="text-gray-300">{cleanLog(log.message)}</span>
+                      </div>
+                    ))}
+                    <div ref={logsEndRef} />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         );
 
@@ -942,23 +1007,37 @@ const handleDownloadPdf = async () => {
             </button>
 
             {currentStep === 1 ? (
-              <button
-                onClick={handleStartResearch}
-                disabled={isRunning || !canProceed()}
-                className="flex items-center space-x-2 px-8 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg"
-              >
-                {isRunning ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Running Research Agent...</span>
-                  </>
-                ) : (
-                  <>
-                    <FiPlay className="w-5 h-5" />
-                    <span>Start Research Agent</span>
-                  </>
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={isRunning ? handleStopResearch : handleStartResearch}
+                  disabled={!canProceed() && !isRunning}
+                  className={`flex items-center space-x-2 px-8 py-3 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg ${
+                    isRunning
+                      ? 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800'
+                      : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800'
+                  }`}
+                >
+                  {isRunning ? (
+                    <>
+                      <FiX className="w-5 h-5" />
+                      <span>Stop Research</span>
+                    </>
+                  ) : (
+                    <>
+                      <FiPlay className="w-5 h-5" />
+                      <span>Start Research Agent</span>
+                    </>
+                  )}
+                </button>
+                {isRunning && currentStepInfo && (
+                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                    <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                    <span>
+                      Step {currentStepInfo.step}: {currentStepInfo.message}
+                    </span>
+                  </div>
                 )}
-              </button>
+              </div>
             ) : currentStep < 1 ? (
               <button
                 onClick={nextStep}

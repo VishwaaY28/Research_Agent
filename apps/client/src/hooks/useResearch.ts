@@ -68,6 +68,13 @@ export interface ResearchAgentResponse {
   error?: string;
 }
 
+export interface StreamMessage {
+  type: 'log' | 'step' | 'error' | 'result' | 'complete';
+  message?: string;
+  step?: number;
+  data?: ResearchAgentResponse;
+}
+
 export interface ResearchStatus {
   workspace_id: number;
   status: string;
@@ -82,16 +89,19 @@ export function useResearch() {
   async function startResearch(data: ResearchRequest): Promise<ResearchResponse> {
     setLoading(true);
     try {
-      const res = await fetch(API.BASE_URL() + API.ENDPOINTS.RESEARCH.BASE_URL() + API.ENDPOINTS.RESEARCH.START(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: localStorage.getItem('token')
-            ? `Bearer ${localStorage.getItem('token')}`
-            : '',
+      const res = await fetch(
+        API.BASE_URL() + API.ENDPOINTS.RESEARCH.BASE_URL() + API.ENDPOINTS.RESEARCH.START(),
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: localStorage.getItem('token')
+              ? `Bearer ${localStorage.getItem('token')}`
+              : '',
+          },
+          body: JSON.stringify(data),
         },
-        body: JSON.stringify(data),
-      });
+      );
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -112,16 +122,19 @@ export function useResearch() {
   async function fetchURLs(data: URLFetchRequest): Promise<URLFetchResponse> {
     setLoading(true);
     try {
-      const res = await fetch(API.BASE_URL() + API.ENDPOINTS.RESEARCH.BASE_URL() + API.ENDPOINTS.RESEARCH.FETCH_URLS(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: localStorage.getItem('token')
-            ? `Bearer ${localStorage.getItem('token')}`
-            : '',
+      const res = await fetch(
+        API.BASE_URL() + API.ENDPOINTS.RESEARCH.BASE_URL() + API.ENDPOINTS.RESEARCH.FETCH_URLS(),
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: localStorage.getItem('token')
+              ? `Bearer ${localStorage.getItem('token')}`
+              : '',
+          },
+          body: JSON.stringify(data),
         },
-        body: JSON.stringify(data),
-      });
+      );
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -142,16 +155,21 @@ export function useResearch() {
   async function startResearchWithURLs(data: URLSelectionRequest): Promise<ResearchResponse> {
     setLoading(true);
     try {
-      const res = await fetch(API.BASE_URL() + API.ENDPOINTS.RESEARCH.BASE_URL() + API.ENDPOINTS.RESEARCH.START_WITH_URLS(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: localStorage.getItem('token')
-            ? `Bearer ${localStorage.getItem('token')}`
-            : '',
+      const res = await fetch(
+        API.BASE_URL() +
+          API.ENDPOINTS.RESEARCH.BASE_URL() +
+          API.ENDPOINTS.RESEARCH.START_WITH_URLS(),
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: localStorage.getItem('token')
+              ? `Bearer ${localStorage.getItem('token')}`
+              : '',
+          },
+          body: JSON.stringify(data),
         },
-        body: JSON.stringify(data),
-      });
+      );
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -172,14 +190,16 @@ export function useResearch() {
   async function getResearchStatus(workspaceId: string | number): Promise<ResearchStatus> {
     try {
       const res = await fetch(
-        API.BASE_URL() + API.ENDPOINTS.RESEARCH.BASE_URL() + API.ENDPOINTS.RESEARCH.STATUS(workspaceId),
+        API.BASE_URL() +
+          API.ENDPOINTS.RESEARCH.BASE_URL() +
+          API.ENDPOINTS.RESEARCH.STATUS(workspaceId),
         {
           headers: {
             Authorization: localStorage.getItem('token')
               ? `Bearer ${localStorage.getItem('token')}`
               : '',
           },
-        }
+        },
       );
 
       if (!res.ok) {
@@ -196,16 +216,21 @@ export function useResearch() {
   async function runResearchAgent(data: ResearchAgentRequest): Promise<ResearchAgentResponse> {
     setLoading(true);
     try {
-      const res = await fetch(API.BASE_URL() + API.ENDPOINTS.RESEARCH_AGENT.BASE_URL() + API.ENDPOINTS.RESEARCH_AGENT.RUN(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: localStorage.getItem('token')
-            ? `Bearer ${localStorage.getItem('token')}`
-            : '',
+      const res = await fetch(
+        API.BASE_URL() +
+          API.ENDPOINTS.RESEARCH_AGENT.BASE_URL() +
+          API.ENDPOINTS.RESEARCH_AGENT.RUN(),
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: localStorage.getItem('token')
+              ? `Bearer ${localStorage.getItem('token')}`
+              : '',
+          },
+          body: JSON.stringify(data),
         },
-        body: JSON.stringify(data),
-      });
+      );
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -223,6 +248,116 @@ export function useResearch() {
     }
   }
 
+  async function runResearchAgentStream(
+    data: ResearchAgentRequest,
+    onMessage: (message: StreamMessage) => void,
+    onComplete: (result: ResearchAgentResponse) => void,
+    onError: (error: string) => void,
+  ): Promise<() => void> {
+    setLoading(true);
+
+    const abortController = new AbortController();
+
+    try {
+      const response = await fetch(
+        API.BASE_URL() +
+          API.ENDPOINTS.RESEARCH_AGENT.BASE_URL() +
+          API.ENDPOINTS.RESEARCH_AGENT.RUN_STREAM(),
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: localStorage.getItem('token')
+              ? `Bearer ${localStorage.getItem('token')}`
+              : '',
+          },
+          body: JSON.stringify(data),
+          signal: abortController.signal,
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body reader available');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      const processStream = async () => {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) {
+              setLoading(false);
+              break;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+            for (const line of lines) {
+              if (line.trim() === '') continue;
+
+              if (line.startsWith('data: ')) {
+                try {
+                  const messageData = line.slice(6); // Remove 'data: ' prefix
+                  const message: StreamMessage = JSON.parse(messageData);
+                  onMessage(message);
+
+                  if (message.type === 'result' && message.data) {
+                    onComplete(message.data);
+                  } else if (message.type === 'complete') {
+                    setLoading(false);
+                    toast.success('Research agent completed successfully!');
+                    return;
+                  } else if (message.type === 'error') {
+                    setLoading(false);
+                    onError(message.message || 'Unknown error occurred');
+                    toast.error(message.message || 'Research agent failed');
+                    return;
+                  }
+                } catch (parseError) {
+                  console.error('Error parsing stream message:', parseError);
+                }
+              }
+            }
+          }
+        } catch (streamError: any) {
+          if (streamError.name !== 'AbortError') {
+            console.error('Stream processing error:', streamError);
+            setLoading(false);
+            onError('Stream processing error occurred');
+            toast.error('Stream processing error occurred');
+          }
+        } finally {
+          reader.releaseLock();
+        }
+      };
+
+      processStream();
+    } catch (error: any) {
+      if (error.name !== 'AbortError') {
+        console.error('Fetch error:', error);
+        setLoading(false);
+        onError(error.message || 'Connection error occurred');
+        toast.error(error.message || 'Connection error occurred');
+      }
+    }
+
+    // Return cleanup function
+    return () => {
+      setLoading(false);
+      abortController.abort();
+    };
+  }
+
   return {
     loading,
     startResearch,
@@ -230,5 +365,6 @@ export function useResearch() {
     startResearchWithURLs,
     getResearchStatus,
     runResearchAgent,
+    runResearchAgentStream,
   };
 }
