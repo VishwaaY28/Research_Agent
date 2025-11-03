@@ -1,6 +1,7 @@
 from fastapi import HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional, AsyncGenerator
+import logging
 import json
 import asyncio
 import sys
@@ -11,7 +12,18 @@ from utils.agents import (
     extract_json, is_valid_url_object, is_valid_url
 )
 from crewai import Task, Crew
-from database.models import UserIntent, ResearchSectionTemplate
+from database.models import UserIntent, ResearchSectionTemplate, WorkspaceType
+from database.repositories.workspaces import workspace_repository
+from database.repositories.sections import section_repository
+from database.repositories.content import content_repository
+from database.repositories.users import user_repository
+
+logger = logging.getLogger(__name__)
+
+
+async def _kickoff_in_thread(crew: Crew) -> str:
+    """Run Crew.kickoff in a thread to avoid blocking the event loop."""
+    return await asyncio.to_thread(crew.kickoff)
 
 
 class Citation(BaseModel):
@@ -399,6 +411,80 @@ async def run_research_agent(request: ResearchAgentRequest) -> ResearchAgentResp
             final_report=final_report
         )
 
+        # Persist research results into a new workspace so each research run
+        # creates its own workspace with the company + product as the name.
+        try:
+            workspace_name = f"{request.company_name} - {request.product_name}"
+            tags = ['research', 'ai-generated', request.company_name.lower(), request.product_name.lower()]
+            workspace = await workspace_repository.create_workspace(
+                name=workspace_name,
+                client="Research Agent",
+                tag_names=tags,
+                workspace_type="Research"
+            )
+            print(f"Created workspace {workspace.id} for research results")
+
+            # Save scraped content as sections (one section per URL)
+            created_section_ids = []
+            try:
+                for u in urls:
+                    url_text = scraped_content.get(u.URL) if 'scraped_content' in locals() else None
+                    section = await section_repository.create_section(
+                        workspace_id=workspace.id,
+                        name=u.Description or u.URL,
+                        content=url_text or u.URL,
+                        source=u.URL,
+                        tags=[request.company_name, request.product_name, 'source']
+                    )
+                    created_section_ids.append(section.id)
+            except Exception as e:
+                print(f"Failed saving scraped contents as sections: {e}")
+
+            # Save analyzed research sections as workspace sections
+            try:
+                for sec in sections:
+                    s = await section_repository.create_section(
+                        workspace_id=workspace.id,
+                        name=sec.section_name,
+                        content=sec.content,
+                        source="Research Agent - Analysis",
+                        tags=[sec.group or 'research']
+                    )
+                    created_section_ids.append(s.id)
+            except Exception as e:
+                print(f"Failed saving analyzed sections: {e}")
+
+            # Create a system user to own the generated content if no user context
+            system_user = await user_repository.fetch_by_email('system@research-agent.local')
+            if not system_user:
+                try:
+                    system_user = await user_repository.insert('Research Agent', 'system@research-agent.local', '')
+                except Exception:
+                    system_user = await user_repository.fetch_by_id(1)
+
+            # Create a prompt record and save the final report as generated content
+            try:
+                prompt = await content_repository.create_prompt(
+                    workspace_id=workspace.id,
+                    user_id=system_user.id if system_user else 1,
+                    title=f"Research Report - {request.company_name} {request.product_name}",
+                    content=f"Auto-generated research report for {request.company_name} {request.product_name}"
+                )
+
+                await content_repository.create_generated_content(
+                    workspace_id=workspace.id,
+                    prompt_id=prompt.id,
+                    user_id=system_user.id if system_user else 1,
+                    content=final_report,
+                    section_ids=created_section_ids,
+                    tag_names=['research', 'ai-generated']
+                )
+            except Exception as e:
+                print(f"Failed to save generated report as generated content: {e}")
+
+        except Exception as e:
+            print(f"Failed to persist research workspace/content: {e}")
+
         print(f"Research Agent Response: {response.dict()}")
         return response
 
@@ -415,15 +501,15 @@ class LogCapture:
         self.logs = []
         self.original_stdout = sys.stdout
         self.original_stderr = sys.stderr
-        
+
     def write(self, text):
         if text.strip():
             self.logs.append(text.strip())
         self.original_stdout.write(text)
-        
+
     def flush(self):
         self.original_stdout.flush()
-        
+
     def get_new_logs(self):
         logs = self.logs.copy()
         self.logs.clear()
@@ -666,6 +752,99 @@ async def run_research_agent_streaming(request: ResearchAgentRequest) -> AsyncGe
 
         yield f"data: {json.dumps({'type': 'log', 'message': 'Research agent workflow completed successfully'})}\n\n"
 
+        # Persist research results into a new workspace so each research run
+        # creates its own workspace with the company + product as the name.
+        try:
+            print(f"Persisting research results to workspace for {request.company_name} - {request.product_name}")
+
+            # Get user intent name to use as workspace type
+            if request.user_intent_id:
+                user_intent = await UserIntent.get(id=request.user_intent_id)
+            else:
+                user_intent = await UserIntent.filter(is_default=True).first()
+
+            if not user_intent:
+                logger.warning("No user intent found, using 'Research' as workspace type")
+                workspace_type = "Research"
+            else:
+                workspace_type = user_intent.name
+                logger.info(f"Using user intent '{workspace_type}' as workspace type")
+
+            # Ensure workspace type exists
+            try:
+                workspace_type_obj = await WorkspaceType.get(name=workspace_type)
+                logger.info(f"Found existing workspace type: {workspace_type}")
+            except Exception:
+                logger.info(f"Creating workspace type: {workspace_type}")
+                workspace_type_obj = await WorkspaceType.create(name=workspace_type)
+
+            workspace_name = f"{request.company_name} - {request.product_name}"
+            tags = ['research', 'ai-generated', request.company_name.lower(), request.product_name.lower()]
+            workspace = await workspace_repository.create_workspace(
+                name=workspace_name,
+                client="Research Agent",
+                tag_names=tags,
+                workspace_type=workspace_type
+            )
+            print(f"Created workspace {workspace.id} for research results")
+
+            created_section_ids = []
+            try:
+                for u in urls:
+                    url_text = scraped_content.get(u.URL) if 'scraped_content' in locals() else None
+                    section = await section_repository.create_section(
+                        workspace_id=workspace.id,
+                        name=u.Description or u.URL,
+                        content=url_text or u.URL,
+                        source=u.URL,
+                        tags=[request.company_name, request.product_name, 'source']
+                    )
+                    created_section_ids.append(section.id)
+            except Exception as e:
+                print(f"Failed saving scraped contents as sections: {e}")
+
+            try:
+                for sec in sections:
+                    s = await section_repository.create_section(
+                        workspace_id=workspace.id,
+                        name=sec.section_name,
+                        content=sec.content,
+                        source="Research Agent - Analysis",
+                        tags=[sec.group or 'research']
+                    )
+                    created_section_ids.append(s.id)
+            except Exception as e:
+                print(f"Failed saving analyzed sections: {e}")
+
+            system_user = await user_repository.fetch_by_email('system@research-agent.local')
+            if not system_user:
+                try:
+                    system_user = await user_repository.insert('Research Agent', 'system@research-agent.local', '')
+                except Exception:
+                    system_user = await user_repository.fetch_by_id(1)
+
+            try:
+                prompt = await content_repository.create_prompt(
+                    workspace_id=workspace.id,
+                    user_id=system_user.id if system_user else 1,
+                    title=f"Research Report - {request.company_name} {request.product_name}",
+                    content=f"Auto-generated research report for {request.company_name} {request.product_name}"
+                )
+
+                await content_repository.create_generated_content(
+                    workspace_id=workspace.id,
+                    prompt_id=prompt.id,
+                    user_id=system_user.id if system_user else 1,
+                    content=final_report,
+                    section_ids=created_section_ids,
+                    tag_names=['research', 'ai-generated']
+                )
+            except Exception as e:
+                print(f"Failed to save generated report as generated content: {e}")
+
+        except Exception as e:
+            print(f"Failed to persist research workspace/content: {e}")
+
         response = ResearchAgentResponse(urls=urls, sections=sections, final_report=final_report)
         yield f"data: {json.dumps({'type': 'result', 'data': response.dict()})}\n\n"
         yield f"data: {json.dumps({'type': 'complete'})}\n\n"
@@ -723,13 +902,13 @@ async def fetch_urls_with_streaming(company_name: str, product_name: str, user_i
 
         # Capture logs during execution
         url_output = crew_initial.kickoff()
-        
+
         # Check for new logs and stream them
         new_logs = log_capture.get_new_logs()
         for log in new_logs:
             # This would need to be yielded in the main streaming function
             pass
-            
+
         parsed_json = extract_json(str(url_output))
         url_list = [URLItem(**obj) for obj in parsed_json if is_valid_url_object(obj)]
 
@@ -760,7 +939,7 @@ async def scrape_all_urls_with_streaming(urls: List[str], log_capture: LogCaptur
 
             output = crew_scraping.kickoff()
             scraped_content[url] = str(output)
-            
+
             # Capture logs
             new_logs = log_capture.get_new_logs()
             for log in new_logs:

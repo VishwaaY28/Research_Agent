@@ -1,7 +1,7 @@
 import logging
 from openai import AzureOpenAI, OpenAI
-from azure.identity import DefaultAzureCredential
-from azure.keyvault.secrets import SecretClient
+# from azure.identity import DefaultAzureCredential
+# from azure.keyvault.secrets import SecretClient
 from typing import List, Dict, Any, Optional
 import tiktoken
 from config.env import env
