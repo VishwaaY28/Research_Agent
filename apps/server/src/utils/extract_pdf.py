@@ -17,6 +17,16 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from collections import Counter
 import string
 
+
+try:
+    nltk.data.find('tokenizers/punkt')
+    nltk.data.find('corpora/stopwords')
+    nltk.data.find('corpora/wordnet')
+except LookupError:
+    nltk.download('punkt')
+    nltk.download('stopwords')
+    nltk.download('wordnet')
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -60,34 +70,34 @@ def extract_keywords(text: str, max_keywords: int = 5) -> List[str]:
 
 def detect_heading_with_libraries(element: Union[Dict[str, Any], Any], doc: Any = None) -> bool:
     """Detect headers using unstructured and PyMuPDF features"""
-    
+
     # First check if unstructured identified it as a Title
     if isinstance(element, Title):
         return True
-        
+
     if not isinstance(element, (Text, NarrativeText, ListItem)) and not isinstance(element, dict):
         return False
-        
+
     text = element.get("text", "") if isinstance(element, dict) else getattr(element, "text", "")
     text = text.strip()
     if not text:
         return False
-        
+
     # Get font info if available in metadata
     metadata = element.get("metadata", {}) if isinstance(element, dict) else getattr(element, "metadata", {})
     font_info = metadata.get("font_info", {})
-    
+
     # Check font properties that typically indicate headers
     is_bold = font_info.get("is_bold", False)
     font_size = font_info.get("font_size", 0)
     base_font_size = metadata.get("body_font_size", 0)
-    
+
     # If we have font information, use it
     if font_info and base_font_size:
         # Headers are typically bold and larger than regular text
         if is_bold and font_size > base_font_size:
             return True
-            
+
     # Fallback to pattern-based detection if no clear font signals
     # Skip single numbers or very short text
     if len(text) <= 3 or text.isdigit():

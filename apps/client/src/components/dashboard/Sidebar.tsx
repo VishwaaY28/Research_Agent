@@ -14,48 +14,8 @@ const Sidebar: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [showPromptTemplateModal, setShowPromptTemplateModal] = useState(false);
 
-  const [ingestionOpen, setIngestionOpen] = useState(
-    location.pathname.startsWith('/dashboard/content-ingestion') ||
-      location.pathname.startsWith('/dashboard/content-sources'),
-  );
-
-  // Collapse ingestion tree when navigating to any other sidebar tab
-  React.useEffect(() => {
-    if (
-      !location.pathname.startsWith('/dashboard/content-ingestion') &&
-      !location.pathname.startsWith('/dashboard/content-sources')
-    ) {
-      setIngestionOpen(false);
-    }
-  }, [location.pathname]);
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: SidebarIcons.dashboard },
-    {
-      label: 'Content Ingestion',
-      icon: SidebarIcons.ingestion,
-      isParent: true,
-      open: ingestionOpen,
-      onClick: () => {
-        if (!ingestionOpen) {
-          setIngestionOpen(true);
-          navigate('/dashboard/content-ingestion');
-        } else {
-          setIngestionOpen(false);
-        }
-      },
-      children: [
-        {
-          path: '/dashboard/content-ingestion',
-          label: 'Ingest Content',
-          icon: SidebarIcons.ingestion,
-        },
-        {
-          path: '/dashboard/content-sources',
-          label: 'Content Sources',
-          icon: SidebarIcons.sources,
-        },
-      ],
-    },
     { path: '/dashboard/workspaces', label: 'Workspaces', icon: SidebarIcons.workspaces },
     {
       path: '/dashboard/prompt-templates',
